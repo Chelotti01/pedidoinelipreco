@@ -20,7 +20,7 @@ export default function EditRegisteredProductPage() {
   const params = useParams();
   const { toast } = useToast();
   
-  // Garante que o ID seja uma string
+  // Captura o ID da URL de forma segura
   const id = Array.isArray(params.id) ? params.id[0] : params.id;
 
   const productRef = useMemoFirebase(() => id ? doc(db, 'registered_products', id) : null, [db, id]);
@@ -48,7 +48,7 @@ export default function EditRegisteredProductPage() {
 
   const [hasPopulated, setHasPopulated] = useState(false);
 
-  // Popula o formulário assim que o produto é carregado
+  // Popula o formulário apenas quando os dados chegam e ainda não foram populados
   useEffect(() => {
     if (product && !hasPopulated) {
       setFormData({
@@ -101,16 +101,22 @@ export default function EditRegisteredProductPage() {
     router.push('/admin/products');
   };
 
-  if (isProductLoading || (!product && !hasPopulated && id)) {
+  // Estado de carregamento: só sai daqui quando o produto for carregado E populado no state local
+  // ou se o carregamento terminar e o produto for null (não encontrado)
+  if (isProductLoading || (id && !product && !hasPopulated)) {
     return (
       <div className="flex h-[80vh] items-center justify-center flex-col gap-4">
         <Loader2 className="animate-spin text-primary" size={48} />
-        <p className="text-muted-foreground animate-pulse">Carregando dados do banco...</p>
+        <div className="text-center">
+          <p className="text-muted-foreground font-medium animate-pulse">Sincronizando com banco de dados...</p>
+          <p className="text-xs text-muted-foreground/60 mt-1">Isso pode levar alguns segundos na primeira carga.</p>
+        </div>
       </div>
     );
   }
 
-  if (!isProductLoading && !product && hasPopulated === false) {
+  // Se o carregamento terminou, não populou nada e o produto é null, então realmente não existe
+  if (!isProductLoading && !product && !hasPopulated) {
     return (
       <div className="container mx-auto px-4 py-20 text-center">
         <AlertCircle className="mx-auto mb-4 text-destructive" size={48} />
