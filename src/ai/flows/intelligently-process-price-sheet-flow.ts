@@ -40,7 +40,7 @@ const FactorySheetOutputSchema = z.object({
   discounts: z.array(DiscountSchema).describe('A list of discounts found in the sheet.'),
 });
 
-export const ProcessPriceSheetOutputSchema = z
+const ProcessPriceSheetOutputSchema = z
   .array(FactorySheetOutputSchema)
   .describe('An array containing processed data for each factory sheet in the XLSX file.');
 export type ProcessPriceSheetOutput = z.infer<typeof ProcessPriceSheetOutputSchema>;
