@@ -13,11 +13,12 @@ import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "@/components/ui/table";
 import { useToast } from "@/hooks/use-toast";
-import { ShoppingCart, Plus, Trash2, Calculator, ReceiptText, ChevronLeft, Zap, ArrowRight, Loader2 } from "lucide-react";
+import { ShoppingCart, Plus, Trash2, Calculator, ReceiptText, ChevronLeft, Zap, ArrowRight, Loader2, AlertCircle } from "lucide-react";
 import Link from 'next/link';
 
 export type OrderItem = {
-  productId: string;
+  productId: string; // ID do Produto Registrado
+  catalogProductId: string; // ID do Produto no Catálogo (Preço)
   factoryName: string;
   name: string;
   unit: string;
@@ -36,8 +37,11 @@ export default function NewOrderPage() {
   const factoriesQuery = useMemoFirebase(() => query(collection(db, 'factories'), orderBy('name')), [db]);
   const { data: factories, isLoading: isFactoriesLoading } = useCollection(factoriesQuery);
 
-  const productsQuery = useMemoFirebase(() => query(collection(db, 'catalog_products'), orderBy('name')), [db]);
-  const { data: catalogProducts, isLoading: isProductsLoading } = useCollection(productsQuery);
+  const registeredProductsQuery = useMemoFirebase(() => query(collection(db, 'registered_products'), orderBy('description')), [db]);
+  const { data: registeredProducts, isLoading: isRegisteredLoading } = useCollection(registeredProductsQuery);
+
+  const catalogProductsQuery = useMemoFirebase(() => query(collection(db, 'catalog_products')), [db]);
+  const { data: catalogProducts, isLoading: isCatalogLoading } = useCollection(catalogProductsQuery);
 
   const [orderItems, setOrderItems] = useState<OrderItem[]>([]);
 
@@ -48,51 +52,60 @@ export default function NewOrderPage() {
   const [priceType, setPriceType] = useState<'closed' | 'fractional'>('closed');
   const [discountPercent, setDiscountPercent] = useState<number>(0);
 
-  const currentFactory = useMemo(() => {
-    return factories?.find(f => f.id === selectedFactoryId);
-  }, [selectedFactoryId, factories]);
-
-  const currentProduct = useMemo(() => {
-    return catalogProducts?.find(p => p.id === selectedProductId);
-  }, [selectedProductId, catalogProducts]);
-
+  // Filtra produtos registrados: da fábrica selecionada E que tenham vínculo (catalogProductId)
   const filteredProducts = useMemo(() => {
-    if (selectedFactoryId === "none") return [];
-    return catalogProducts?.filter(p => p.factoryId === selectedFactoryId) || [];
-  }, [selectedFactoryId, catalogProducts]);
+    if (selectedFactoryId === "none" || !registeredProducts) return [];
+    return registeredProducts.filter(p => 
+      p.factoryId === selectedFactoryId && p.catalogProductId
+    );
+  }, [selectedFactoryId, registeredProducts]);
+
+  const currentRegisteredProduct = useMemo(() => {
+    return registeredProducts?.find(p => p.id === selectedProductId);
+  }, [selectedProductId, registeredProducts]);
+
+  const currentCatalogProduct = useMemo(() => {
+    if (!currentRegisteredProduct?.catalogProductId) return null;
+    return catalogProducts?.find(p => p.id === currentRegisteredProduct.catalogProductId);
+  }, [currentRegisteredProduct, catalogProducts]);
 
   const handleAddProduct = () => {
-    if (!currentProduct || !currentFactory) return;
+    if (!currentRegisteredProduct || !currentCatalogProduct) {
+      toast({ title: "Erro", description: "Produto inválido ou sem vínculo de preço.", variant: "destructive" });
+      return;
+    }
 
     const unitPrice = priceType === 'closed' 
-      ? currentProduct.closedLoadPrice 
-      : currentProduct.fractionalLoadPrice;
+      ? currentCatalogProduct.closedLoadPrice 
+      : currentCatalogProduct.fractionalLoadPrice;
 
-    // Usamos o desconto que vem do catálogo se disponível, ou o manual
-    const discountToApply = currentProduct.discountAmount && unitPrice > 0 
-      ? (currentProduct.discountAmount / unitPrice) * 100 
-      : discountPercent;
+    // Desconto fixo em R$ do catálogo (se existir)
+    const fixedDiscount = currentCatalogProduct.discountAmount || 0;
     
-    const discountValue = discountToApply / 100;
-    const discountedUnitPrice = unitPrice * (1 - discountValue);
-    const total = discountedUnitPrice * quantity;
+    // Calcula o preço líquido: (Preço Base - Desconto Fixo R$) * (1 - Desconto Extra %)
+    const netPrice = (unitPrice - fixedDiscount) * (1 - discountPercent / 100);
+    const total = netPrice * quantity;
+
+    // Calcula a porcentagem total de desconto para exibição
+    const totalDiscountPct = unitPrice > 0 ? ((unitPrice - netPrice) / unitPrice) * 100 : 0;
 
     const newItem: OrderItem = {
-      productId: currentProduct.id,
-      factoryName: currentFactory.name,
-      name: currentProduct.name,
-      unit: currentProduct.unit,
+      productId: currentRegisteredProduct.id,
+      catalogProductId: currentCatalogProduct.id,
+      factoryName: factories?.find(f => f.id === selectedFactoryId)?.name || "Fábrica",
+      name: currentRegisteredProduct.description,
+      unit: currentRegisteredProduct.unit,
       quantity,
       priceType,
       unitPrice,
-      appliedDiscount: Number(discountToApply.toFixed(2)),
+      appliedDiscount: Number(totalDiscountPct.toFixed(2)),
       total
     };
 
     setOrderItems([...orderItems, newItem]);
     toast({
       title: "Produto adicionado",
-      description: `${currentProduct.name} foi adicionado ao pedido.`,
+      description: `${currentRegisteredProduct.description} foi adicionado ao pedido.`,
     });
 
     // Reset fields
@@ -109,7 +122,7 @@ export default function NewOrderPage() {
     return orderItems.reduce((acc, item) => acc + item.total, 0);
   }, [orderItems]);
 
-  const isLoading = isFactoriesLoading || isProductsLoading;
+  const isLoading = isFactoriesLoading || isRegisteredLoading || isCatalogLoading;
 
   return (
     <div className="container mx-auto px-4 py-12">
@@ -120,7 +133,7 @@ export default function NewOrderPage() {
           </Link>
           <div>
             <h1 className="text-3xl font-bold tracking-tight">Criar Novo Pedido</h1>
-            <p className="text-muted-foreground">Adicione produtos, aplique descontos e visualize o total dinâmico.</p>
+            <p className="text-muted-foreground">Listando produtos registrados vinculados ao catálogo.</p>
           </div>
         </div>
         <div className="bg-primary/10 text-primary px-4 py-2 rounded-lg font-bold flex items-center gap-2">
@@ -136,11 +149,13 @@ export default function NewOrderPage() {
               <CardTitle className="text-lg flex items-center gap-2">
                 <Plus size={18} className="text-primary" /> Adicionar Produto
               </CardTitle>
+              <CardDescription>Apenas produtos amarrados (bolinha verde) aparecem aqui.</CardDescription>
             </CardHeader>
             <CardContent className="pt-6 space-y-4">
               {isLoading ? (
-                <div className="flex items-center justify-center py-8">
+                <div className="flex flex-col items-center justify-center py-8 gap-2">
                   <Loader2 className="animate-spin text-primary" />
+                  <span className="text-xs text-muted-foreground">Sincronizando banco...</span>
                 </div>
               ) : (
                 <>
@@ -163,23 +178,32 @@ export default function NewOrderPage() {
                   </div>
 
                   <div className="space-y-2">
-                    <Label>Produto</Label>
-                    <Select value={selectedProductId} onValueChange={setSelectedProductId} disabled={selectedFactoryId === "none"}>
+                    <Label>Produto Registrado</Label>
+                    <Select 
+                      value={selectedProductId} 
+                      onValueChange={setSelectedProductId} 
+                      disabled={selectedFactoryId === "none" || filteredProducts.length === 0}
+                    >
                       <SelectTrigger>
-                        <SelectValue placeholder="Selecione o produto" />
+                        <SelectValue placeholder={selectedFactoryId === "none" ? "Selecione a fábrica primeiro" : filteredProducts.length === 0 ? "Nenhum item vinculado" : "Selecione o produto"} />
                       </SelectTrigger>
                       <SelectContent>
                         <SelectItem value="none">Selecione o produto</SelectItem>
                         {filteredProducts.map(p => (
-                          <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
+                          <SelectItem key={p.id} value={p.id}>{p.code} - {p.description}</SelectItem>
                         ))}
                       </SelectContent>
                     </Select>
+                    {selectedFactoryId !== "none" && filteredProducts.length === 0 && (
+                      <div className="flex items-center gap-1.5 text-[10px] text-destructive font-medium mt-1">
+                        <AlertCircle size={12} /> Nenhuma ficha amarrada encontrada para esta fábrica.
+                      </div>
+                    )}
                   </div>
 
                   <div className="grid grid-cols-2 gap-4">
                     <div className="space-y-2">
-                      <Label>Quantidade ({currentProduct?.unit || "-"})</Label>
+                      <Label>Quantidade ({currentRegisteredProduct?.unit || "-"})</Label>
                       <Input 
                         type="number" 
                         min="1" 
@@ -224,7 +248,7 @@ export default function NewOrderPage() {
               <Button 
                 className="w-full gap-2 h-12 text-lg font-semibold" 
                 onClick={handleAddProduct}
-                disabled={selectedProductId === "none" || isLoading}
+                disabled={selectedProductId === "none" || isLoading || !currentCatalogProduct}
               >
                 <Plus size={18} /> Adicionar ao Carrinho
               </Button>
@@ -232,30 +256,31 @@ export default function NewOrderPage() {
           </Card>
 
           {/* Current Selection Price Preview */}
-          {currentProduct && (
+          {currentCatalogProduct && (
             <Card className="bg-accent/5 border-accent/20">
               <CardContent className="p-4 space-y-2 text-sm">
                 <div className="flex justify-between">
-                  <span className="text-muted-foreground">Preço Unitário (Base):</span>
-                  <span className="font-semibold">R$ {(priceType === 'closed' ? currentProduct.closedLoadPrice : currentProduct.fractionalLoadPrice).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
+                  <span className="text-muted-foreground">Preço Base ({currentCatalogProduct.name}):</span>
+                  <span className="font-semibold">R$ {(priceType === 'closed' ? currentCatalogProduct.closedLoadPrice : currentCatalogProduct.fractionalLoadPrice).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
                 </div>
-                {(currentProduct.discountAmount > 0 || discountPercent > 0) && (
+                {currentCatalogProduct.discountAmount > 0 && (
                    <div className="flex justify-between text-accent">
-                    <span>Desconto Aplicado:</span>
-                    <span>
-                      {currentProduct.discountAmount > 0 
-                        ? `R$ ${currentProduct.discountAmount.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}` 
-                        : `${discountPercent}%`}
-                    </span>
+                    <span>Desconto Fábrica (R$):</span>
+                    <span>- R$ {currentCatalogProduct.discountAmount.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
+                  </div>
+                )}
+                {discountPercent > 0 && (
+                   <div className="flex justify-between text-accent">
+                    <span>Desconto Extra:</span>
+                    <span>{discountPercent}%</span>
                   </div>
                 )}
                 <div className="pt-2 border-t flex justify-between text-lg font-bold text-primary">
-                  <span>Subtotal Previsto:</span>
+                  <span>Unitário Líquido:</span>
                   <span>
                     R$ {(
-                      ((priceType === 'closed' ? currentProduct.closedLoadPrice : currentProduct.fractionalLoadPrice) - (currentProduct.discountAmount || 0)) * 
-                      (1 - discountPercent / 100) * 
-                      quantity
+                      ((priceType === 'closed' ? currentCatalogProduct.closedLoadPrice : currentCatalogProduct.fractionalLoadPrice) - (currentCatalogProduct.discountAmount || 0)) * 
+                      (1 - discountPercent / 100)
                     ).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
                   </span>
                 </div>
@@ -272,7 +297,7 @@ export default function NewOrderPage() {
                 <CardTitle className="text-xl flex items-center gap-2">
                   <ShoppingCart size={20} /> Resumo do Pedido
                 </CardTitle>
-                <CardDescription className="text-white/80">Revise os itens e o total calculado.</CardDescription>
+                <CardDescription className="text-white/80">Itens selecionados da sua tabela paralela.</CardDescription>
               </div>
               <Badge variant="outline" className="text-white border-white/40">Itens: {orderItems.length}</Badge>
             </CardHeader>
@@ -280,16 +305,16 @@ export default function NewOrderPage() {
               {orderItems.length === 0 ? (
                 <div className="flex flex-col items-center justify-center h-full py-20 text-muted-foreground">
                   <Calculator size={48} className="mb-4 opacity-20" />
-                  <p>Adicione produtos para começar o pedido.</p>
+                  <p>Adicione produtos registrados para começar o pedido.</p>
                 </div>
               ) : (
                 <div className="overflow-x-auto">
                   <Table>
                     <TableHeader>
                       <TableRow>
-                        <TableHead>Item</TableHead>
+                        <TableHead>Item Paralelo</TableHead>
                         <TableHead>Fábrica</TableHead>
-                        <TableHead>Preço/Un</TableHead>
+                        <TableHead>Preço Base</TableHead>
                         <TableHead>Qtd</TableHead>
                         <TableHead>Total</TableHead>
                         <TableHead></TableHead>
@@ -300,13 +325,13 @@ export default function NewOrderPage() {
                         <TableRow key={`${item.productId}-${idx}`}>
                           <TableCell>
                             <div className="font-semibold">{item.name}</div>
-                            <div className="text-xs text-muted-foreground uppercase">{item.priceType === 'closed' ? 'Carga Fechada' : 'Fracionada'}</div>
+                            <div className="text-[10px] text-muted-foreground uppercase">{item.priceType === 'closed' ? 'Carga Fechada' : 'Fracionada'}</div>
                           </TableCell>
-                          <TableCell><Badge variant="outline">{item.factoryName}</Badge></TableCell>
+                          <TableCell><Badge variant="outline" className="text-[10px]">{item.factoryName}</Badge></TableCell>
                           <TableCell>
                             <div className="text-sm font-medium">R$ {item.unitPrice.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</div>
                             {item.appliedDiscount > 0 && (
-                              <div className="text-[10px] text-accent font-bold">-{item.appliedDiscount}% OFF</div>
+                              <div className="text-[10px] text-accent font-bold">-{item.appliedDiscount}% TOTAL</div>
                             )}
                           </TableCell>
                           <TableCell>{item.quantity} {item.unit}</TableCell>
