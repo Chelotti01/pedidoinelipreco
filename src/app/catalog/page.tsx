@@ -8,7 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "@/components/ui/table";
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
-import { Search, Filter, Factory, ShoppingCart, Info, Package, DollarSign, Zap } from "lucide-react";
+import { Search, Filter, Factory, ShoppingCart, Info, Package, DollarSign, Zap, UploadCloud } from "lucide-react";
 import Link from 'next/link';
 
 export default function CatalogPage() {
