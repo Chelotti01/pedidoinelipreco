@@ -2,7 +2,7 @@
 import Link from 'next/link';
 import { Button } from "@/components/ui/button";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
-import { ShoppingCart, UploadCloud, ListChecks, ArrowRight, ShieldCheck, Zap, Settings, History, Weight } from "lucide-react";
+import { ShoppingCart, ListChecks, ArrowRight, ShieldCheck, Zap, History, Weight, Users } from "lucide-react";
 
 export default function Home() {
   return (
@@ -19,7 +19,8 @@ export default function Home() {
           <nav className="hidden md:flex items-center gap-6">
             <Link href="/orders/history" className="text-sm font-medium hover:text-primary transition-colors">Histórico</Link>
             <Link href="/catalog" className="text-sm font-medium hover:text-primary transition-colors">Catálogo</Link>
-            <Link href="/admin/products" className="text-sm font-medium hover:text-primary transition-colors text-accent font-bold">Gerir Produtos</Link>
+            <Link href="/admin/products" className="text-sm font-medium hover:text-primary transition-colors">Produtos</Link>
+            <Link href="/admin/customers" className="text-sm font-medium hover:text-primary transition-colors text-accent font-bold">Clientes</Link>
             <Link href="/upload" className="text-sm font-medium hover:text-primary transition-colors">Importar XLSX</Link>
             <Link href="/orders/new">
               <Button size="sm" className="gap-2">
@@ -46,9 +47,9 @@ export default function Home() {
                   <ShoppingCart size={20} /> Começar Pedido
                 </Button>
               </Link>
-              <Link href="/orders/history">
+              <Link href="/admin/customers">
                 <Button size="lg" variant="outline" className="h-14 px-8 text-lg gap-2 border-primary text-primary">
-                  <History size={20} /> Ver Histórico
+                  <Users size={20} /> Gerenciar Clientes
                 </Button>
               </Link>
             </div>

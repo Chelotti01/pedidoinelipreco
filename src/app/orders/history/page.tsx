@@ -5,9 +5,8 @@ import { useFirestore, useCollection, useMemoFirebase, deleteDocumentNonBlocking
 import { collection, query, orderBy, doc } from 'firebase/firestore';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import { History, ChevronLeft, FileText, Trash2, Printer, ShoppingBag, Weight, Calendar, ArrowRight } from "lucide-react";
+import { History, ChevronLeft, FileText, Trash2, Printer, ShoppingBag, Weight, Calendar, ArrowRight, User } from "lucide-react";
 import Link from 'next/link';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
@@ -93,24 +92,30 @@ export default function OrderHistoryPage() {
                 </div>
               </CardHeader>
               <CardContent className="pt-6">
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+                <div className="grid grid-cols-1 md:grid-cols-4 gap-8">
                   <div className="space-y-1">
-                    <p className="text-xs text-muted-foreground uppercase font-bold">Resumo Logístico</p>
-                    <div className="flex items-center gap-2 font-bold text-lg">
-                      <Weight size={18} className="text-primary" />
-                      {order.totalWeight?.toFixed(2)} Kg de Carga
+                    <p className="text-xs text-muted-foreground uppercase font-bold">Cliente</p>
+                    <div className="flex items-center gap-2 font-bold">
+                      <User size={16} className="text-accent" />
+                      {order.customerName || 'Não Informado'}
                     </div>
-                    <p className="text-xs text-muted-foreground">{order.items?.length} itens diferentes no pedido</p>
                   </div>
                   <div className="space-y-1">
-                    <p className="text-xs text-muted-foreground uppercase font-bold">Valor do Pedido</p>
-                    <p className="text-2xl font-black text-primary">{formatCurrency(order.totalAmount || 0)}</p>
-                    <Badge variant="outline" className="text-xs font-normal">ST e Contratos Inclusos</Badge>
+                    <p className="text-xs text-muted-foreground uppercase font-bold">Resumo Logístico</p>
+                    <div className="flex items-center gap-2 font-bold">
+                      <Weight size={16} className="text-primary" />
+                      {order.totalWeight?.toFixed(2)} Kg
+                    </div>
+                    <p className="text-xs text-muted-foreground">{order.items?.length} itens</p>
+                  </div>
+                  <div className="space-y-1">
+                    <p className="text-xs text-muted-foreground uppercase font-bold">Valor</p>
+                    <p className="text-xl font-black text-primary">{formatCurrency(order.totalAmount || 0)}</p>
                   </div>
                   <div className="flex items-center justify-end">
                     <Link href={`/orders/view/${order.id}`} className="w-full md:w-auto">
                       <Button variant="secondary" className="w-full gap-2">
-                        Ver Detalhes do Pedido <ArrowRight size={16} />
+                        Ver Detalhes <ArrowRight size={16} />
                       </Button>
                     </Link>
                   </div>

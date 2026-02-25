@@ -57,12 +57,30 @@
       },
       "required": ["id", "status", "code", "description"]
     },
+    "Customer": {
+      "title": "Customer",
+      "type": "object",
+      "description": "Customer information.",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "cnpj": { "type": "string" },
+        "paymentTerm": { "type": "string" },
+        "loadType": { "type": "string", "enum": ["Paletizada", "Batida"] },
+        "observations": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "name", "cnpj"]
+    },
     "Order": {
       "title": "Order",
       "type": "object",
       "description": "Customer order history.",
       "properties": {
         "id": { "type": "string" },
+        "customerId": { "type": "string" },
+        "customerName": { "type": "string" },
         "items": { "type": "array" },
         "totalAmount": { "type": "number" },
         "totalWeight": { "type": "number" },
@@ -85,6 +103,10 @@
     "/registered_products/{registeredProductId}": {
       "schema": "#/entities/RegisteredProduct",
       "description": "Parallel product registrations."
+    },
+    "/customers/{customerId}": {
+      "schema": "#/entities/Customer",
+      "description": "Customers list."
     },
     "/orders/{orderId}": {
       "schema": "#/entities/Order",

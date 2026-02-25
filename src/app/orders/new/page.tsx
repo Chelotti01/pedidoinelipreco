@@ -15,7 +15,7 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Switch } from "@/components/ui/switch";
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "@/components/ui/table";
 import { useToast } from "@/hooks/use-toast";
-import { ShoppingCart, Plus, Trash2, Calculator, ReceiptText, ChevronLeft, Zap, ArrowRight, Loader2, Weight, Tag, Info, Gavel } from "lucide-react";
+import { ShoppingCart, Plus, Trash2, Calculator, ReceiptText, ChevronLeft, Zap, ArrowRight, Loader2, Weight, Tag, Info, Gavel, User } from "lucide-react";
 import Link from 'next/link';
 
 export type OrderItem = {
@@ -50,9 +50,13 @@ export default function NewOrderPage() {
   const catalogProductsQuery = useMemoFirebase(() => query(collection(db, 'catalog_products')), [db]);
   const { data: catalogProducts, isLoading: isCatalogLoading } = useCollection(catalogProductsQuery);
 
+  const customersQuery = useMemoFirebase(() => query(collection(db, 'customers'), orderBy('name', 'asc')), [db]);
+  const { data: customers, isLoading: isCustomersLoading } = useCollection(customersQuery);
+
   const [orderItems, setOrderItems] = useState<OrderItem[]>([]);
   const [isFinalizing, setIsFinalizing] = useState(false);
 
+  const [selectedCustomerId, setSelectedCustomerId] = useState<string>("none");
   const [selectedFactoryId, setSelectedFactoryId] = useState<string>("none");
   const [selectedProductId, setSelectedProductId] = useState<string>("none");
   const [quantity, setQuantity] = useState<number>(1);
@@ -75,6 +79,10 @@ export default function NewOrderPage() {
     if (!currentRegisteredProduct?.catalogProductId) return null;
     return catalogProducts?.find(p => p.id === currentRegisteredProduct.catalogProductId);
   }, [currentRegisteredProduct, catalogProducts]);
+
+  const selectedCustomer = useMemo(() => {
+    return customers?.find(c => c.id === selectedCustomerId);
+  }, [selectedCustomerId, customers]);
 
   const parseST = (stValue: string | undefined): number => {
     if (!stValue) return 0;
@@ -153,9 +161,15 @@ export default function NewOrderPage() {
 
   const handleFinalizeOrder = async () => {
     if (orderItems.length === 0) return;
+    if (selectedCustomerId === "none") {
+      toast({ title: "Cliente obrigatório", description: "Por favor, selecione um cliente para o pedido.", variant: "destructive" });
+      return;
+    }
 
     setIsFinalizing(true);
     const orderData = {
+      customerId: selectedCustomerId,
+      customerName: selectedCustomer?.name || 'Cliente Desconhecido',
       items: orderItems,
       totalAmount: orderTotal,
       totalWeight: orderTotalWeight,
@@ -191,7 +205,7 @@ export default function NewOrderPage() {
     return orderItems.reduce((acc, item) => acc + item.weight, 0);
   }, [orderItems]);
 
-  const isLoading = isFactoriesLoading || isRegisteredLoading || isCatalogLoading;
+  const isLoading = isFactoriesLoading || isRegisteredLoading || isCatalogLoading || isCustomersLoading;
 
   const formatCurrency = (val: number) => {
     return val.toLocaleString('pt-BR', { 
@@ -224,6 +238,34 @@ export default function NewOrderPage() {
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
         <div className="lg:col-span-1 space-y-6">
+          <Card className="shadow-lg border-none">
+             <CardHeader className="bg-accent/5">
+                <CardTitle className="text-lg flex items-center gap-2">
+                  <User size={18} className="text-accent" /> Seleção do Cliente
+                </CardTitle>
+             </CardHeader>
+             <CardContent className="pt-6">
+                <Select value={selectedCustomerId} onValueChange={setSelectedCustomerId}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Selecione o cliente" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">Escolha um cliente...</SelectItem>
+                    {customers?.map(c => (
+                      <SelectItem key={c.id} value={c.id}>{c.name} ({c.cnpj})</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                {selectedCustomer && (
+                  <div className="mt-3 p-3 bg-muted rounded-md text-[10px] space-y-1">
+                    <p><strong>CNPJ:</strong> {selectedCustomer.cnpj}</p>
+                    <p><strong>Prazo:</strong> {selectedCustomer.paymentTerm}</p>
+                    <p><strong>Tipo Carga:</strong> {selectedCustomer.loadType}</p>
+                  </div>
+                )}
+             </CardContent>
+          </Card>
+
           <Card className="shadow-lg border-none overflow-hidden">
             <CardHeader className="bg-primary/5">
               <CardTitle className="text-lg flex items-center gap-2">
@@ -394,7 +436,9 @@ export default function NewOrderPage() {
                 <CardTitle className="text-xl flex items-center gap-2">
                   <ShoppingCart size={22} /> Resumo do Carrinho
                 </CardTitle>
-                <CardDescription className="text-white/80">Itens com impostos e contratos aplicados.</CardDescription>
+                <CardDescription className="text-white/80">
+                  {selectedCustomer ? `Pedido para: ${selectedCustomer.name}` : 'Selecione um cliente para finalizar'}
+                </CardDescription>
               </div>
               <Badge variant="outline" className="text-white border-white/40 px-3 py-1 font-bold">
                 {orderItems.length} {orderItems.length === 1 ? 'Item' : 'Itens'}
@@ -484,7 +528,7 @@ export default function NewOrderPage() {
                   <Button 
                     className="h-14 bg-accent hover:bg-accent/90 text-white shadow-xl gap-2 group text-lg font-bold"
                     onClick={handleFinalizeOrder}
-                    disabled={isFinalizing}
+                    disabled={isFinalizing || selectedCustomerId === "none"}
                   >
                     {isFinalizing ? <Loader2 className="animate-spin" /> : <ReceiptText size={20} />}
                     Finalizar Pedido <ArrowRight className="group-hover:translate-x-1 transition-transform" />
