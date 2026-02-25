@@ -1,7 +1,9 @@
+
 "use client"
 
-import { useState, useEffect, useMemo } from 'react';
-import { getStoredData, ProcessPriceSheetOutput, OrderItem } from '@/lib/store';
+import { useState, useMemo } from 'react';
+import { useFirestore, useCollection, useMemoFirebase } from '@/firebase';
+import { collection, query, orderBy } from 'firebase/firestore';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -11,72 +13,92 @@ import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "@/components/ui/table";
 import { useToast } from "@/hooks/use-toast";
-import { ShoppingCart, Plus, Trash2, Calculator, ReceiptText, ChevronLeft, Zap, ArrowRight } from "lucide-react";
+import { ShoppingCart, Plus, Trash2, Calculator, ReceiptText, ChevronLeft, Zap, ArrowRight, Loader2 } from "lucide-react";
 import Link from 'next/link';
 
+export type OrderItem = {
+  productId: string;
+  factoryName: string;
+  name: string;
+  unit: string;
+  quantity: number;
+  priceType: 'closed' | 'fractional';
+  unitPrice: number;
+  appliedDiscount: number;
+  total: number;
+};
+
 export default function NewOrderPage() {
-  const [data, setData] = useState<ProcessPriceSheetOutput>([]);
-  const [orderItems, setOrderItems] = useState<OrderItem[]>([]);
+  const db = useFirestore();
   const { toast } = useToast();
+  
+  // Firestore Data
+  const factoriesQuery = useMemoFirebase(() => query(collection(db, 'factories'), orderBy('name')), [db]);
+  const { data: factories, isLoading: isFactoriesLoading } = useCollection(factoriesQuery);
+
+  const productsQuery = useMemoFirebase(() => query(collection(db, 'catalog_products'), orderBy('name')), [db]);
+  const { data: catalogProducts, isLoading: isProductsLoading } = useCollection(productsQuery);
+
+  const [orderItems, setOrderItems] = useState<OrderItem[]>([]);
 
   // New Item State
-  const [selectedFactory, setSelectedFactory] = useState<string>("");
-  const [selectedProduct, setSelectedProduct] = useState<string>("");
+  const [selectedFactoryId, setSelectedFactoryId] = useState<string>("none");
+  const [selectedProductId, setSelectedProductId] = useState<string>("none");
   const [quantity, setQuantity] = useState<number>(1);
   const [priceType, setPriceType] = useState<'closed' | 'fractional'>('closed');
-  const [selectedDiscount, setSelectedDiscount] = useState<string>("");
+  const [discountPercent, setDiscountPercent] = useState<number>(0);
 
-  useEffect(() => {
-    const stored = getStoredData();
-    setData(stored);
-    if (stored.length > 0) {
-      setSelectedFactory(stored[0].factoryName);
-    }
-  }, []);
+  const currentFactory = useMemo(() => {
+    return factories?.find(f => f.id === selectedFactoryId);
+  }, [selectedFactoryId, factories]);
 
-  const currentFactoryData = useMemo(() => {
-    return data.find(f => f.factoryName === selectedFactory);
-  }, [selectedFactory, data]);
+  const currentProduct = useMemo(() => {
+    return catalogProducts?.find(p => p.id === selectedProductId);
+  }, [selectedProductId, catalogProducts]);
 
-  const currentProductData = useMemo(() => {
-    return currentFactoryData?.products.find(p => p.name === selectedProduct);
-  }, [selectedProduct, currentFactoryData]);
+  const filteredProducts = useMemo(() => {
+    if (selectedFactoryId === "none") return [];
+    return catalogProducts?.filter(p => p.factoryId === selectedFactoryId) || [];
+  }, [selectedFactoryId, catalogProducts]);
 
   const handleAddProduct = () => {
-    if (!currentProductData || !currentFactoryData) return;
+    if (!currentProduct || !currentFactory) return;
 
     const unitPrice = priceType === 'closed' 
-      ? currentProductData.closedLoadPrice 
-      : currentProductData.fractionalLoadPrice;
+      ? currentProduct.closedLoadPrice 
+      : currentProduct.fractionalLoadPrice;
 
-    const discountObj = currentFactoryData.discounts.find(d => d.name === selectedDiscount);
-    const discountValue = discountObj ? (discountObj.value / 100) : 0;
+    // Usamos o desconto que vem do catálogo se disponível, ou o manual
+    const discountToApply = currentProduct.discountAmount && unitPrice > 0 
+      ? (currentProduct.discountAmount / unitPrice) * 100 
+      : discountPercent;
     
+    const discountValue = discountToApply / 100;
     const discountedUnitPrice = unitPrice * (1 - discountValue);
     const total = discountedUnitPrice * quantity;
 
     const newItem: OrderItem = {
-      productId: `${selectedFactory}-${currentProductData.name}`,
-      factoryName: selectedFactory,
-      name: currentProductData.name,
-      unit: currentProductData.unit,
+      productId: currentProduct.id,
+      factoryName: currentFactory.name,
+      name: currentProduct.name,
+      unit: currentProduct.unit,
       quantity,
       priceType,
       unitPrice,
-      appliedDiscount: discountValue * 100,
+      appliedDiscount: Number(discountToApply.toFixed(2)),
       total
     };
 
     setOrderItems([...orderItems, newItem]);
     toast({
       title: "Produto adicionado",
-      description: `${currentProductData.name} foi adicionado ao pedido.`,
+      description: `${currentProduct.name} foi adicionado ao pedido.`,
     });
 
-    // Reset some fields
-    setSelectedProduct("");
+    // Reset fields
+    setSelectedProductId("none");
     setQuantity(1);
-    setSelectedDiscount("");
+    setDiscountPercent(0);
   };
 
   const removeProduct = (index: number) => {
@@ -86,6 +108,8 @@ export default function NewOrderPage() {
   const orderTotal = useMemo(() => {
     return orderItems.reduce((acc, item) => acc + item.total, 0);
   }, [orderItems]);
+
+  const isLoading = isFactoriesLoading || isProductsLoading;
 
   return (
     <div className="container mx-auto px-4 py-12">
@@ -114,86 +138,93 @@ export default function NewOrderPage() {
               </CardTitle>
             </CardHeader>
             <CardContent className="pt-6 space-y-4">
-              <div className="space-y-2">
-                <Label>Fábrica</Label>
-                <Select value={selectedFactory} onValueChange={(val) => {
-                  setSelectedFactory(val);
-                  setSelectedProduct("");
-                }}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Selecione a fábrica" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {data.map(f => (
-                      <SelectItem key={f.factoryName} value={f.factoryName}>{f.factoryName}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-
-              <div className="space-y-2">
-                <Label>Produto</Label>
-                <Select value={selectedProduct} onValueChange={setSelectedProduct} disabled={!selectedFactory}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Selecione o produto" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {currentFactoryData?.products.map(p => (
-                      <SelectItem key={p.name} value={p.name}>{p.name}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label>Quantidade ({currentProductData?.unit || "-"})</Label>
-                  <Input 
-                    type="number" 
-                    min="1" 
-                    value={quantity} 
-                    onChange={(e) => setQuantity(Number(e.target.value))} 
-                  />
+              {isLoading ? (
+                <div className="flex items-center justify-center py-8">
+                  <Loader2 className="animate-spin text-primary" />
                 </div>
-                <div className="space-y-2">
-                  <Label>Desconto Aplicável</Label>
-                  <Select value={selectedDiscount} onValueChange={setSelectedDiscount} disabled={!selectedFactory}>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Sem desconto" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="">Sem desconto</SelectItem>
-                      {currentFactoryData?.discounts.map(d => (
-                        <SelectItem key={d.name} value={d.name}>{d.name} ({d.value}%)</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-              </div>
+              ) : (
+                <>
+                  <div className="space-y-2">
+                    <Label>Fábrica</Label>
+                    <Select value={selectedFactoryId} onValueChange={(val) => {
+                      setSelectedFactoryId(val);
+                      setSelectedProductId("none");
+                    }}>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Selecione a fábrica" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="none">Selecione uma fábrica</SelectItem>
+                        {factories?.map(f => (
+                          <SelectItem key={f.id} value={f.id}>{f.name}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
 
-              <div className="space-y-3 pt-2">
-                <Label>Tipo de Carga</Label>
-                <RadioGroup 
-                  value={priceType} 
-                  onValueChange={(val: any) => setPriceType(val)}
-                  className="flex gap-4"
-                >
-                  <div className="flex items-center space-x-2">
-                    <RadioGroupItem value="closed" id="r1" />
-                    <Label htmlFor="r1" className="font-normal cursor-pointer">Carga Fechada</Label>
+                  <div className="space-y-2">
+                    <Label>Produto</Label>
+                    <Select value={selectedProductId} onValueChange={setSelectedProductId} disabled={selectedFactoryId === "none"}>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Selecione o produto" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="none">Selecione o produto</SelectItem>
+                        {filteredProducts.map(p => (
+                          <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
                   </div>
-                  <div className="flex items-center space-x-2">
-                    <RadioGroupItem value="fractional" id="r2" />
-                    <Label htmlFor="r2" className="font-normal cursor-pointer">Fracionada</Label>
+
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label>Quantidade ({currentProduct?.unit || "-"})</Label>
+                      <Input 
+                        type="number" 
+                        min="1" 
+                        value={quantity} 
+                        onChange={(e) => setQuantity(Number(e.target.value))} 
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Desconto Extra (%)</Label>
+                      <Input 
+                        type="number" 
+                        min="0" 
+                        max="100"
+                        value={discountPercent} 
+                        onChange={(e) => setDiscountPercent(Number(e.target.value))} 
+                        placeholder="0"
+                      />
+                    </div>
                   </div>
-                </RadioGroup>
-              </div>
+
+                  <div className="space-y-3 pt-2">
+                    <Label>Tipo de Carga</Label>
+                    <RadioGroup 
+                      value={priceType} 
+                      onValueChange={(val: any) => setPriceType(val)}
+                      className="flex gap-4"
+                    >
+                      <div className="flex items-center space-x-2">
+                        <RadioGroupItem value="closed" id="r1" />
+                        <Label htmlFor="r1" className="font-normal cursor-pointer">Carga Fechada</Label>
+                      </div>
+                      <div className="flex items-center space-x-2">
+                        <RadioGroupItem value="fractional" id="r2" />
+                        <Label htmlFor="r2" className="font-normal cursor-pointer">Fracionada</Label>
+                      </div>
+                    </RadioGroup>
+                  </div>
+                </>
+              )}
             </CardContent>
             <CardFooter>
               <Button 
                 className="w-full gap-2 h-12 text-lg font-semibold" 
                 onClick={handleAddProduct}
-                disabled={!selectedProduct}
+                disabled={selectedProductId === "none" || isLoading}
               >
                 <Plus size={18} /> Adicionar ao Carrinho
               </Button>
@@ -201,25 +232,29 @@ export default function NewOrderPage() {
           </Card>
 
           {/* Current Selection Price Preview */}
-          {currentProductData && (
+          {currentProduct && (
             <Card className="bg-accent/5 border-accent/20">
               <CardContent className="p-4 space-y-2 text-sm">
                 <div className="flex justify-between">
                   <span className="text-muted-foreground">Preço Unitário (Base):</span>
-                  <span className="font-semibold">R$ {(priceType === 'closed' ? currentProductData.closedLoadPrice : currentProductData.fractionalLoadPrice).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
+                  <span className="font-semibold">R$ {(priceType === 'closed' ? currentProduct.closedLoadPrice : currentProduct.fractionalLoadPrice).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
                 </div>
-                {selectedDiscount && (
+                {(currentProduct.discountAmount > 0 || discountPercent > 0) && (
                    <div className="flex justify-between text-accent">
-                    <span>Desconto ({selectedDiscount}):</span>
-                    <span>- {currentFactoryData?.discounts.find(d => d.name === selectedDiscount)?.value}%</span>
+                    <span>Desconto Aplicado:</span>
+                    <span>
+                      {currentProduct.discountAmount > 0 
+                        ? `R$ ${currentProduct.discountAmount.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}` 
+                        : `${discountPercent}%`}
+                    </span>
                   </div>
                 )}
                 <div className="pt-2 border-t flex justify-between text-lg font-bold text-primary">
                   <span>Subtotal Previsto:</span>
                   <span>
                     R$ {(
-                      (priceType === 'closed' ? currentProductData.closedLoadPrice : currentProductData.fractionalLoadPrice) * 
-                      (1 - (currentFactoryData?.discounts.find(d => d.name === selectedDiscount)?.value || 0) / 100) * 
+                      ((priceType === 'closed' ? currentProduct.closedLoadPrice : currentProduct.fractionalLoadPrice) - (currentProduct.discountAmount || 0)) * 
+                      (1 - discountPercent / 100) * 
                       quantity
                     ).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
                   </span>
@@ -295,7 +330,7 @@ export default function NewOrderPage() {
                   <span className="text-4xl font-extrabold text-primary">R$ {orderTotal.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
                 </div>
                 <div className="flex gap-3 w-full md:w-auto">
-                  <Button variant="outline" className="flex-1 md:flex-none border-primary text-primary hover:bg-primary/5">Limpar</Button>
+                  <Button variant="outline" className="flex-1 md:flex-none border-primary text-primary hover:bg-primary/5" onClick={() => setOrderItems([])}>Limpar</Button>
                   <Button className="flex-1 md:flex-none h-14 px-8 text-lg bg-accent hover:bg-accent/90 text-white shadow-xl hover:shadow-accent/20 gap-2 group">
                     <ReceiptText size={20} /> Finalizar Pedido <ArrowRight className="group-hover:translate-x-1 transition-transform" />
                   </Button>
