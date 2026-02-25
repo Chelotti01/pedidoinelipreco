@@ -1,14 +1,15 @@
 "use client"
 
 import { useState, useEffect } from 'react';
-import { getStoredData, ProcessPriceSheetOutput } from '@/lib/store';
+import { getStoredData } from '@/lib/store';
+import { ProcessPriceSheetOutput } from '@/ai/flows/intelligently-process-price-sheet-flow';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "@/components/ui/table";
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
-import { Search, Filter, Factory, ShoppingCart, Info, Package, DollarSign, Zap, UploadCloud } from "lucide-react";
+import { Search, Factory, ShoppingCart, Package, Zap, UploadCloud, Tag } from "lucide-react";
 import Link from 'next/link';
 
 export default function CatalogPage() {
@@ -114,6 +115,7 @@ export default function CatalogPage() {
                 <TableHead className="font-bold">Unidade</TableHead>
                 <TableHead className="font-bold">Carga Fechada</TableHead>
                 <TableHead className="font-bold">Carga Fracionada</TableHead>
+                <TableHead className="font-bold text-accent">Desconto (R$)</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -129,6 +131,16 @@ export default function CatalogPage() {
                   </TableCell>
                   <TableCell className="text-muted-foreground">
                     R$ {p.fractionalLoadPrice.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                  </TableCell>
+                  <TableCell>
+                    {p.discountAmount && p.discountAmount > 0 ? (
+                      <div className="flex items-center gap-1.5 text-accent font-bold">
+                        <Tag size={14} />
+                        R$ {p.discountAmount.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                      </div>
+                    ) : (
+                      <span className="text-muted-foreground/40">-</span>
+                    )}
                   </TableCell>
                 </TableRow>
               ))}

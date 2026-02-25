@@ -18,10 +18,12 @@ export interface Product {
   unit: string;
   closedLoadPrice: number;
   fractionalLoadPrice: number;
+  discountAmount?: number; // Adicionado para armazenar o desconto em R$
 }
 
 export interface Discount {
   name: string;
+  unit: string;
   value: number;
 }
 
@@ -71,7 +73,7 @@ export async function intelligentlyProcessPriceSheet(
     }
 
     const products: Product[] = [];
-    const discounts: Discount[] = [];
+    const rawDiscounts: Discount[] = [];
 
     // Extração de Produtos (abaixo do primeiro "Produto")
     if (firstProdutoIndex !== -1) {
@@ -98,19 +100,33 @@ export async function intelligentlyProcessPriceSheet(
       for (let i = startRow; i < rows.length; i++) {
         const row = rows[i];
         const name = String(row[0] || '').trim();
+        const unit = String(row[1] || '').trim();
         if (!name) continue;
 
-        discounts.push({
+        rawDiscounts.push({
           name,
-          value: parsePrice(row[2]), // Valor do desconto na coluna C
+          unit,
+          value: parsePrice(row[2]), // Valor do desconto em R$ na coluna C
         });
       }
     }
 
+    // Vincular descontos aos produtos com base em Nome e Unidade idênticos
+    const finalProducts = products.map(product => {
+      const match = rawDiscounts.find(d => 
+        d.name === product.name && 
+        d.unit === product.unit
+      );
+      return {
+        ...product,
+        discountAmount: match ? match.value : 0
+      };
+    });
+
     allFactoryData.push({
       factoryName: sheetName,
-      products,
-      discounts,
+      products: finalProducts,
+      discounts: rawDiscounts, // Mantemos aqui para compatibilidade
     });
   }
 
