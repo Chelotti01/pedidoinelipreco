@@ -97,7 +97,9 @@ export default function NewOrderPage() {
 
     const { basePrice, finalUnitPrice } = unitCalculations;
     const total = finalUnitPrice * (quantity || 1);
-    const weight = (currentRegisteredProduct.unitNetWeightKg || 0) * (quantity || 1);
+    
+    // Alterado: usa boxWeightKg (Peso da Caixa) em vez de unitNetWeightKg
+    const weight = (currentRegisteredProduct.boxWeightKg || 0) * (quantity || 1);
 
     // Calcula porcentagem total de desconto sobre o preço base
     const totalDiscountPct = basePrice > 0 ? ((basePrice - finalUnitPrice) / basePrice) * 100 : 0;
@@ -397,7 +399,7 @@ export default function NewOrderPage() {
                     <div className="flex items-center gap-3 bg-white px-5 py-3 rounded-2xl border shadow-sm">
                       <Weight size={20} className="text-primary" />
                       <div>
-                        <p className="text-[10px] text-muted-foreground uppercase font-bold">Peso Líquido Total</p>
+                        <p className="text-[10px] text-muted-foreground uppercase font-bold">Peso Total (Carga)</p>
                         <p className="text-lg font-extrabold text-foreground">{orderTotalWeight.toFixed(2)} Kg</p>
                       </div>
                     </div>
@@ -418,7 +420,7 @@ export default function NewOrderPage() {
           <div className="p-4 bg-muted rounded-xl flex gap-3 items-start border">
             <Info className="text-primary shrink-0 mt-0.5" size={18} />
             <p className="text-xs text-muted-foreground leading-relaxed">
-              <strong>Nota:</strong> Os preços unitários são calculados dinamicamente com base no vínculo com o catálogo de fábrica sincronizado. Alterações na planilha de preços afetarão automaticamente novos itens adicionados.
+              <strong>Nota:</strong> O peso do pedido é calculado com base no peso da caixa cadastrado na ficha do produto multiplicado pela quantidade de caixas solicitada.
             </p>
           </div>
         </div>
