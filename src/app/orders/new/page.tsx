@@ -14,7 +14,7 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Switch } from "@/components/ui/switch";
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "@/components/ui/table";
 import { useToast } from "@/hooks/use-toast";
-import { ShoppingCart, Plus, Trash2, Calculator, ReceiptText, ChevronLeft, Zap, ArrowRight, Loader2, Weight, Tag, Info } from "lucide-react";
+import { ShoppingCart, Plus, Trash2, Calculator, ReceiptText, ChevronLeft, Zap, ArrowRight, Loader2, Weight, Tag, Info, Gavel } from "lucide-react";
 import Link from 'next/link';
 
 export type OrderItem = {
@@ -26,7 +26,9 @@ export type OrderItem = {
   quantity: number;
   priceType: 'closed' | 'fractional';
   unitPrice: number;
+  unitPriceWithST: number;
   appliedDiscount: number;
+  stRate: number;
   total: number;
   weight: number;
 };
@@ -69,6 +71,14 @@ export default function NewOrderPage() {
     return catalogProducts?.find(p => p.id === currentRegisteredProduct.catalogProductId);
   }, [currentRegisteredProduct, catalogProducts]);
 
+  // Auxiliar para converter ST string (ex: "10%") em número
+  const parseST = (stValue: string | undefined): number => {
+    if (!stValue) return 0;
+    const cleaned = stValue.replace('%', '').replace(',', '.').trim();
+    const parsed = parseFloat(cleaned);
+    return isNaN(parsed) ? 0 : parsed / 100;
+  };
+
   // Cálculo do Preço Unitário Líquido (Preview)
   const unitCalculations = useMemo(() => {
     if (!currentCatalogProduct) return null;
@@ -79,15 +89,25 @@ export default function NewOrderPage() {
     
     const catalogDiscount = useCatalogDiscount ? (currentCatalogProduct.discountAmount || 0) : 0;
     const priceAfterCatalog = Math.max(0, basePrice - catalogDiscount);
-    const finalUnitPrice = priceAfterCatalog * (1 - (discountPercent || 0) / 100);
+    
+    // Preço antes do ST (com margem extra)
+    const finalUnitPriceBeforeST = priceAfterCatalog * (1 - (discountPercent || 0) / 100);
+    
+    // Cálculo do ST
+    const stRate = parseST(currentRegisteredProduct?.st);
+    const stAmount = finalUnitPriceBeforeST * stRate;
+    const finalUnitPriceWithST = finalUnitPriceBeforeST + stAmount;
     
     return {
       basePrice,
       catalogDiscount,
       priceAfterCatalog,
-      finalUnitPrice
+      finalUnitPriceBeforeST,
+      stRate,
+      stAmount,
+      finalUnitPriceWithST
     };
-  }, [currentCatalogProduct, priceType, useCatalogDiscount, discountPercent]);
+  }, [currentCatalogProduct, currentRegisteredProduct, priceType, useCatalogDiscount, discountPercent]);
 
   const handleAddProduct = () => {
     if (!currentRegisteredProduct || !currentCatalogProduct || !unitCalculations) {
@@ -95,15 +115,15 @@ export default function NewOrderPage() {
       return;
     }
 
-    const { basePrice, finalUnitPrice } = unitCalculations;
+    const { basePrice, finalUnitPriceWithST, finalUnitPriceBeforeST, stRate } = unitCalculations;
     
-    // Novo Cálculo: Total = Preço Unitário * Qtd por Caixa * Quantidade de caixas
     const qtyPerBox = currentRegisteredProduct.quantityPerBox || 1;
-    const total = finalUnitPrice * qtyPerBox * (quantity || 1);
+    // O total do item é: Preço Final (com ST) * Qtd na Caixa * Quantidade de caixas
+    const total = finalUnitPriceWithST * qtyPerBox * (quantity || 1);
     
     const weight = (currentRegisteredProduct.boxWeightKg || 0) * (quantity || 1);
 
-    const totalDiscountPct = basePrice > 0 ? ((basePrice - finalUnitPrice) / basePrice) * 100 : 0;
+    const totalDiscountPct = basePrice > 0 ? ((basePrice - finalUnitPriceBeforeST) / basePrice) * 100 : 0;
 
     const newItem: OrderItem = {
       productId: currentRegisteredProduct.id,
@@ -113,8 +133,10 @@ export default function NewOrderPage() {
       unit: currentRegisteredProduct.unit,
       quantity: quantity || 1,
       priceType,
-      unitPrice: finalUnitPrice,
+      unitPrice: finalUnitPriceBeforeST,
+      unitPriceWithST: finalUnitPriceWithST,
       appliedDiscount: Number(totalDiscountPct.toFixed(2)),
+      stRate: stRate * 100,
       total,
       weight
     };
@@ -122,7 +144,7 @@ export default function NewOrderPage() {
     setOrderItems([...orderItems, newItem]);
     toast({
       title: "Produto adicionado",
-      description: `${currentRegisteredProduct.description} foi adicionado ao pedido.`,
+      description: `${currentRegisteredProduct.description} foi adicionado ao pedido com impostos incluídos.`,
     });
 
     setSelectedProductId("none");
@@ -160,7 +182,7 @@ export default function NewOrderPage() {
           </Link>
           <div>
             <h1 className="text-2xl md:text-3xl font-bold tracking-tight">Criar Novo Pedido</h1>
-            <p className="text-sm text-muted-foreground">Monte seu carrinho com preços dinâmicos.</p>
+            <p className="text-sm text-muted-foreground">Monte seu carrinho com preços dinâmicos e impostos (ST).</p>
           </div>
         </div>
         <div className="bg-primary/10 text-primary px-4 py-2 rounded-lg font-bold flex items-center gap-2 self-start md:self-auto">
@@ -263,7 +285,7 @@ export default function NewOrderPage() {
 
                   <div className="grid grid-cols-2 gap-4">
                     <div className="space-y-2">
-                      <Label>Quantidade ({currentRegisteredProduct?.unit || "-"})</Label>
+                      <Label>Quantidade (Caixas)</Label>
                       <Input 
                         type="number" 
                         min="1" 
@@ -290,7 +312,7 @@ export default function NewOrderPage() {
             {unitCalculations && (
               <div className="px-6 py-4 bg-muted/50 border-y space-y-2">
                 <div className="flex justify-between text-xs text-muted-foreground">
-                  <span>Preço Base ({priceType === 'closed' ? 'Fechada' : 'Fracionada'}):</span>
+                  <span>Preço Tabela ({priceType === 'closed' ? 'Fechada' : 'Fracionada'}):</span>
                   <span>R$ {formatCurrency(unitCalculations.basePrice)}</span>
                 </div>
                 {useCatalogDiscount && unitCalculations.catalogDiscount > 0 && (
@@ -299,15 +321,20 @@ export default function NewOrderPage() {
                     <span>- R$ {formatCurrency(unitCalculations.catalogDiscount)}</span>
                   </div>
                 )}
-                {discountPercent !== 0 && (
-                  <div className="flex justify-between text-xs text-primary font-medium">
-                    <span>({discountPercent > 0 ? '-' : '+'}) Margem Extra {Math.abs(discountPercent)}%:</span>
-                    <span>{discountPercent > 0 ? '-' : '+'} R$ {formatCurrency(Math.abs(unitCalculations.priceAfterCatalog - unitCalculations.finalUnitPrice))}</span>
-                  </div>
-                )}
+                <div className="flex justify-between text-xs text-muted-foreground">
+                  <span>Subtotal (C/ Margem Extra):</span>
+                  <span>R$ {formatCurrency(unitCalculations.finalUnitPriceBeforeST)}</span>
+                </div>
+                <div className="flex justify-between text-xs text-destructive font-medium">
+                  <span className="flex items-center gap-1"><Gavel size={12} /> (+) Imposto ST ({ (unitCalculations.stRate * 100).toFixed(0) }%):</span>
+                  <span>+ R$ {formatCurrency(unitCalculations.stAmount)}</span>
+                </div>
                 <div className="pt-2 border-t flex justify-between items-center">
-                  <span className="text-sm font-bold">Unitário Líquido:</span>
-                  <span className="text-xl font-extrabold text-primary">R$ {formatCurrency(unitCalculations.finalUnitPrice)}</span>
+                  <div className="flex flex-col">
+                    <span className="text-sm font-bold">Unitário Líquido + ST:</span>
+                    <span className="text-[10px] text-muted-foreground">Preço final com impostos</span>
+                  </div>
+                  <span className="text-xl font-extrabold text-primary">R$ {formatCurrency(unitCalculations.finalUnitPriceWithST)}</span>
                 </div>
               </div>
             )}
@@ -331,7 +358,7 @@ export default function NewOrderPage() {
                 <CardTitle className="text-xl flex items-center gap-2">
                   <ShoppingCart size={22} /> Resumo do Carrinho
                 </CardTitle>
-                <CardDescription className="text-white/80">Itens registrados e precificados.</CardDescription>
+                <CardDescription className="text-white/80">Itens com impostos e descontos aplicados.</CardDescription>
               </div>
               <Badge variant="outline" className="text-white border-white/40 px-3 py-1 font-bold">
                 {orderItems.length} {orderItems.length === 1 ? 'Item' : 'Itens'}
@@ -352,7 +379,7 @@ export default function NewOrderPage() {
                       <TableRow className="bg-muted/30">
                         <TableHead className="w-[300px]">Produto</TableHead>
                         <TableHead className="text-center">Qtd</TableHead>
-                        <TableHead className="text-right">Unitário</TableHead>
+                        <TableHead className="text-right">Preço Final (+ST)</TableHead>
                         <TableHead className="text-right">Total</TableHead>
                         <TableHead></TableHead>
                       </TableRow>
@@ -365,16 +392,17 @@ export default function NewOrderPage() {
                             <div className="flex items-center gap-2 mt-1">
                               <Badge variant="secondary" className="text-[10px] py-0">{item.factoryName}</Badge>
                               <span className="text-[10px] text-muted-foreground">{item.priceType === 'closed' ? 'Carga Fechada' : 'Fracionado'}</span>
+                              <Badge variant="outline" className="text-[10px] py-0 text-destructive border-destructive/20">+ {item.stRate.toFixed(0)}% ST</Badge>
                             </div>
                             <div className="text-[10px] text-accent font-bold mt-1 flex items-center gap-1">
                               <Weight size={10} /> {item.weight.toFixed(2)} Kg
                             </div>
                           </TableCell>
-                          <TableCell className="text-center font-medium">
-                            {item.quantity} {item.unit}
+                          <TableCell className="text-center font-medium text-xs">
+                            {item.quantity} cx
                           </TableCell>
                           <TableCell className="text-right text-xs">
-                            R$ {formatCurrency(item.unitPrice)}
+                            R$ {formatCurrency(item.unitPriceWithST)}
                           </TableCell>
                           <TableCell className="text-right font-bold text-primary">
                             R$ {formatCurrency(item.total)}
@@ -400,7 +428,7 @@ export default function NewOrderPage() {
               <CardFooter className="bg-primary/5 p-8 flex flex-col border-t gap-6">
                 <div className="w-full flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
                   <div className="space-y-1">
-                    <p className="text-xs text-muted-foreground uppercase font-bold tracking-widest">Valor Total do Pedido</p>
+                    <p className="text-xs text-muted-foreground uppercase font-bold tracking-widest">Valor Total Líquido (C/ Impostos)</p>
                     <p className="text-4xl font-black text-primary">R$ {formatCurrency(orderTotal)}</p>
                   </div>
                   <div className="flex flex-col gap-2">
@@ -427,9 +455,10 @@ export default function NewOrderPage() {
           
           <div className="p-4 bg-muted rounded-xl flex gap-3 items-start border">
             <Info className="text-primary shrink-0 mt-0.5" size={18} />
-            <p className="text-xs text-muted-foreground leading-relaxed">
-              <strong>Nota:</strong> O peso do pedido é calculado com base no peso da caixa cadastrado na ficha do produto multiplicado pela quantidade de caixas solicitada.
-            </p>
+            <div className="text-xs text-muted-foreground space-y-1">
+              <p><strong>Cálculo do Preço:</strong> O preço apresentado já inclui o imposto ST (Substituição Tributária) conforme a alíquota cadastrada no produto paralelo.</p>
+              <p><strong>Nota Logística:</strong> O peso do pedido utiliza o Peso da Caixa multiplicado pela quantidade de caixas.</p>
+            </div>
           </div>
         </div>
       </div>
