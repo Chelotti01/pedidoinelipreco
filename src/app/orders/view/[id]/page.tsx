@@ -7,52 +7,72 @@ import { doc } from 'firebase/firestore';
 import { Button } from "@/components/ui/button";
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "@/components/ui/table";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
-import { Printer, ChevronLeft, Download, Zap, Weight, Calendar, Tag } from "lucide-react";
+import { Printer, ChevronLeft, Zap, Calendar } from "lucide-react";
 import Link from 'next/link';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 
 export default function ViewOrderPage() {
   const params = useParams();
-  const router = useRouter();
   const db = useFirestore();
   const id = Array.isArray(params.id) ? params.id[0] : params.id;
 
   const orderRef = useMemoFirebase(() => id ? doc(db, 'orders', id) : null, [db, id]);
   const { data: order, isLoading } = useDoc(orderRef);
 
-  const handlePrint = () => {
-    window.print();
-  };
-
   const formatCurrency = (val: number) => {
-    return val.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+    return (val || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
   };
 
-  if (isLoading) return <div className="p-20 text-center">Carregando detalhes do pedido...</div>;
-  if (!order) return <div className="p-20 text-center">Pedido não encontrado.</div>;
+  const handlePrint = () => {
+    if (typeof window !== 'undefined') {
+      window.print();
+    }
+  };
+
+  if (isLoading) return (
+    <div className="flex items-center justify-center min-h-screen">
+      <div className="animate-pulse text-muted-foreground font-medium">Carregando detalhes do pedido...</div>
+    </div>
+  );
+  
+  if (!order) return (
+    <div className="container mx-auto px-4 py-20 text-center">
+      <h2 className="text-2xl font-bold mb-4">Pedido não encontrado</h2>
+      <Link href="/orders/history">
+        <Button>Voltar para o Histórico</Button>
+      </Link>
+    </div>
+  );
 
   return (
     <div className="container mx-auto px-4 py-12 max-w-5xl">
-      <style jsx global>{`
+      <style dangerouslySetInnerHTML={{ __html: `
         @media print {
           .no-print { display: none !important; }
-          .print-only { display: block !important; }
-          body { background: white; padding: 0; }
-          .container { max-width: 100%; padding: 0; }
-          .card { border: 1px solid #eee; box-shadow: none; }
+          body { background: white !important; margin: 0 !important; padding: 0 !important; }
+          .container { max-width: 100% !important; padding: 0 !important; margin: 0 !important; }
+          .card { border: 1px solid #e2e8f0 !important; box-shadow: none !important; }
+          .shadow-2xl { box-shadow: none !important; }
+          .bg-primary { background-color: #334155 !important; color: white !important; -webkit-print-color-adjust: exact; }
+          table { width: 100% !important; border-collapse: collapse !important; }
+          th, td { border-bottom: 1px solid #e2e8f0 !important; }
         }
-      `}</style>
+      ` }} />
 
       <div className="mb-8 flex items-center justify-between no-print">
         <div className="flex items-center gap-3">
-          <Link href="/orders/history" className="text-muted-foreground hover:text-primary">
+          <Link href="/orders/history" className="text-muted-foreground hover:text-primary transition-colors">
             <ChevronLeft size={28} />
           </Link>
           <h1 className="text-2xl font-bold">Detalhes do Pedido</h1>
         </div>
         <div className="flex gap-2">
-          <Button variant="outline" onClick={handlePrint} className="gap-2">
+          <Button 
+            variant="outline" 
+            onClick={handlePrint} 
+            className="gap-2 border-primary text-primary hover:bg-primary/5"
+          >
             <Printer size={18} /> Imprimir / PDF
           </Button>
           <Link href="/orders/new">
@@ -61,7 +81,7 @@ export default function ViewOrderPage() {
         </div>
       </div>
 
-      <Card className="shadow-2xl border-none overflow-hidden print:border print:border-gray-200">
+      <Card className="shadow-2xl border-none overflow-hidden print:border print:border-slate-200">
         <CardHeader className="bg-primary text-white p-8 flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
           <div className="flex items-center gap-4">
             <div className="bg-white/20 p-3 rounded-2xl backdrop-blur-sm">
@@ -82,7 +102,7 @@ export default function ViewOrderPage() {
         </CardHeader>
 
         <CardContent className="p-0">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-px bg-muted">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-px bg-slate-200">
             <div className="bg-white p-8 space-y-4">
               <h3 className="text-xs font-bold text-muted-foreground uppercase tracking-widest">Resumo Financeiro</h3>
               <div className="flex justify-between items-end border-b pb-4">
@@ -95,7 +115,7 @@ export default function ViewOrderPage() {
               <h3 className="text-xs font-bold text-muted-foreground uppercase tracking-widest">Resumo Logístico</h3>
               <div className="flex justify-between items-end border-b pb-4">
                 <span className="text-muted-foreground">Peso Total da Carga:</span>
-                <span className="text-3xl font-black text-foreground">{order.totalWeight.toFixed(2)} <small className="text-sm font-normal">Kg</small></span>
+                <span className="text-3xl font-black text-foreground">{(order.totalWeight || 0).toFixed(2)} <small className="text-sm font-normal">Kg</small></span>
               </div>
               <p className="text-xs text-muted-foreground italic">Cálculo baseado no peso das caixas e quantidades informadas.</p>
             </div>
@@ -103,7 +123,7 @@ export default function ViewOrderPage() {
 
           <div className="p-0">
             <Table>
-              <TableHeader className="bg-muted/50">
+              <TableHeader className="bg-slate-50">
                 <TableRow>
                   <TableHead className="font-bold">Código / Descrição</TableHead>
                   <TableHead className="font-bold text-center">Qtd</TableHead>
@@ -119,7 +139,7 @@ export default function ViewOrderPage() {
                       <div className="font-bold">{item.code}</div>
                       <div className="text-xs text-muted-foreground line-clamp-1">{item.name}</div>
                       <div className="flex items-center gap-2 mt-1">
-                        <span className="text-[10px] font-mono bg-muted px-1.5 py-0.5 rounded">EAN: {item.ean}</span>
+                        <span className="text-[10px] font-mono bg-slate-100 px-1.5 py-0.5 rounded">EAN: {item.ean}</span>
                         <span className="text-[10px] bg-primary/5 text-primary px-1.5 py-0.5 rounded font-bold">{item.factoryName}</span>
                       </div>
                     </TableCell>
