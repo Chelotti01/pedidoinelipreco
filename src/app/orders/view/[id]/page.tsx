@@ -1,21 +1,26 @@
 
 "use client"
 
+import { useState, useRef } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { useFirestore, useDoc, useMemoFirebase } from '@/firebase';
 import { doc } from 'firebase/firestore';
 import { Button } from "@/components/ui/button";
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "@/components/ui/table";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
-import { Printer, ChevronLeft, Zap, Calendar, Home } from "lucide-react";
+import { Printer, ChevronLeft, Zap, Calendar, Home, Loader2, Download } from "lucide-react";
 import Link from 'next/link';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
+import { useToast } from "@/hooks/use-toast";
 
 export default function ViewOrderPage() {
   const params = useParams();
+  const { toast } = useToast();
   const db = useFirestore();
   const id = Array.isArray(params.id) ? params.id[0] : params.id;
+  const reportRef = useRef<HTMLDivElement>(null);
+  const [isGenerating, setIsGenerating] = useState(false);
 
   const orderRef = useMemoFirebase(() => id ? doc(db, 'orders', id) : null, [db, id]);
   const { data: order, isLoading } = useDoc(orderRef);
@@ -24,15 +29,68 @@ export default function ViewOrderPage() {
     return (val || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
   };
 
-  const handlePrint = () => {
-    if (typeof window !== 'undefined') {
-      window.print();
+  const handleDownloadPDF = async () => {
+    if (!reportRef.current || !order) return;
+
+    setIsGenerating(true);
+    toast({
+      title: "Gerando PDF...",
+      description: "Aguarde enquanto preparamos seu arquivo.",
+    });
+
+    try {
+      // Importações dinâmicas para evitar erros de SSR e pacotes pesados no carregamento inicial
+      const html2canvas = (await import('html2canvas')).default;
+      const { jsPDF } = await import('jspdf');
+
+      const element = reportRef.current;
+      
+      // Captura o elemento como um canvas
+      const canvas = await html2canvas(element, {
+        scale: 2, // Aumenta a qualidade
+        useCORS: true,
+        backgroundColor: '#ffffff',
+        logging: false,
+      });
+
+      const imgData = canvas.toDataURL('image/png');
+      const pdf = new jsPDF({
+        orientation: 'portrait',
+        unit: 'mm',
+        format: 'a4',
+      });
+
+      const imgProps = pdf.getImageProperties(imgData);
+      const pdfWidth = pdf.internal.pageSize.getWidth();
+      const pdfHeight = (imgProps.height * pdfWidth) / imgProps.width;
+
+      pdf.addImage(imgData, 'PNG', 0, 0, pdfWidth, pdfHeight);
+      
+      // Nome do arquivo amigável
+      const fileName = `pedido_${order.id.slice(-6).toUpperCase()}_${format(new Date(), 'yyyy-MM-dd')}.pdf`;
+      
+      pdf.save(fileName);
+
+      toast({
+        title: "Sucesso!",
+        description: "Seu PDF foi baixado automaticamente.",
+      });
+    } catch (error) {
+      console.error('Erro ao gerar PDF:', error);
+      toast({
+        title: "Erro ao gerar PDF",
+        description: "Ocorreu um problema técnico. Tente novamente.",
+        variant: "destructive"
+      });
+    } finally {
+      setIsGenerating(false);
     }
   };
 
   if (isLoading) return (
-    <div className="flex items-center justify-center min-h-screen">
-      <div className="animate-pulse text-muted-foreground font-medium">Carregando detalhes do pedido...</div>
+    <div className="flex flex-col items-center justify-center min-h-screen gap-4">
+      <Loader2 className="animate-spin text-primary" size={48} />
+      <div className="text-muted-foreground font-medium">Carregando detalhes do pedido...</div>
     </div>
   );
   
@@ -47,40 +105,6 @@ export default function ViewOrderPage() {
 
   return (
     <div className="container mx-auto px-4 py-12 max-w-5xl">
-      <style jsx global>{`
-        @media print {
-          .no-print, .no-print * {
-            display: none !important;
-          }
-          body {
-            background: white !important;
-            margin: 0 !important;
-            padding: 0 !important;
-          }
-          .print-container {
-            width: 100% !important;
-            max-width: 100% !important;
-            margin: 0 !important;
-            padding: 0 !important;
-            box-shadow: none !important;
-            border: none !important;
-          }
-          .card {
-            border: 1px solid #eee !important;
-            box-shadow: none !important;
-          }
-          .bg-primary {
-            background-color: #334155 !important;
-            color: white !important;
-            -webkit-print-color-adjust: exact;
-            print-color-adjust: exact;
-          }
-          .text-primary {
-            color: #334155 !important;
-          }
-        }
-      `}</style>
-
       <div className="mb-8 flex items-center justify-between no-print">
         <div className="flex items-center gap-3">
           <Link href="/orders/history" className="text-muted-foreground hover:text-primary transition-colors">
@@ -95,32 +119,38 @@ export default function ViewOrderPage() {
             </Button>
           </Link>
           <Button 
-            variant="outline" 
-            onClick={handlePrint} 
-            className="gap-2 border-primary text-primary hover:bg-primary/5 font-bold"
+            variant="default" 
+            onClick={handleDownloadPDF} 
+            disabled={isGenerating}
+            className="gap-2 bg-primary text-white hover:bg-primary/90 font-bold shadow-lg"
           >
-            <Printer size={18} /> Imprimir / PDF
+            {isGenerating ? (
+              <Loader2 className="animate-spin" size={18} />
+            ) : (
+              <Download size={18} />
+            )}
+            Gerar PDF / Download
           </Button>
           <Link href="/orders/new">
-            <Button className="gap-2">Novo Pedido</Button>
+            <Button variant="outline" className="gap-2">Novo Pedido</Button>
           </Link>
         </div>
       </div>
 
-      <div className="print-container">
-        <Card className="shadow-2xl border-none overflow-hidden print:border print:border-slate-200">
-          <CardHeader className="bg-primary text-white p-8 flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
+      <div ref={reportRef} className="bg-white p-4 sm:p-8 rounded-xl">
+        <Card className="shadow-none border-slate-200 overflow-hidden">
+          <CardHeader className="bg-primary text-white p-6 sm:p-8 flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
             <div className="flex items-center gap-4">
               <div className="bg-white/20 p-3 rounded-2xl backdrop-blur-sm">
                 <Zap size={32} />
               </div>
               <div>
-                <CardTitle className="text-3xl font-black tracking-tighter">RELATÓRIO DE PEDIDO</CardTitle>
-                <p className="text-white/80 font-medium">#{order.id.toUpperCase()}</p>
+                <CardTitle className="text-2xl sm:text-3xl font-black tracking-tighter">RELATÓRIO DE PEDIDO</CardTitle>
+                <p className="text-white/80 font-medium text-sm sm:text-base">#{order.id.toUpperCase()}</p>
               </div>
             </div>
-            <div className="text-right">
-              <div className="flex items-center gap-2 justify-end text-sm opacity-80 mb-1">
+            <div className="text-left md:text-right">
+              <div className="flex items-center gap-2 md:justify-end text-sm opacity-80 mb-1">
                 <Calendar size={14} />
                 {order.createdAt ? format(order.createdAt.toDate(), "dd/MM/yyyy HH:mm", { locale: ptBR }) : '-'}
               </div>
@@ -129,26 +159,26 @@ export default function ViewOrderPage() {
           </CardHeader>
 
           <CardContent className="p-0">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-px bg-slate-200">
-              <div className="bg-white p-8 space-y-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 border-b border-slate-200">
+              <div className="p-6 sm:p-8 space-y-4 border-b md:border-b-0 md:border-r border-slate-200">
                 <h3 className="text-xs font-bold text-muted-foreground uppercase tracking-widest">Resumo Financeiro</h3>
-                <div className="flex justify-between items-end border-b pb-4">
+                <div className="flex justify-between items-end">
                   <span className="text-muted-foreground">Valor Total Bruto:</span>
-                  <span className="text-3xl font-black text-primary">{formatCurrency(order.totalAmount)}</span>
+                  <span className="text-2xl sm:text-3xl font-black text-primary">{formatCurrency(order.totalAmount)}</span>
                 </div>
-                <p className="text-xs text-muted-foreground italic">Este valor já inclui todos os aditivos de contrato e substituição tributária (ST).</p>
+                <p className="text-[10px] sm:text-xs text-muted-foreground italic">Este valor já inclui todos os aditivos de contrato e substituição tributária (ST).</p>
               </div>
-              <div className="bg-white p-8 space-y-4">
+              <div className="p-6 sm:p-8 space-y-4">
                 <h3 className="text-xs font-bold text-muted-foreground uppercase tracking-widest">Resumo Logístico</h3>
-                <div className="flex justify-between items-end border-b pb-4">
+                <div className="flex justify-between items-end">
                   <span className="text-muted-foreground">Peso Total da Carga:</span>
-                  <span className="text-3xl font-black text-foreground">{(order.totalWeight || 0).toFixed(2)} <small className="text-sm font-normal">Kg</small></span>
+                  <span className="text-2xl sm:text-3xl font-black text-foreground">{(order.totalWeight || 0).toFixed(2)} <small className="text-sm font-normal">Kg</small></span>
                 </div>
-                <p className="text-xs text-muted-foreground italic">Cálculo baseado no peso das caixas e quantidades informadas.</p>
+                <p className="text-[10px] sm:text-xs text-muted-foreground italic">Cálculo baseado no peso das caixas e quantidades informadas.</p>
               </div>
             </div>
 
-            <div className="p-0">
+            <div className="overflow-x-auto">
               <Table>
                 <TableHeader className="bg-slate-50">
                   <TableRow>
@@ -162,26 +192,26 @@ export default function ViewOrderPage() {
                 <TableBody>
                   {order.items?.map((item: any, idx: number) => (
                     <TableRow key={`${item.productId}-${idx}`}>
-                      <TableCell>
-                        <div className="font-bold">{item.code}</div>
-                        <div className="text-xs text-muted-foreground line-clamp-1">{item.name}</div>
-                        <div className="flex items-center gap-2 mt-1">
-                          <span className="text-[10px] font-mono bg-slate-100 px-1.5 py-0.5 rounded">EAN: {item.ean}</span>
-                          <span className="text-[10px] bg-primary/5 text-primary px-1.5 py-0.5 rounded font-bold">{item.factoryName}</span>
+                      <TableCell className="min-w-[200px]">
+                        <div className="font-bold text-sm">{item.code}</div>
+                        <div className="text-[11px] text-muted-foreground leading-tight mb-1">{item.name}</div>
+                        <div className="flex flex-wrap items-center gap-2">
+                          <span className="text-[10px] font-mono bg-slate-100 px-1.5 py-0.5 rounded border border-slate-200">EAN: {item.ean}</span>
+                          <span className="text-[10px] bg-primary/5 text-primary px-1.5 py-0.5 rounded font-bold border border-primary/10">{item.factoryName}</span>
                         </div>
                       </TableCell>
                       <TableCell className="text-center">
-                        <div className="font-bold">{item.quantity} cx</div>
-                        <div className="text-[10px] text-muted-foreground">{item.priceType === 'closed' ? 'F' : 'P'}</div>
+                        <div className="font-bold text-sm">{item.quantity} cx</div>
+                        <div className="text-[10px] text-muted-foreground uppercase">{item.priceType === 'closed' ? 'Fechada' : 'Frac'}</div>
                       </TableCell>
                       <TableCell className="text-right text-xs text-muted-foreground">
                         {formatCurrency(item.unitPriceNet)}
                       </TableCell>
                       <TableCell className="text-right">
-                        <div className="font-bold text-primary">{formatCurrency(item.unitPriceFinal)}</div>
-                        <div className="text-[10px] text-destructive">+{item.stRate?.toFixed(0)}% ST</div>
+                        <div className="font-bold text-primary text-sm">{formatCurrency(item.unitPriceFinal)}</div>
+                        <div className="text-[10px] text-destructive font-medium">+{item.stRate?.toFixed(0)}% ST</div>
                       </TableCell>
-                      <TableCell className="text-right font-black">
+                      <TableCell className="text-right font-black text-sm">
                         {formatCurrency(item.total)}
                       </TableCell>
                     </TableRow>
@@ -191,11 +221,11 @@ export default function ViewOrderPage() {
             </div>
           </CardContent>
         </Card>
-      </div>
-
-      <div className="mt-8 text-center text-xs text-muted-foreground opacity-50 space-y-1">
-        <p>Documento gerado eletronicamente via Sistema Pedido InteliPreço.</p>
-        <p>Preços sujeitos a alteração conforme vigência da tabela de fábrica no ato do faturamento.</p>
+        
+        <div className="mt-8 text-center text-[10px] text-muted-foreground opacity-60 space-y-1">
+          <p>Documento gerado eletronicamente via Sistema Pedido InteliPreço em {format(new Date(), "dd/MM/yyyy 'às' HH:mm")}.</p>
+          <p>Preços sujeitos a alteração conforme vigência da tabela de fábrica no ato do faturamento.</p>
+        </div>
       </div>
     </div>
   );
