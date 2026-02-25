@@ -2,13 +2,13 @@
 "use client"
 
 import { useCollection, useMemoFirebase } from '@/firebase';
-import { collection, query, orderBy, doc } from 'firebase/firestore';
-import { useFirestore, deleteDocumentNonBlocking } from '@/firebase';
+import { collection, query, orderBy, doc, serverTimestamp } from 'firebase/firestore';
+import { useFirestore, deleteDocumentNonBlocking, addDocumentNonBlocking } from '@/firebase';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import { Plus, Package, Edit, Trash2, ChevronLeft, Upload, AlertTriangle, Tooltip, TooltipTrigger, TooltipContent, TooltipProvider } from "lucide-react";
+import { Plus, Package, Edit, Trash2, ChevronLeft, Upload, AlertTriangle, Copy } from "lucide-react";
 import Link from 'next/link';
 import { useToast } from "@/hooks/use-toast";
 import {
@@ -32,9 +32,24 @@ export default function RegisteredProductsPage() {
 
   const { data: products, isLoading } = useCollection(productsQuery);
 
-  const handleDelete = (id: string, name: string) => {
+  const handleDelete = (id: string) => {
     deleteDocumentNonBlocking(doc(db, 'registered_products', id));
     toast({ title: "Produto excluído", description: "O registro foi removido com sucesso." });
+  };
+
+  const handleDuplicate = (product: any) => {
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    const { id, ...data } = product;
+    addDocumentNonBlocking(collection(db, 'registered_products'), {
+      ...data,
+      code: `${data.code}-cópia`,
+      createdAt: serverTimestamp(),
+      updatedAt: serverTimestamp()
+    });
+    toast({ 
+      title: "Produto duplicado", 
+      description: "Uma cópia foi criada com sucesso. Você já pode editá-la." 
+    });
   };
 
   const handleDeleteAll = () => {
@@ -157,6 +172,9 @@ export default function RegisteredProductsPage() {
                   <TableCell className="font-mono text-xs">{p.ean}</TableCell>
                   <TableCell className="text-right">
                     <div className="flex justify-end gap-2">
+                      <Button variant="ghost" size="icon" title="Duplicar" onClick={() => handleDuplicate(p)}>
+                        <Copy size={16} />
+                      </Button>
                       <Link href={`/admin/products/${p.id}`}>
                         <Button variant="ghost" size="icon"><Edit size={16} /></Button>
                       </Link>
@@ -176,7 +194,7 @@ export default function RegisteredProductsPage() {
                           </AlertDialogHeader>
                           <AlertDialogFooter>
                             <AlertDialogCancel>Cancelar</AlertDialogCancel>
-                            <AlertDialogAction onClick={() => handleDelete(p.id, p.description)} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+                            <AlertDialogAction onClick={() => handleDelete(p.id)} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
                               Excluir
                             </AlertDialogAction>
                           </AlertDialogFooter>

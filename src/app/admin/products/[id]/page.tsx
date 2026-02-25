@@ -3,7 +3,7 @@
 
 import { useState, useMemo, useEffect } from 'react';
 import { useRouter, useParams } from 'next/navigation';
-import { useFirestore, useCollection, useDoc, useMemoFirebase, updateDocumentNonBlocking } from '@/firebase';
+import { useFirestore, useCollection, useDoc, useMemoFirebase, updateDocumentNonBlocking, addDocumentNonBlocking } from '@/firebase';
 import { collection, query, orderBy, serverTimestamp, doc } from 'firebase/firestore';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -11,7 +11,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
-import { Save, ChevronLeft, Search, Tag, Loader2, AlertCircle } from "lucide-react";
+import { Save, ChevronLeft, Search, Tag, Loader2, AlertCircle, Copy } from "lucide-react";
 import Link from 'next/link';
 
 export default function EditRegisteredProductPage() {
@@ -91,7 +91,6 @@ export default function EditRegisteredProductPage() {
       return;
     }
     
-    // Garantir que não estamos salvando dados vazios se o carregamento falhou
     if (!formData.code || !formData.description) {
       toast({ title: "Erro ao salvar", description: "Código e Descrição são campos obrigatórios.", variant: "destructive" });
       return;
@@ -109,7 +108,23 @@ export default function EditRegisteredProductPage() {
     router.push('/admin/products');
   };
 
-  // Se estiver carregando OU se o ID existe mas ainda não populamos os dados (evita flash de form vazio)
+  const handleDuplicate = () => {
+    if (!hasPopulated) return;
+
+    addDocumentNonBlocking(collection(db, 'registered_products'), {
+      ...formData,
+      code: `${formData.code}-cópia`,
+      quantityPerBox: Number(formData.quantityPerBox) || 0,
+      unitNetWeightKg: Number(formData.unitNetWeightKg) || 0,
+      boxWeightKg: Number(formData.boxWeightKg) || 0,
+      createdAt: serverTimestamp(),
+      updatedAt: serverTimestamp()
+    });
+
+    toast({ title: "Produto duplicado", description: "Uma nova cópia foi criada. Redirecionando para a lista..." });
+    router.push('/admin/products');
+  };
+
   if (isProductLoading || (id && !hasPopulated)) {
     return (
       <div className="flex h-[80vh] items-center justify-center flex-col gap-4">
@@ -122,7 +137,6 @@ export default function EditRegisteredProductPage() {
     );
   }
 
-  // Se o carregamento terminou e não há produto
   if (!isProductLoading && !product) {
     return (
       <div className="container mx-auto px-4 py-20 text-center">
@@ -145,6 +159,9 @@ export default function EditRegisteredProductPage() {
           </Link>
           <h1 className="text-3xl font-bold tracking-tight">Editar Produto</h1>
         </div>
+        <Button variant="outline" type="button" onClick={handleDuplicate} className="gap-2 border-primary text-primary hover:bg-primary/5">
+          <Copy size={18} /> Duplicar Produto
+        </Button>
       </div>
 
       <form onSubmit={handleSubmit}>
