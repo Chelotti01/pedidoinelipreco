@@ -1,3 +1,4 @@
+
 "use client"
 
 import { useCollection, useMemoFirebase } from '@/firebase';
@@ -7,7 +8,7 @@ import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/com
 import { Button } from "@/components/ui/button";
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import { Plus, Package, Edit, Trash2, ChevronLeft } from "lucide-react";
+import { Plus, Package, Edit, Trash2, ChevronLeft, Upload } from "lucide-react";
 import Link from 'next/link';
 
 export default function RegisteredProductsPage() {
@@ -20,7 +21,7 @@ export default function RegisteredProductsPage() {
 
   return (
     <div className="container mx-auto px-4 py-12">
-      <div className="mb-10 flex items-center justify-between">
+      <div className="mb-10 flex items-center justify-between flex-wrap gap-4">
         <div className="flex items-center gap-3">
           <Link href="/" className="text-muted-foreground hover:text-primary">
             <ChevronLeft size={28} />
@@ -30,11 +31,18 @@ export default function RegisteredProductsPage() {
             <p className="text-muted-foreground">Gerencie o cadastro paralelo para vendedores.</p>
           </div>
         </div>
-        <Link href="/admin/products/new">
-          <Button className="gap-2">
-            <Plus size={18} /> Novo Produto
-          </Button>
-        </Link>
+        <div className="flex gap-2">
+          <Link href="/admin/products/import">
+            <Button variant="outline" className="gap-2">
+              <Upload size={18} /> Importar
+            </Button>
+          </Link>
+          <Link href="/admin/products/new">
+            <Button className="gap-2">
+              <Plus size={18} /> Novo Produto
+            </Button>
+          </Link>
+        </div>
       </div>
 
       <Card className="border-none shadow-xl overflow-hidden">
