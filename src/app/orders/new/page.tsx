@@ -53,7 +53,7 @@ export default function NewOrderPage() {
   const [quantity, setQuantity] = useState<number>(1);
   const [priceType, setPriceType] = useState<'closed' | 'fractional'>('closed');
   const [useCatalogDiscount, setUseCatalogDiscount] = useState<boolean>(true);
-  const [discountPercent, setDiscountPercent] = useState<number>(0);
+  const [contractPercent, setContractPercent] = useState<number>(0);
 
   const filteredProducts = useMemo(() => {
     if (selectedFactoryId === "none" || !registeredProducts) return [];
@@ -71,7 +71,6 @@ export default function NewOrderPage() {
     return catalogProducts?.find(p => p.id === currentRegisteredProduct.catalogProductId);
   }, [currentRegisteredProduct, catalogProducts]);
 
-  // Auxiliar para converter ST string (ex: "10%") em número
   const parseST = (stValue: string | undefined): number => {
     if (!stValue) return 0;
     const cleaned = stValue.replace('%', '').replace(',', '.').trim();
@@ -79,7 +78,6 @@ export default function NewOrderPage() {
     return isNaN(parsed) ? 0 : parsed / 100;
   };
 
-  // Cálculo do Preço Unitário Líquido (Preview)
   const unitCalculations = useMemo(() => {
     if (!currentCatalogProduct) return null;
     
@@ -90,8 +88,8 @@ export default function NewOrderPage() {
     const catalogDiscount = useCatalogDiscount ? (currentCatalogProduct.discountAmount || 0) : 0;
     const priceAfterCatalog = Math.max(0, basePrice - catalogDiscount);
     
-    // Preço antes do ST (com margem extra)
-    const finalUnitPriceBeforeST = priceAfterCatalog * (1 - (discountPercent || 0) / 100);
+    // Preço antes do ST (com contrato como aditivo)
+    const finalUnitPriceBeforeST = priceAfterCatalog * (1 + (contractPercent || 0) / 100);
     
     // Cálculo do ST
     const stRate = parseST(currentRegisteredProduct?.st);
@@ -107,7 +105,7 @@ export default function NewOrderPage() {
       stAmount,
       finalUnitPriceWithST
     };
-  }, [currentCatalogProduct, currentRegisteredProduct, priceType, useCatalogDiscount, discountPercent]);
+  }, [currentCatalogProduct, currentRegisteredProduct, priceType, useCatalogDiscount, contractPercent]);
 
   const handleAddProduct = () => {
     if (!currentRegisteredProduct || !currentCatalogProduct || !unitCalculations) {
@@ -118,12 +116,11 @@ export default function NewOrderPage() {
     const { basePrice, finalUnitPriceWithST, finalUnitPriceBeforeST, stRate } = unitCalculations;
     
     const qtyPerBox = currentRegisteredProduct.quantityPerBox || 1;
-    // O total do item é: Preço Final (com ST) * Qtd na Caixa * Quantidade de caixas
     const total = finalUnitPriceWithST * qtyPerBox * (quantity || 1);
     
     const weight = (currentRegisteredProduct.boxWeightKg || 0) * (quantity || 1);
 
-    const totalDiscountPct = basePrice > 0 ? ((basePrice - finalUnitPriceBeforeST) / basePrice) * 100 : 0;
+    const totalDiffPct = basePrice > 0 ? ((finalUnitPriceBeforeST - basePrice) / basePrice) * 100 : 0;
 
     const newItem: OrderItem = {
       productId: currentRegisteredProduct.id,
@@ -135,7 +132,7 @@ export default function NewOrderPage() {
       priceType,
       unitPrice: finalUnitPriceBeforeST,
       unitPriceWithST: finalUnitPriceWithST,
-      appliedDiscount: Number(totalDiscountPct.toFixed(2)),
+      appliedDiscount: Number(totalDiffPct.toFixed(2)),
       stRate: stRate * 100,
       total,
       weight
@@ -149,7 +146,7 @@ export default function NewOrderPage() {
 
     setSelectedProductId("none");
     setQuantity(1);
-    setDiscountPercent(0);
+    setContractPercent(0);
   };
 
   const removeProduct = (index: number) => {
@@ -295,13 +292,13 @@ export default function NewOrderPage() {
                       />
                     </div>
                     <div className="space-y-2">
-                      <Label>Margem Extra (%)</Label>
+                      <Label>Contrato (%)</Label>
                       <Input 
                         type="number" 
-                        value={discountPercent} 
-                        onChange={(e) => setDiscountPercent(Number(e.target.value))} 
+                        value={contractPercent} 
+                        onChange={(e) => setContractPercent(Number(e.target.value))} 
                         placeholder="0"
-                        className="h-11"
+                        className="h-11 font-bold text-primary"
                       />
                     </div>
                   </div>
@@ -321,8 +318,12 @@ export default function NewOrderPage() {
                     <span>- R$ {formatCurrency(unitCalculations.catalogDiscount)}</span>
                   </div>
                 )}
+                <div className="flex justify-between text-xs text-primary font-medium">
+                  <span>(+) Aditivo Contrato ({contractPercent}%):</span>
+                  <span>+ R$ {formatCurrency(unitCalculations.finalUnitPriceBeforeST - unitCalculations.priceAfterCatalog)}</span>
+                </div>
                 <div className="flex justify-between text-xs text-muted-foreground">
-                  <span>Subtotal (C/ Margem Extra):</span>
+                  <span>Subtotal (C/ Contrato):</span>
                   <span>R$ {formatCurrency(unitCalculations.finalUnitPriceBeforeST)}</span>
                 </div>
                 <div className="flex justify-between text-xs text-destructive font-medium">
@@ -358,7 +359,7 @@ export default function NewOrderPage() {
                 <CardTitle className="text-xl flex items-center gap-2">
                   <ShoppingCart size={22} /> Resumo do Carrinho
                 </CardTitle>
-                <CardDescription className="text-white/80">Itens com impostos e descontos aplicados.</CardDescription>
+                <CardDescription className="text-white/80">Itens com impostos e contratos aplicados.</CardDescription>
               </div>
               <Badge variant="outline" className="text-white border-white/40 px-3 py-1 font-bold">
                 {orderItems.length} {orderItems.length === 1 ? 'Item' : 'Itens'}
@@ -456,7 +457,7 @@ export default function NewOrderPage() {
           <div className="p-4 bg-muted rounded-xl flex gap-3 items-start border">
             <Info className="text-primary shrink-0 mt-0.5" size={18} />
             <div className="text-xs text-muted-foreground space-y-1">
-              <p><strong>Cálculo do Preço:</strong> O preço apresentado já inclui o imposto ST (Substituição Tributária) conforme a alíquota cadastrada no produto paralelo.</p>
+              <p><strong>Cálculo do Preço:</strong> O preço apresentado já inclui o imposto ST (Substituição Tributária) e o aditivo de contrato.</p>
               <p><strong>Nota Logística:</strong> O peso do pedido utiliza o Peso da Caixa multiplicado pela quantidade de caixas.</p>
             </div>
           </div>
