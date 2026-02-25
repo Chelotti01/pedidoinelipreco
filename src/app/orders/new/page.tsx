@@ -13,12 +13,12 @@ import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "@/components/ui/table";
 import { useToast } from "@/hooks/use-toast";
-import { ShoppingCart, Plus, Trash2, Calculator, ReceiptText, ChevronLeft, Zap, ArrowRight, Loader2, AlertCircle } from "lucide-react";
+import { ShoppingCart, Plus, Trash2, Calculator, ReceiptText, ChevronLeft, Zap, ArrowRight, Loader2, AlertCircle, Weight } from "lucide-react";
 import Link from 'next/link';
 
 export type OrderItem = {
-  productId: string; // ID do Produto Registrado
-  catalogProductId: string; // ID do Produto no Catálogo (Preço)
+  productId: string;
+  catalogProductId: string;
   factoryName: string;
   name: string;
   unit: string;
@@ -27,13 +27,13 @@ export type OrderItem = {
   unitPrice: number;
   appliedDiscount: number;
   total: number;
+  weight: number;
 };
 
 export default function NewOrderPage() {
   const db = useFirestore();
   const { toast } = useToast();
   
-  // Firestore Data
   const factoriesQuery = useMemoFirebase(() => query(collection(db, 'factories'), orderBy('name')), [db]);
   const { data: factories, isLoading: isFactoriesLoading } = useCollection(factoriesQuery);
 
@@ -45,14 +45,12 @@ export default function NewOrderPage() {
 
   const [orderItems, setOrderItems] = useState<OrderItem[]>([]);
 
-  // New Item State
   const [selectedFactoryId, setSelectedFactoryId] = useState<string>("none");
   const [selectedProductId, setSelectedProductId] = useState<string>("none");
   const [quantity, setQuantity] = useState<number>(1);
   const [priceType, setPriceType] = useState<'closed' | 'fractional'>('closed');
   const [discountPercent, setDiscountPercent] = useState<number>(0);
 
-  // Filtra produtos registrados: da fábrica selecionada E que tenham vínculo (catalogProductId)
   const filteredProducts = useMemo(() => {
     if (selectedFactoryId === "none" || !registeredProducts) return [];
     return registeredProducts.filter(p => 
@@ -76,17 +74,14 @@ export default function NewOrderPage() {
     }
 
     const unitPrice = priceType === 'closed' 
-      ? currentCatalogProduct.closedLoadPrice 
-      : currentCatalogProduct.fractionalLoadPrice;
+      ? (currentCatalogProduct.closedLoadPrice || 0) 
+      : (currentCatalogProduct.fractionalLoadPrice || 0);
 
-    // Desconto fixo em R$ do catálogo (se existir)
     const fixedDiscount = currentCatalogProduct.discountAmount || 0;
-    
-    // Calcula o preço líquido: (Preço Base - Desconto Fixo R$) * (1 - Desconto Extra %)
-    const netPrice = (unitPrice - fixedDiscount) * (1 - discountPercent / 100);
-    const total = netPrice * quantity;
+    const netPrice = (unitPrice - fixedDiscount) * (1 - (discountPercent || 0) / 100);
+    const total = netPrice * (quantity || 1);
+    const weight = (currentRegisteredProduct.unitNetWeightKg || 0) * (quantity || 1);
 
-    // Calcula a porcentagem total de desconto para exibição
     const totalDiscountPct = unitPrice > 0 ? ((unitPrice - netPrice) / unitPrice) * 100 : 0;
 
     const newItem: OrderItem = {
@@ -95,11 +90,12 @@ export default function NewOrderPage() {
       factoryName: factories?.find(f => f.id === selectedFactoryId)?.name || "Fábrica",
       name: currentRegisteredProduct.description,
       unit: currentRegisteredProduct.unit,
-      quantity,
+      quantity: quantity || 1,
       priceType,
       unitPrice,
       appliedDiscount: Number(totalDiscountPct.toFixed(2)),
-      total
+      total,
+      weight
     };
 
     setOrderItems([...orderItems, newItem]);
@@ -108,7 +104,6 @@ export default function NewOrderPage() {
       description: `${currentRegisteredProduct.description} foi adicionado ao pedido.`,
     });
 
-    // Reset fields
     setSelectedProductId("none");
     setQuantity(1);
     setDiscountPercent(0);
@@ -122,22 +117,26 @@ export default function NewOrderPage() {
     return orderItems.reduce((acc, item) => acc + item.total, 0);
   }, [orderItems]);
 
+  const orderTotalWeight = useMemo(() => {
+    return orderItems.reduce((acc, item) => acc + item.weight, 0);
+  }, [orderItems]);
+
   const isLoading = isFactoriesLoading || isRegisteredLoading || isCatalogLoading;
 
   return (
-    <div className="container mx-auto px-4 py-12">
-      <div className="mb-10 flex items-center justify-between">
+    <div className="container mx-auto px-4 py-8 md:py-12">
+      <div className="mb-8 flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div className="flex items-center gap-3">
           <Link href="/catalog" className="text-muted-foreground hover:text-primary transition-colors">
             <ChevronLeft size={28} />
           </Link>
           <div>
-            <h1 className="text-3xl font-bold tracking-tight">Criar Novo Pedido</h1>
-            <p className="text-muted-foreground">Listando produtos registrados vinculados ao catálogo.</p>
+            <h1 className="text-2xl md:text-3xl font-bold tracking-tight">Criar Novo Pedido</h1>
+            <p className="text-sm text-muted-foreground">Adicione produtos registrados para compor o pedido.</p>
           </div>
         </div>
-        <div className="bg-primary/10 text-primary px-4 py-2 rounded-lg font-bold flex items-center gap-2">
-          <Zap size={18} /> Pedido InteliPreço
+        <div className="bg-primary/10 text-primary px-4 py-2 rounded-lg font-bold flex items-center gap-2 self-start md:self-auto">
+          <Zap size={18} /> InteliPreço Mobile
         </div>
       </div>
 
@@ -149,13 +148,13 @@ export default function NewOrderPage() {
               <CardTitle className="text-lg flex items-center gap-2">
                 <Plus size={18} className="text-primary" /> Adicionar Produto
               </CardTitle>
-              <CardDescription>Apenas produtos amarrados (bolinha verde) aparecem aqui.</CardDescription>
+              <CardDescription>Produtos vinculados ao catálogo.</CardDescription>
             </CardHeader>
             <CardContent className="pt-6 space-y-4">
               {isLoading ? (
                 <div className="flex flex-col items-center justify-center py-8 gap-2">
                   <Loader2 className="animate-spin text-primary" />
-                  <span className="text-xs text-muted-foreground">Sincronizando banco...</span>
+                  <span className="text-xs text-muted-foreground">Sincronizando...</span>
                 </div>
               ) : (
                 <>
@@ -194,16 +193,11 @@ export default function NewOrderPage() {
                         ))}
                       </SelectContent>
                     </Select>
-                    {selectedFactoryId !== "none" && filteredProducts.length === 0 && (
-                      <div className="flex items-center gap-1.5 text-[10px] text-destructive font-medium mt-1">
-                        <AlertCircle size={12} /> Nenhuma ficha amarrada encontrada para esta fábrica.
-                      </div>
-                    )}
                   </div>
 
                   <div className="grid grid-cols-2 gap-4">
                     <div className="space-y-2">
-                      <Label>Quantidade ({currentRegisteredProduct?.unit || "-"})</Label>
+                      <Label>Qtd ({currentRegisteredProduct?.unit || "-"})</Label>
                       <Input 
                         type="number" 
                         min="1" 
@@ -212,7 +206,7 @@ export default function NewOrderPage() {
                       />
                     </div>
                     <div className="space-y-2">
-                      <Label>Desconto Extra (%)</Label>
+                      <Label>Desc. Extra (%)</Label>
                       <Input 
                         type="number" 
                         min="0" 
@@ -233,7 +227,7 @@ export default function NewOrderPage() {
                     >
                       <div className="flex items-center space-x-2">
                         <RadioGroupItem value="closed" id="r1" />
-                        <Label htmlFor="r1" className="font-normal cursor-pointer">Carga Fechada</Label>
+                        <Label htmlFor="r1" className="font-normal cursor-pointer">Fechada</Label>
                       </div>
                       <div className="flex items-center space-x-2">
                         <RadioGroupItem value="fractional" id="r2" />
@@ -250,37 +244,24 @@ export default function NewOrderPage() {
                 onClick={handleAddProduct}
                 disabled={selectedProductId === "none" || isLoading || !currentCatalogProduct}
               >
-                <Plus size={18} /> Adicionar ao Carrinho
+                <Plus size={18} /> Adicionar
               </Button>
             </CardFooter>
           </Card>
 
-          {/* Current Selection Price Preview */}
           {currentCatalogProduct && (
             <Card className="bg-accent/5 border-accent/20">
               <CardContent className="p-4 space-y-2 text-sm">
                 <div className="flex justify-between">
-                  <span className="text-muted-foreground">Preço Base ({currentCatalogProduct.name}):</span>
+                  <span className="text-muted-foreground">Base:</span>
                   <span className="font-semibold">R$ {(priceType === 'closed' ? currentCatalogProduct.closedLoadPrice : currentCatalogProduct.fractionalLoadPrice).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
                 </div>
-                {currentCatalogProduct.discountAmount > 0 && (
-                   <div className="flex justify-between text-accent">
-                    <span>Desconto Fábrica (R$):</span>
-                    <span>- R$ {currentCatalogProduct.discountAmount.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
-                  </div>
-                )}
-                {discountPercent > 0 && (
-                   <div className="flex justify-between text-accent">
-                    <span>Desconto Extra:</span>
-                    <span>{discountPercent}%</span>
-                  </div>
-                )}
                 <div className="pt-2 border-t flex justify-between text-lg font-bold text-primary">
-                  <span>Unitário Líquido:</span>
+                  <span>Unit. Líquido:</span>
                   <span>
                     R$ {(
                       ((priceType === 'closed' ? currentCatalogProduct.closedLoadPrice : currentCatalogProduct.fractionalLoadPrice) - (currentCatalogProduct.discountAmount || 0)) * 
-                      (1 - discountPercent / 100)
+                      (1 - (discountPercent || 0) / 100)
                     ).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
                   </span>
                 </div>
@@ -291,31 +272,29 @@ export default function NewOrderPage() {
 
         {/* Order Details Column */}
         <div className="lg:col-span-2 space-y-6">
-          <Card className="shadow-lg border-none min-h-[500px] flex flex-col">
+          <Card className="shadow-lg border-none min-h-[400px] flex flex-col">
             <CardHeader className="bg-primary text-white rounded-t-lg flex flex-row items-center justify-between">
               <div>
                 <CardTitle className="text-xl flex items-center gap-2">
-                  <ShoppingCart size={20} /> Resumo do Pedido
+                  <ShoppingCart size={20} /> Carrinho
                 </CardTitle>
-                <CardDescription className="text-white/80">Itens selecionados da sua tabela paralela.</CardDescription>
+                <CardDescription className="text-white/80 hidden sm:block">Produtos registrados vinculados.</CardDescription>
               </div>
-              <Badge variant="outline" className="text-white border-white/40">Itens: {orderItems.length}</Badge>
+              <Badge variant="outline" className="text-white border-white/40">{orderItems.length} itens</Badge>
             </CardHeader>
-            <CardContent className="flex-1 p-0">
+            <CardContent className="flex-1 p-0 overflow-hidden">
               {orderItems.length === 0 ? (
                 <div className="flex flex-col items-center justify-center h-full py-20 text-muted-foreground">
                   <Calculator size={48} className="mb-4 opacity-20" />
-                  <p>Adicione produtos registrados para começar o pedido.</p>
+                  <p>Seu carrinho está vazio.</p>
                 </div>
               ) : (
                 <div className="overflow-x-auto">
                   <Table>
                     <TableHeader>
                       <TableRow>
-                        <TableHead>Item Paralelo</TableHead>
-                        <TableHead>Fábrica</TableHead>
-                        <TableHead>Preço Base</TableHead>
-                        <TableHead>Qtd</TableHead>
+                        <TableHead>Produto</TableHead>
+                        <TableHead className="hidden sm:table-cell">Qtd</TableHead>
                         <TableHead>Total</TableHead>
                         <TableHead></TableHead>
                       </TableRow>
@@ -324,21 +303,15 @@ export default function NewOrderPage() {
                       {orderItems.map((item, idx) => (
                         <TableRow key={`${item.productId}-${idx}`}>
                           <TableCell>
-                            <div className="font-semibold">{item.name}</div>
-                            <div className="text-[10px] text-muted-foreground uppercase">{item.priceType === 'closed' ? 'Carga Fechada' : 'Fracionada'}</div>
+                            <div className="font-semibold text-xs sm:text-sm">{item.name}</div>
+                            <div className="text-[10px] text-muted-foreground uppercase">{item.factoryName} • {item.quantity} {item.unit}</div>
+                            <div className="text-[10px] text-accent font-bold mt-0.5">{item.weight.toFixed(2)} Kg total</div>
                           </TableCell>
-                          <TableCell><Badge variant="outline" className="text-[10px]">{item.factoryName}</Badge></TableCell>
+                          <TableCell className="hidden sm:table-cell text-sm">{item.quantity} {item.unit}</TableCell>
+                          <TableCell className="font-bold text-primary text-xs sm:text-sm whitespace-nowrap">R$ {item.total.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</TableCell>
                           <TableCell>
-                            <div className="text-sm font-medium">R$ {item.unitPrice.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</div>
-                            {item.appliedDiscount > 0 && (
-                              <div className="text-[10px] text-accent font-bold">-{item.appliedDiscount}% TOTAL</div>
-                            )}
-                          </TableCell>
-                          <TableCell>{item.quantity} {item.unit}</TableCell>
-                          <TableCell className="font-bold text-primary">R$ {item.total.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</TableCell>
-                          <TableCell>
-                            <Button variant="ghost" size="icon" onClick={() => removeProduct(idx)} className="text-destructive hover:text-destructive hover:bg-destructive/10">
-                              <Trash2 size={16} />
+                            <Button variant="ghost" size="icon" onClick={() => removeProduct(idx)} className="text-destructive h-8 w-8">
+                              <Trash2 size={14} />
                             </Button>
                           </TableCell>
                         </TableRow>
@@ -349,15 +322,21 @@ export default function NewOrderPage() {
               )}
             </CardContent>
             {orderItems.length > 0 && (
-              <CardFooter className="bg-primary/5 p-8 flex flex-col md:flex-row items-center justify-between border-t gap-6">
-                <div className="flex flex-col">
-                  <span className="text-sm text-muted-foreground uppercase font-bold tracking-wider">Total do Pedido</span>
-                  <span className="text-4xl font-extrabold text-primary">R$ {orderTotal.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
+              <CardFooter className="bg-primary/5 p-6 flex flex-col border-t gap-4">
+                <div className="w-full flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2">
+                  <div className="flex flex-col">
+                    <span className="text-xs text-muted-foreground uppercase font-bold tracking-wider">Total do Pedido</span>
+                    <span className="text-3xl font-extrabold text-primary">R$ {orderTotal.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
+                  </div>
+                  <div className="flex items-center gap-2 bg-white px-3 py-1.5 rounded-full border shadow-sm">
+                    <Weight size={16} className="text-muted-foreground" />
+                    <span className="text-sm font-bold text-muted-foreground">Peso: {orderTotalWeight.toFixed(2)} Kg</span>
+                  </div>
                 </div>
-                <div className="flex gap-3 w-full md:w-auto">
-                  <Button variant="outline" className="flex-1 md:flex-none border-primary text-primary hover:bg-primary/5" onClick={() => setOrderItems([])}>Limpar</Button>
-                  <Button className="flex-1 md:flex-none h-14 px-8 text-lg bg-accent hover:bg-accent/90 text-white shadow-xl hover:shadow-accent/20 gap-2 group">
-                    <ReceiptText size={20} /> Finalizar Pedido <ArrowRight className="group-hover:translate-x-1 transition-transform" />
+                <div className="flex gap-3 w-full">
+                  <Button variant="outline" className="flex-1 border-primary text-primary" onClick={() => setOrderItems([])}>Limpar</Button>
+                  <Button className="flex-[2] h-12 bg-accent hover:bg-accent/90 text-white shadow-xl gap-2 group">
+                    <ReceiptText size={18} /> Finalizar <ArrowRight className="group-hover:translate-x-1 transition-transform" />
                   </Button>
                 </div>
               </CardFooter>
