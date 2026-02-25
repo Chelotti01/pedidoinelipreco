@@ -47,48 +47,61 @@ export default function UploadPage() {
         try {
           const result = await intelligentlyProcessPriceSheet({ xlsxDataUri: dataUri });
           
-          // Salva no LocalStorage para compatibilidade com partes existentes
-          saveStoredData(result);
-
-          // Sincroniza com o Firestore para habilitar vínculos dinâmicos
-          const batch = writeBatch(db);
+          // Sincroniza com o Firestore em lotes para evitar limites (máx 500 por lote)
+          const allOps: {ref: any, data: any}[] = [];
           
           for (const factoryData of result) {
-            // Cria ou atualiza a fábrica (usa o nome como ID para evitar duplicatas de nomes iguais)
             const factoryId = factoryData.factoryName.toLowerCase().replace(/\s+/g, '-');
             const factoryRef = doc(db, 'factories', factoryId);
-            batch.set(factoryRef, {
-              name: factoryData.factoryName,
-              updatedAt: serverTimestamp()
-            }, { merge: true });
+            
+            allOps.push({ 
+              ref: factoryRef, 
+              data: { 
+                name: factoryData.factoryName, 
+                updatedAt: serverTimestamp() 
+              } 
+            });
 
-            // Adiciona produtos do catálogo vinculados a esta fábrica
             for (const product of factoryData.products) {
               const productId = `${factoryId}-${product.name.toLowerCase().replace(/\s+/g, '-')}`;
               const productRef = doc(db, 'catalog_products', productId);
-              batch.set(productRef, {
-                name: product.name,
-                unit: product.unit,
-                closedLoadPrice: product.closedLoadPrice,
-                fractionalLoadPrice: product.fractionalLoadPrice,
-                factoryId: factoryId,
-                lastPriceUpdateAt: serverTimestamp()
-              }, { merge: true });
+              
+              allOps.push({ 
+                ref: productRef, 
+                data: {
+                  name: product.name,
+                  unit: product.unit,
+                  closedLoadPrice: product.closedLoadPrice,
+                  fractionalLoadPrice: product.fractionalLoadPrice,
+                  discountAmount: product.discountAmount || 0,
+                  factoryId: factoryId,
+                  lastPriceUpdateAt: serverTimestamp()
+                } 
+              });
             }
           }
 
-          await batch.commit();
+          // Executa os commits em pedaços de 400 operações para segurança
+          for (let i = 0; i < allOps.length; i += 400) {
+            const batch = writeBatch(db);
+            const chunk = allOps.slice(i, i + 400);
+            chunk.forEach(op => batch.set(op.ref, op.data, { merge: true }));
+            await batch.commit();
+          }
+
+          // Salva no LocalStorage apenas como redundância
+          saveStoredData(result);
 
           setIsSuccess(true);
           toast({
             title: "Processamento concluído",
-            description: `${result.length} fábricas sincronizadas com o banco de dados.`,
+            description: `${result.length} fábricas e ${allOps.length - result.length} produtos sincronizados com o banco de dados.`,
           });
         } catch (error) {
           console.error(error);
           toast({
             title: "Erro no processamento",
-            description: "Não foi possível extrair os dados da planilha. Verifique o formato.",
+            description: "Não foi possível extrair ou salvar os dados. Verifique o formato do arquivo.",
             variant: "destructive"
           });
         } finally {
@@ -126,22 +139,20 @@ export default function UploadPage() {
           </div>
           <CardTitle className="text-2xl">Atualizar Tabela de Preços</CardTitle>
           <CardDescription>
-            Faça upload do arquivo .xlsx. Os dados serão salvos no banco para vinculação.
+            Faça upload do arquivo .xlsx. Os dados serão gravados no banco para possibilitar a amarração nos produtos.
           </CardDescription>
         </CardHeader>
         <CardContent>
           <div className="space-y-6">
             <div className="grid w-full items-center gap-2">
               <Label htmlFor="xlsx-file" className="text-sm font-semibold">Selecione o arquivo Excel</Label>
-              <div className="relative group">
-                <Input 
-                  id="xlsx-file" 
-                  type="file" 
-                  accept=".xlsx" 
-                  onChange={handleFileChange}
-                  className="cursor-pointer file:bg-primary/10 file:text-primary file:border-0 file:rounded-md file:mr-4 file:px-4 file:py-2 hover:border-primary transition-colors"
-                />
-              </div>
+              <Input 
+                id="xlsx-file" 
+                type="file" 
+                accept=".xlsx" 
+                onChange={handleFileChange}
+                className="cursor-pointer file:bg-primary/10 file:text-primary file:border-0 file:rounded-md file:mr-4 file:px-4 file:py-2 hover:border-primary transition-colors"
+              />
               {file && (
                 <p className="text-xs text-muted-foreground mt-1 flex items-center gap-1">
                   <CheckCircle2 size={12} className="text-accent" />
@@ -157,11 +168,11 @@ export default function UploadPage() {
             >
               {isLoading ? (
                 <>
-                  <Loader2 className="animate-spin" /> Sincronizando banco...
+                  <Loader2 className="animate-spin" /> Gravando no Banco...
                 </>
               ) : (
                 <>
-                  <UploadCloud size={20} /> Processar e Sincronizar
+                  <UploadCloud size={20} /> Processar e Sincronizar Tudo
                 </>
               )}
             </Button>
@@ -170,31 +181,31 @@ export default function UploadPage() {
         {isSuccess && (
           <CardFooter className="bg-accent/5 flex flex-col items-center gap-4 py-6 border-t border-accent/20">
             <div className="flex items-center gap-2 text-accent font-bold text-lg">
-              <CheckCircle2 size={24} /> Banco de Dados Atualizado!
+              <CheckCircle2 size={24} /> Sincronização Concluída!
             </div>
             <Link href="/admin/products" className="w-full">
               <Button variant="outline" className="w-full h-12 border-accent text-accent hover:bg-accent hover:text-white transition-all group">
-                Vincular Produtos <ArrowRight className="ml-2 group-hover:translate-x-1 transition-transform" />
+                Fazer Amarração de Produtos <ArrowRight className="ml-2 group-hover:translate-x-1 transition-transform" />
               </Button>
             </Link>
           </CardFooter>
         )}
       </Card>
 
-      <div className="mt-8">
-        <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider mb-4">Instruções do Sistema</h3>
+      <div className="mt-8 p-4 bg-muted rounded-lg">
+        <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider mb-4">Por que sincronizar?</h3>
         <ul className="space-y-3 text-sm text-muted-foreground">
           <li className="flex gap-2">
             <span className="bg-primary/10 text-primary w-5 h-5 flex items-center justify-center rounded text-xs font-bold shrink-0">1</span>
-            O upload salva os itens no banco de dados "Catálogo".
+            Permite que você escolha o item do catálogo na ficha do produto.
           </li>
           <li className="flex gap-2">
             <span className="bg-primary/10 text-primary w-5 h-5 flex items-center justify-center rounded text-xs font-bold shrink-0">2</span>
-            Após o upload, as fábricas aparecerão no seletor da tela de cadastro.
+            Atualiza automaticamente o preço de venda quando a fábrica envia novos valores.
           </li>
           <li className="flex gap-2">
             <span className="bg-primary/10 text-primary w-5 h-5 flex items-center justify-center rounded text-xs font-bold shrink-0">3</span>
-            Sempre que subir uma nova planilha, os preços vinculados são atualizados.
+            Centraliza os descontos por unidade de cada item da planilha.
           </li>
         </ul>
       </div>

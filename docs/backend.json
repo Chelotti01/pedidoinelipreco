@@ -23,6 +23,7 @@
         "unit": { "type": "string" },
         "closedLoadPrice": { "type": "number" },
         "fractionalLoadPrice": { "type": "number" },
+        "discountAmount": { "type": "number", "description": "Discount in R$ extracted from sheet" },
         "factoryId": { "type": "string" },
         "lastPriceUpdateAt": { "type": "string", "format": "date-time" }
       },

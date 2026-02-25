@@ -1,35 +1,45 @@
+
 "use client"
 
-import { useState, useEffect } from 'react';
-import { getStoredData } from '@/lib/store';
-import { ProcessPriceSheetOutput } from '@/ai/flows/intelligently-process-price-sheet-flow';
+import { useState, useMemo } from 'react';
+import { useFirestore, useCollection, useMemoFirebase } from '@/firebase';
+import { collection, query, orderBy } from 'firebase/firestore';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "@/components/ui/table";
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
-import { Search, Factory, ShoppingCart, Package, Zap, UploadCloud, Tag } from "lucide-react";
+import { Search, Factory, ShoppingCart, Package, Zap, UploadCloud, Tag, Loader2 } from "lucide-react";
 import Link from 'next/link';
 
 export default function CatalogPage() {
-  const [data, setData] = useState<ProcessPriceSheetOutput>([]);
+  const db = useFirestore();
   const [searchTerm, setSearchTerm] = useState("");
   const [factoryFilter, setFactoryFilter] = useState("all");
 
-  useEffect(() => {
-    setData(getStoredData());
-  }, []);
+  // Busca dados diretamente do Firestore
+  const factoriesQuery = useMemoFirebase(() => query(collection(db, 'factories'), orderBy('name')), [db]);
+  const { data: factories, isLoading: isFactoriesLoading } = useCollection(factoriesQuery);
 
-  const factories = data.map(f => f.factoryName);
-  
-  const filteredProducts = data.flatMap(factory => {
-    if (factoryFilter !== "all" && factory.factoryName !== factoryFilter) return [];
+  const productsQuery = useMemoFirebase(() => query(collection(db, 'catalog_products'), orderBy('name')), [db]);
+  const { data: catalogProducts, isLoading: isProductsLoading } = useCollection(productsQuery);
+
+  const filteredProducts = useMemo(() => {
+    if (!catalogProducts) return [];
     
-    return factory.products
-      .filter(p => p.name.toLowerCase().includes(searchTerm.toLowerCase()))
-      .map(p => ({ ...p, factoryName: factory.factoryName }));
-  });
+    return catalogProducts.filter(p => {
+      const matchesSearch = p.name.toLowerCase().includes(searchTerm.toLowerCase());
+      const matchesFactory = factoryFilter === "all" || p.factoryId === factoryFilter;
+      return matchesSearch && matchesFactory;
+    });
+  }, [catalogProducts, searchTerm, factoryFilter]);
+
+  const getFactoryName = (id: string) => {
+    return factories?.find(f => f.id === id)?.name || id;
+  };
+
+  const isLoading = isFactoriesLoading || isProductsLoading;
 
   return (
     <div className="container mx-auto px-4 py-12">
@@ -42,7 +52,7 @@ export default function CatalogPage() {
           </Link>
           <div>
             <h1 className="text-3xl font-bold tracking-tight">Catálogo de Produtos</h1>
-            <p className="text-muted-foreground">Visualize e pesquise itens importados de todas as fábricas.</p>
+            <p className="text-muted-foreground">Visualize itens importados sincronizados no banco de dados.</p>
           </div>
         </div>
         <div className="flex gap-3">
@@ -75,8 +85,8 @@ export default function CatalogPage() {
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">Todas as Fábricas</SelectItem>
-                  {factories.map(f => (
-                    <SelectItem key={f} value={f}>{f}</SelectItem>
+                  {factories?.map(f => (
+                    <SelectItem key={f.id} value={f.id}>{f.name}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>
@@ -86,22 +96,27 @@ export default function CatalogPage() {
         
         <Card className="bg-primary text-white">
           <CardContent className="p-6 flex flex-col items-center justify-center text-center">
-            <p className="text-sm font-medium opacity-80 mb-1">Total de Produtos</p>
+            <p className="text-sm font-medium opacity-80 mb-1">Total de Itens</p>
             <p className="text-3xl font-bold">{filteredProducts.length}</p>
           </CardContent>
         </Card>
       </div>
 
-      {data.length === 0 ? (
+      {isLoading ? (
+        <div className="flex flex-col items-center justify-center py-20">
+          <Loader2 className="animate-spin text-primary mb-4" size={48} />
+          <p className="text-muted-foreground">Carregando catálogo do banco de dados...</p>
+        </div>
+      ) : catalogProducts?.length === 0 ? (
         <Card className="py-20 text-center">
           <CardContent>
             <div className="w-20 h-20 bg-muted rounded-full flex items-center justify-center mx-auto mb-6 text-muted-foreground">
               <Package size={40} />
             </div>
-            <h3 className="text-xl font-semibold mb-2">Nenhum produto encontrado</h3>
-            <p className="text-muted-foreground mb-6">Você precisa importar uma planilha XLSX primeiro para popular o catálogo.</p>
+            <h3 className="text-xl font-semibold mb-2">Banco de dados vazio</h3>
+            <p className="text-muted-foreground mb-6">Você precisa importar e sincronizar uma planilha XLSX para popular o catálogo.</p>
             <Link href="/upload">
-              <Button size="lg" className="gap-2"><UploadCloud size={20} /> Importar Planilha</Button>
+              <Button size="lg" className="gap-2"><UploadCloud size={20} /> Importar e Sincronizar</Button>
             </Link>
           </CardContent>
         </Card>
@@ -119,11 +134,11 @@ export default function CatalogPage() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {filteredProducts.map((p, idx) => (
-                <TableRow key={`${p.factoryName}-${p.name}-${idx}`} className="hover:bg-muted/30 transition-colors">
+              {filteredProducts.map((p) => (
+                <TableRow key={p.id} className="hover:bg-muted/30 transition-colors">
                   <TableCell className="font-medium">{p.name}</TableCell>
                   <TableCell>
-                    <Badge variant="secondary" className="font-normal">{p.factoryName}</Badge>
+                    <Badge variant="secondary" className="font-normal">{getFactoryName(p.factoryId)}</Badge>
                   </TableCell>
                   <TableCell>{p.unit}</TableCell>
                   <TableCell className="text-primary font-semibold">
