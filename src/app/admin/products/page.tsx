@@ -2,22 +2,31 @@
 "use client"
 
 import { useCollection, useMemoFirebase } from '@/firebase';
-import { collection, query, orderBy } from 'firebase/firestore';
-import { useFirestore } from '@/firebase';
+import { collection, query, orderBy, doc } from 'firebase/firestore';
+import { useFirestore, deleteDocumentNonBlocking } from '@/firebase';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Plus, Package, Edit, Trash2, ChevronLeft, Upload } from "lucide-react";
 import Link from 'next/link';
+import { useToast } from "@/hooks/use-toast";
 
 export default function RegisteredProductsPage() {
   const db = useFirestore();
+  const { toast } = useToast();
   const productsQuery = useMemoFirebase(() => {
     return query(collection(db, 'registered_products'), orderBy('createdAt', 'desc'));
   }, [db]);
 
   const { data: products, isLoading } = useCollection(productsQuery);
+
+  const handleDelete = (id: string, name: string) => {
+    if (confirm(`Deseja realmente excluir o produto ${name}?`)) {
+      deleteDocumentNonBlocking(doc(db, 'registered_products', id));
+      toast({ title: "Produto excluído", description: "O registro foi removido com sucesso." });
+    }
+  };
 
   return (
     <div className="container mx-auto px-4 py-12">
@@ -91,8 +100,17 @@ export default function RegisteredProductsPage() {
                   <TableCell className="font-mono text-xs">{p.ean}</TableCell>
                   <TableCell className="text-right">
                     <div className="flex justify-end gap-2">
-                      <Button variant="ghost" size="icon"><Edit size={16} /></Button>
-                      <Button variant="ghost" size="icon" className="text-destructive"><Trash2 size={16} /></Button>
+                      <Link href={`/admin/products/${p.id}`}>
+                        <Button variant="ghost" size="icon"><Edit size={16} /></Button>
+                      </Link>
+                      <Button 
+                        variant="ghost" 
+                        size="icon" 
+                        className="text-destructive"
+                        onClick={() => handleDelete(p.id, p.description)}
+                      >
+                        <Trash2 size={16} />
+                      </Button>
                     </div>
                   </TableCell>
                 </TableRow>
