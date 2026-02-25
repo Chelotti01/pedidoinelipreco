@@ -96,12 +96,13 @@ export default function NewOrderPage() {
     }
 
     const { basePrice, finalUnitPrice } = unitCalculations;
-    const total = finalUnitPrice * (quantity || 1);
     
-    // Alterado: usa boxWeightKg (Peso da Caixa) em vez de unitNetWeightKg
+    // Novo Cálculo: Total = Preço Unitário * Qtd por Caixa * Quantidade de caixas
+    const qtyPerBox = currentRegisteredProduct.quantityPerBox || 1;
+    const total = finalUnitPrice * qtyPerBox * (quantity || 1);
+    
     const weight = (currentRegisteredProduct.boxWeightKg || 0) * (quantity || 1);
 
-    // Calcula porcentagem total de desconto sobre o preço base
     const totalDiscountPct = basePrice > 0 ? ((basePrice - finalUnitPrice) / basePrice) * 100 : 0;
 
     const newItem: OrderItem = {
@@ -142,6 +143,13 @@ export default function NewOrderPage() {
   }, [orderItems]);
 
   const isLoading = isFactoriesLoading || isRegisteredLoading || isCatalogLoading;
+
+  const formatCurrency = (val: number) => {
+    return val.toLocaleString('pt-BR', { 
+      minimumFractionDigits: 2, 
+      maximumFractionDigits: 2 
+    });
+  };
 
   return (
     <div className="container mx-auto px-4 py-8 md:py-12">
@@ -243,7 +251,7 @@ export default function NewOrderPage() {
                         <Tag size={16} className="text-accent" />
                         <div className="text-xs">
                           <p className="font-bold text-accent">Desconto Catálogo</p>
-                          <p className="text-muted-foreground">R$ {currentCatalogProduct.discountAmount.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p>
+                          <p className="text-muted-foreground">R$ {formatCurrency(currentCatalogProduct.discountAmount)}</p>
                         </div>
                       </div>
                       <Switch 
@@ -283,23 +291,23 @@ export default function NewOrderPage() {
               <div className="px-6 py-4 bg-muted/50 border-y space-y-2">
                 <div className="flex justify-between text-xs text-muted-foreground">
                   <span>Preço Base ({priceType === 'closed' ? 'Fechada' : 'Fracionada'}):</span>
-                  <span>R$ {unitCalculations.basePrice.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
+                  <span>R$ {formatCurrency(unitCalculations.basePrice)}</span>
                 </div>
                 {useCatalogDiscount && unitCalculations.catalogDiscount > 0 && (
                   <div className="flex justify-between text-xs text-accent font-medium">
                     <span>(-) Desconto Catálogo:</span>
-                    <span>- R$ {unitCalculations.catalogDiscount.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
+                    <span>- R$ {formatCurrency(unitCalculations.catalogDiscount)}</span>
                   </div>
                 )}
                 {discountPercent !== 0 && (
                   <div className="flex justify-between text-xs text-primary font-medium">
                     <span>({discountPercent > 0 ? '-' : '+'}) Margem Extra {Math.abs(discountPercent)}%:</span>
-                    <span>{discountPercent > 0 ? '-' : '+'} R$ {(Math.abs(unitCalculations.priceAfterCatalog - unitCalculations.finalUnitPrice)).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
+                    <span>{discountPercent > 0 ? '-' : '+'} R$ {formatCurrency(Math.abs(unitCalculations.priceAfterCatalog - unitCalculations.finalUnitPrice))}</span>
                   </div>
                 )}
                 <div className="pt-2 border-t flex justify-between items-center">
                   <span className="text-sm font-bold">Unitário Líquido:</span>
-                  <span className="text-xl font-extrabold text-primary">R$ {unitCalculations.finalUnitPrice.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
+                  <span className="text-xl font-extrabold text-primary">R$ {formatCurrency(unitCalculations.finalUnitPrice)}</span>
                 </div>
               </div>
             )}
@@ -366,10 +374,10 @@ export default function NewOrderPage() {
                             {item.quantity} {item.unit}
                           </TableCell>
                           <TableCell className="text-right text-xs">
-                            R$ {item.unitPrice.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                            R$ {formatCurrency(item.unitPrice)}
                           </TableCell>
                           <TableCell className="text-right font-bold text-primary">
-                            R$ {item.total.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                            R$ {formatCurrency(item.total)}
                           </TableCell>
                           <TableCell className="text-right">
                             <Button 
@@ -393,7 +401,7 @@ export default function NewOrderPage() {
                 <div className="w-full flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
                   <div className="space-y-1">
                     <p className="text-xs text-muted-foreground uppercase font-bold tracking-widest">Valor Total do Pedido</p>
-                    <p className="text-4xl font-black text-primary">R$ {orderTotal.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p>
+                    <p className="text-4xl font-black text-primary">R$ {formatCurrency(orderTotal)}</p>
                   </div>
                   <div className="flex flex-col gap-2">
                     <div className="flex items-center gap-3 bg-white px-5 py-3 rounded-2xl border shadow-sm">
