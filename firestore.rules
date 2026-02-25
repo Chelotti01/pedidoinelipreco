@@ -5,92 +5,42 @@ service cloud.firestore {
 
     /**
      * PEDIDO INTELIPREÇO: PROTOTYPE SECURITY RULES
-     * 
-     * CORE PHILOSOPHY:
-     * This ruleset implements a Role-Based Access Control (RBAC) model using Database Access Control (DBAC).
-     * For the prototype, reading and creating master and registered data is permitted for all 
-     * authenticated users to ensure a smooth onboarding experience.
-     * 
-     * DATA STRUCTURE:
-     * - Master Data: /factories, /catalog_products, /discounts. (Read: All Users; Write: Admins).
-     * - Sales Data: /registered_products. (Read/Write: All Authenticated Users for Prototype).
-     * - RBAC: /roles_admin, /roles_seller. (Existence of UID as DocID defines the role).
      */
 
-    // --- HELPER FUNCTIONS ---
-
-    /** @description Checks if the user is authenticated with any provider. */
     function isSignedIn() {
       return request.auth != null;
     }
 
-    /** @description Checks if the user has the Administrator role via the DBAC collection. */
     function isAdmin() {
       return isSignedIn() && exists(/databases/$(database)/documents/roles_admin/$(request.auth.uid));
     }
 
-    /** @description Checks if the user has the Seller role via the DBAC collection. */
-    function isSeller() {
-      return isSignedIn() && exists(/databases/$(database)/documents/roles_seller/$(request.auth.uid));
-    }
-
-    /** @description Combines authentication and role check for seller-level operations. */
-    function isAuthorizedUser() {
-      return isAdmin() || isSeller();
-    }
-
-    /** @description Verifies a document exists before allowing mutation. */
-    function documentExists() {
-      return resource != null;
-    }
-
     // --- COLLECTION RULES ---
 
-    /**
-     * @description Master factory information.
-     */
     match /factories/{factoryId} {
       allow get, list: if isSignedIn();
-      allow create, update, delete: if isAdmin();
+      allow create, update, delete: if isSignedIn();
     }
 
-    /**
-     * @description Pricing master catalog.
-     */
     match /catalog_products/{catalogProductId} {
       allow get, list: if isSignedIn();
-      allow create, update, delete: if isAdmin();
+      allow create, update, delete: if isSignedIn();
     }
 
-    /**
-     * @description Discount rules.
-     */
     match /discounts/{discountId} {
       allow get, list: if isSignedIn();
-      allow create, update, delete: if isAdmin();
+      allow create, update, delete: if isSignedIn();
     }
 
-    /**
-     * @description Parallel product registry managed by the sales team.
-     * @allow (get, list, create) Signed-in users can view and register products for prototype testing.
-     * @allow (update, delete) Restricted to admins or authorized users with specific roles.
-     */
     match /registered_products/{registeredProductId} {
-      allow get, list, create: if isSignedIn();
-      allow update, delete: if isAuthorizedUser() && documentExists();
+      allow get, list, create, update, delete: if isSignedIn();
     }
 
-    /**
-     * @description DBAC collection for Admin role assignment.
-     */
     match /roles_admin/{userId} {
       allow get: if isSignedIn();
       allow list, create, update, delete: if isAdmin();
     }
 
-    /**
-     * @description DBAC collection for Seller role assignment.
-     */
     match /roles_seller/{userId} {
       allow get: if isSignedIn();
       allow list: if isAdmin();

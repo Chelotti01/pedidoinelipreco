@@ -46,7 +46,7 @@ export default function ImportRegisteredProductsPage() {
     const worksheet = XLSX.utils.json_to_sheet(templateData);
     const workbook = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(workbook, worksheet, "Modelo");
-    XLSX.writeFile(workbook, "modelo_cadastro_produtos.xlsx");
+    XLSX.writeFile(workbook, "modelo_cadastro_products.xlsx");
   };
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -63,59 +63,55 @@ export default function ImportRegisteredProductsPage() {
 
     setIsLoading(true);
     try {
-      const reader = new FileReader();
-      reader.onload = async (event) => {
-        const binaryStr = event.target?.result;
-        const workbook = XLSX.read(binaryStr, { type: 'binary' });
-        const firstSheetName = workbook.SheetNames[0];
-        const worksheet = workbook.Sheets[firstSheetName];
-        const data = XLSX.utils.sheet_to_json(worksheet);
+      const arrayBuffer = await file.arrayBuffer();
+      const workbook = XLSX.read(arrayBuffer);
+      const firstSheetName = workbook.SheetNames[0];
+      const worksheet = workbook.Sheets[firstSheetName];
+      const data = XLSX.utils.sheet_to_json(worksheet);
 
-        if (data.length === 0) {
-          toast({ title: "Arquivo vazio", description: "O arquivo selecionado não contém dados.", variant: "destructive" });
-          setIsLoading(false);
-          return;
-        }
-
-        const colRef = collection(db, 'registered_products');
-        
-        let count = 0;
-        for (const row of data as any[]) {
-          // Mapeamento dos campos do Excel para o Firestore
-          const productData = {
-            status: row["Status (Active/Inactive)"] || 'Active',
-            brand: row["Marca"] || '',
-            line: row["Linha"] || '',
-            code: String(row["CÓDIGO"] || ''),
-            description: row["DESCRIÇÃO"] || '',
-            quantityPerBox: Number(row["Quantidade na caixa"] || 0),
-            unit: row["Unidade"] || '',
-            ean: String(row["EAN"] || ''),
-            dun14: String(row["DUN14"] || ''),
-            taxClassification: row["Classificação Fiscal"] || '',
-            ncm: row["NCM"] || '',
-            cest: row["CEST"] || '',
-            unitNetWeightKg: Number(row["Peso Líquido Unitário (Kg)"] || 0),
-            boxWeightKg: Number(row["Peso Caixa (Kg)"] || 0),
-            st: String(row["ST"] || ''),
-            catalogProductId: '', // Inicialmente vazio para vínculo manual
-            createdAt: serverTimestamp(),
-            updatedAt: serverTimestamp()
-          };
-
-          addDocumentNonBlocking(colRef, productData);
-          count++;
-        }
-
-        setIsSuccess(true);
-        toast({ title: "Importação concluída", description: `${count} produtos foram adicionados à fila de cadastro.` });
+      if (data.length === 0) {
+        toast({ title: "Arquivo vazio", description: "O arquivo selecionado não contém dados.", variant: "destructive" });
         setIsLoading(false);
-      };
-      reader.readAsBinaryString(file);
+        return;
+      }
+
+      const colRef = collection(db, 'registered_products');
+      
+      let count = 0;
+      for (const row of data as any[]) {
+        const productData = {
+          status: row["Status (Active/Inactive)"] || 'Active',
+          brand: row["Marca"] || '',
+          line: row["Linha"] || '',
+          code: String(row["CÓDIGO"] || row["Código"] || ''),
+          description: row["DESCRIÇÃO"] || row["Descrição"] || '',
+          quantityPerBox: Number(row["Quantidade na caixa"] || 0),
+          unit: row["Unidade"] || '',
+          ean: String(row["EAN"] || ''),
+          dun14: String(row["DUN14"] || ''),
+          taxClassification: row["Classificação Fiscal"] || '',
+          ncm: row["NCM"] || '',
+          cest: row["CEST"] || '',
+          unitNetWeightKg: Number(row["Peso Líquido Unitário (Kg)"] || 0),
+          boxWeightKg: Number(row["Peso Caixa (Kg)"] || 0),
+          st: String(row["ST"] || ''),
+          factoryId: '', // Vazio inicialmente
+          catalogProductId: '', // Inicialmente vazio para vínculo manual
+          createdAt: serverTimestamp(),
+          updatedAt: serverTimestamp()
+        };
+
+        addDocumentNonBlocking(colRef, productData);
+        count++;
+      }
+
+      setIsSuccess(true);
+      toast({ title: "Importação concluída", description: `${count} produtos foram adicionados à fila de cadastro.` });
+      setIsLoading(false);
     } catch (error) {
       console.error(error);
       setIsLoading(false);
-      toast({ title: "Erro na importação", variant: "destructive" });
+      toast({ title: "Erro na importação", description: "Verifique o formato do arquivo e tente novamente.", variant: "destructive" });
     }
   };
 

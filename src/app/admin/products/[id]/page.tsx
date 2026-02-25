@@ -11,7 +11,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
-import { Save, ChevronLeft, Search, Tag, Loader2 } from "lucide-react";
+import { Save, ChevronLeft, Search, Tag, Loader2, AlertCircle } from "lucide-react";
 import Link from 'next/link';
 
 export default function EditRegisteredProductPage() {
@@ -102,6 +102,19 @@ export default function EditRegisteredProductPage() {
     return (
       <div className="flex h-[80vh] items-center justify-center">
         <Loader2 className="animate-spin text-primary" size={48} />
+      </div>
+    );
+  }
+
+  if (!isProductLoading && !product) {
+    return (
+      <div className="container mx-auto px-4 py-20 text-center">
+        <AlertCircle className="mx-auto mb-4 text-destructive" size={48} />
+        <h2 className="text-2xl font-bold mb-2">Produto não encontrado</h2>
+        <p className="text-muted-foreground mb-6">O produto que você está tentando editar não existe ou foi removido.</p>
+        <Link href="/admin/products">
+          <Button>Voltar para Lista</Button>
+        </Link>
       </div>
     );
   }

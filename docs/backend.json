@@ -1,3 +1,4 @@
+
 {
   "entities": {
     "Factory": {
@@ -203,6 +204,10 @@
           "type": "string",
           "description": "Supplementary Tax (ST) information or status related to the product."
         },
+        "factoryId": {
+          "type": "string",
+          "description": "Reference to the Factory entity this registered product is associated with."
+        },
         "catalogProductId": {
           "type": "string",
           "description": "Reference to the CatalogProduct entity from which this registered product will retrieve its pricing information. (Relationship: CatalogProduct 1:1 RegisteredProduct)"
@@ -254,7 +259,7 @@
           "schema": {
             "$ref": "#/backend/entities/Factory"
           },
-          "description": "Stores master factory information. Read access for authenticated users, write access restricted to administrators. Does not include denormalized authorization fields as it is a top-level collection.",
+          "description": "Stores master factory information. Read access for authenticated users, write access restricted to administrators.",
           "params": [
             {
               "name": "factoryId",
@@ -270,7 +275,7 @@
           "schema": {
             "$ref": "#/backend/entities/CatalogProduct"
           },
-          "description": "Stores master product pricing and details imported from XLSX files. Includes 'factoryId' for data association and filtering. Read access for authenticated users, write access restricted to administrators. Does not include denormalized authorization fields as it is a top-level collection.",
+          "description": "Stores master product pricing and details imported from XLSX files.",
           "params": [
             {
               "name": "catalogProductId",
@@ -286,7 +291,7 @@
           "schema": {
             "$ref": "#/backend/entities/Discount"
           },
-          "description": "Stores master discount rules imported from XLSX files. Includes 'factoryId' for data association. Read access for authenticated users, write access restricted to administrators. Does not include denormalized authorization fields as it is a top-level collection.",
+          "description": "Stores master discount rules imported from XLSX files.",
           "params": [
             {
               "name": "discountId",
@@ -302,7 +307,7 @@
           "schema": {
             "$ref": "#/backend/entities/RegisteredProduct"
           },
-          "description": "Stores detailed product information registered by sellers, linked to a CatalogProduct for dynamic pricing via 'catalogProductId'. Access is role-based (sellers and administrators). Does not include denormalized 'factoryId' for authorization independence, as per the provided schema; authorization relies solely on user roles.",
+          "description": "Stores detailed product information registered by sellers.",
           "params": [
             {
               "name": "registeredProductId",
@@ -318,11 +323,11 @@
           "schema": {
             "$ref": "#/backend/entities/AdminRole"
           },
-          "description": "Implements Database Access Control (DBAC) for administrative privileges. Document existence grants 'admin' role. Read access is for rules, write access is restricted to existing administrators or server-side processes.",
+          "description": "Implements DBAC for admin privileges.",
           "params": [
             {
               "name": "userId",
-              "description": "The unique identifier of the user (Firebase Authentication UID) granted the 'admin' role."
+              "description": "The unique identifier of the user."
             }
           ]
         }
@@ -334,16 +339,15 @@
           "schema": {
             "$ref": "#/backend/entities/SellerRole"
           },
-          "description": "Implements Database Access Control (DBAC) for seller privileges. Document existence grants 'seller' role. Read access is for rules, write access is restricted to administrators or server-side processes.",
+          "description": "Implements DBAC for seller privileges.",
           "params": [
             {
               "name": "userId",
-              "description": "The unique identifier of the user (Firebase Authentication UID) granted the 'seller' role."
+              "description": "The unique identifier of the user."
             }
           ]
         }
       }
-    ],
-    "reasoning": "The Firestore structure is designed to support the 'Pedido InteliPreço' application by clearly segregating data based on its security posture and management responsibilities. \n\n**Addressing Authorization Independence:**\n1.  **Master Data Collections (`factories`, `catalog_products`, `discounts`):** These are top-level collections. Their documents do not depend on parent documents for authorization. Each document contains all necessary data for its own authorization (primarily role-based for write operations). For `catalog_products` and `discounts`, the `factoryId` field is included for data association and filtering, but it is not used in security rules to determine read/write access to the `catalog_product` or `discount` document itself. This eliminates `get()` calls in security rules for authorizing these collections.\n2.  **Seller-Managed Product Collection (`registered_products`):** This is also a top-level collection. Its authorization is determined by the user's role (seller or admin) using dedicated role collections (`roles_seller`, `roles_admin`). It explicitly links to a `CatalogProduct` via `catalogProductId`. Crucially, to adhere to the provided `RegisteredProduct` schema, `factoryId` is *not* denormalized into `registered_products` for authorization purposes. Instead, security rules for this collection will rely solely on the authenticated user's assigned role. Data integrity regarding the `catalogProductId` and its associated `factoryId` must be enforced by client-side logic or Cloud Functions, as Firestore rules cannot perform cross-document `get()` calls to verify these relationships while maintaining authorization independence.\n3.  **Role-Based Access Control (`roles_admin`, `roles_seller`):** These collections implement Database Access Control (DBAC). User roles are determined by the *existence* of a document with their `uid` as the document ID in these collections. This is a highly efficient and independent way to manage roles without relying on custom claims or `get()` calls on other primary data collections. For the purpose of providing a complete structure as requested, `AdminRole` and `SellerRole` are inferred as logical entities for these paths, though their full schemas are not explicitly provided in the input.\n\n**Supporting QAPs (Rules are not Filters):**\n1.  **Homogeneous Security Posture:** Each collection is designed so that all documents within it share the same basic security requirements for reading. This allows for simple and performant `list` operations.\n    *   For `factories`, `catalog_products`, `discounts`: All authenticated users are permitted to read all documents. A `list` query will return only authorized documents by definition.\n    *   For `registered_products`: All users with `seller` or `admin` roles are permitted to read all documents in this collection. Thus, any `list` query executed by an authorized user will return only authorized documents.\n    *   For `roles_admin` and `roles_seller`: `list` operations will typically be denied to non-admins; `get` is used for existence checks to verify roles, making `list` unnecessary for this purpose.\n2.  **Structural Segregation:** Publicly viewable data (for all authenticated users) is kept separate from potentially user-specific or role-restricted data. In this design, `registered_products` serves as a *shared* catalog for sellers, rather than individual seller-specific lists. This means all documents within `registered_products` are accessible to any authorized seller or admin, simplifying `list` operations without filtering."
+    ]
   }
 }
