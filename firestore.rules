@@ -1,3 +1,4 @@
+
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
@@ -7,22 +8,13 @@ service cloud.firestore {
      * 
      * CORE PHILOSOPHY:
      * This ruleset implements a Role-Based Access Control (RBAC) model using Database Access Control (DBAC).
-     * It prioritizes strict authorization (who can access) over schema enforcement to allow for rapid
-     * iteration of product features.
+     * For the prototype, reading and creating master and registered data is permitted for all 
+     * authenticated users to ensure a smooth onboarding experience.
      * 
      * DATA STRUCTURE:
      * - Master Data: /factories, /catalog_products, /discounts. (Read: All Users; Write: Admins).
-     * - Sales Data: /registered_products. (Read/Write: Sellers and Admins).
+     * - Sales Data: /registered_products. (Read/Write: All Authenticated Users for Prototype).
      * - RBAC: /roles_admin, /roles_seller. (Existence of UID as DocID defines the role).
-     * 
-     * KEY SECURITY DECISIONS:
-     * 1. Public Access: No collection allows unauthenticated access. This resolves the reported
-     *    NextJS error by requiring a signed-in state for listing factories.
-     * 2. Role-Based Writes: All master data modifications are restricted to verified Administrators.
-     * 3. Seller Collaboration: Registered products are treated as a shared pool for all authorized 
-     *    sellers, facilitating collaborative sales environments.
-     * 4. Relational Integrity: On update/delete, we strictly verify document existence to prevent
-     *    orphaned data or logic errors.
      */
 
     // --- HELPER FUNCTIONS ---
@@ -55,76 +47,49 @@ service cloud.firestore {
     // --- COLLECTION RULES ---
 
     /**
-     * @description Master factory information. Requires authentication to prevent anonymous listing.
-     * @path /factories/{factoryId}
-     * @allow (list) Auth user retrieves factory list.
-     * @deny (list) Unauthenticated user attempts to list factories (Fixes reported error).
-     * @principle Role-based write access with authenticated read access.
+     * @description Master factory information.
      */
     match /factories/{factoryId} {
       allow get, list: if isSignedIn();
-      allow create: if isAdmin();
-      allow update, delete: if isAdmin() && documentExists();
+      allow create, update, delete: if isAdmin();
     }
 
     /**
-     * @description Pricing master catalog. Controlled by admin imports.
-     * @path /catalog_products/{catalogProductId}
-     * @allow (get) Any signed-in user views product pricing.
-     * @deny (create) A seller attempts to modify the master price catalog.
-     * @principle Immutable master data for non-admin users.
+     * @description Pricing master catalog.
      */
     match /catalog_products/{catalogProductId} {
       allow get, list: if isSignedIn();
-      allow create: if isAdmin();
-      allow update, delete: if isAdmin() && documentExists();
+      allow create, update, delete: if isAdmin();
     }
 
     /**
-     * @description Discount rules associated with factories and products.
-     * @path /discounts/{discountId}
-     * @allow (list) Sellers list discounts to apply to orders.
-     * @deny (delete) Unauthorized users attempt to remove discount rules.
-     * @principle Administrative control over financial logic.
+     * @description Discount rules.
      */
     match /discounts/{discountId} {
       allow get, list: if isSignedIn();
-      allow create: if isAdmin();
-      allow update, delete: if isAdmin() && documentExists();
+      allow create, update, delete: if isAdmin();
     }
 
     /**
      * @description Parallel product registry managed by the sales team.
-     * @path /registered_products/{registeredProductId}
-     * @allow (create) An authorized seller registers a new product.
-     * @deny (get) A standard customer (not a seller/admin) tries to view the registry.
-     * @principle Role-based shared access for operational entities.
+     * @allow (get, list, create) Signed-in users can view and register products for prototype testing.
+     * @allow (update, delete) Restricted to admins or authorized users with specific roles.
      */
     match /registered_products/{registeredProductId} {
-      allow get, list: if isAuthorizedUser();
-      allow create: if isAuthorizedUser();
+      allow get, list, create: if isSignedIn();
       allow update, delete: if isAuthorizedUser() && documentExists();
     }
 
     /**
      * @description DBAC collection for Admin role assignment.
-     * @path /roles_admin/{userId}
-     * @allow (get) Any user's auth check triggers a lookup here.
-     * @deny (list) Listing all admins is restricted to current admins.
-     * @principle Root of trust for administrative privileges.
      */
     match /roles_admin/{userId} {
       allow get: if isSignedIn();
-      allow list: if isAdmin();
-      allow create, update, delete: if isAdmin();
+      allow list, create, update, delete: if isAdmin();
     }
 
     /**
      * @description DBAC collection for Seller role assignment.
-     * @path /roles_seller/{userId}
-     * @allow (get) System checks if user is a seller.
-     * @deny (create) A user tries to promote themselves to seller.
-     * @principle Secure role management via administrative overrides.
      */
     match /roles_seller/{userId} {
       allow get: if isSignedIn();
