@@ -1,7 +1,7 @@
 import Link from 'next/link';
 import { Button } from "@/components/ui/button";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
-import { ShoppingCart, UploadCloud, ListChecks, ArrowRight, ShieldCheck, Zap } from "lucide-react";
+import { ShoppingCart, UploadCloud, ListChecks, ArrowRight, ShieldCheck, Zap, Settings } from "lucide-react";
 
 export default function Home() {
   return (
@@ -17,6 +17,7 @@ export default function Home() {
           </div>
           <nav className="hidden md:flex items-center gap-6">
             <Link href="/catalog" className="text-sm font-medium hover:text-primary transition-colors">Catálogo</Link>
+            <Link href="/admin/products" className="text-sm font-medium hover:text-primary transition-colors text-accent font-bold">Gerir Produtos</Link>
             <Link href="/upload" className="text-sm font-medium hover:text-primary transition-colors">Importar XLSX</Link>
             <Link href="/orders/new">
               <Button size="sm" className="gap-2">
@@ -38,14 +39,14 @@ export default function Home() {
               Importe suas tabelas de preços XLSX e deixe nossa IA organizar produtos, fábricas e descontos automaticamente para você.
             </p>
             <div className="flex flex-col sm:flex-row gap-4 justify-center">
-              <Link href="/upload">
-                <Button size="lg" className="h-14 px-8 text-lg gap-2">
-                  <UploadCloud size={20} /> Começar Importação
+              <Link href="/admin/products">
+                <Button size="lg" className="h-14 px-8 text-lg gap-2 bg-accent hover:bg-accent/90">
+                  <Settings size={20} /> Cadastro de Produtos
                 </Button>
               </Link>
-              <Link href="/catalog">
-                <Button size="lg" variant="outline" className="h-14 px-8 text-lg gap-2">
-                  <ListChecks size={20} /> Ver Catálogo
+              <Link href="/upload">
+                <Button size="lg" variant="outline" className="h-14 px-8 text-lg gap-2 border-primary text-primary">
+                  <UploadCloud size={20} /> Importar Tabela
                 </Button>
               </Link>
             </div>
