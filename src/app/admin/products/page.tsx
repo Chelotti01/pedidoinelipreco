@@ -1,6 +1,7 @@
 
 "use client"
 
+import { useState, useMemo } from 'react';
 import { useCollection, useMemoFirebase } from '@/firebase';
 import { collection, query, orderBy, doc, serverTimestamp } from 'firebase/firestore';
 import { useFirestore, deleteDocumentNonBlocking, addDocumentNonBlocking } from '@/firebase';
@@ -8,9 +9,10 @@ import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/com
 import { Button } from "@/components/ui/button";
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import { Plus, Package, Edit, Trash2, ChevronLeft, Upload, AlertTriangle, Copy } from "lucide-react";
+import { Plus, Package, Edit, Trash2, ChevronLeft, Upload, AlertTriangle, Copy, Search } from "lucide-react";
 import Link from 'next/link';
 import { useToast } from "@/hooks/use-toast";
+import { Input } from "@/components/ui/input";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -26,11 +28,29 @@ import {
 export default function RegisteredProductsPage() {
   const db = useFirestore();
   const { toast } = useToast();
+  const [searchTerm, setSearchTerm] = useState("");
+
   const productsQuery = useMemoFirebase(() => {
     return query(collection(db, 'registered_products'), orderBy('createdAt', 'desc'));
   }, [db]);
 
   const { data: products, isLoading } = useCollection(productsQuery);
+
+  const filteredProducts = useMemo(() => {
+    if (!products) return [];
+    if (!searchTerm.trim()) return products;
+    
+    const term = searchTerm.toLowerCase();
+    return products.filter((p) => {
+      return (
+        p.code?.toLowerCase().includes(term) ||
+        p.description?.toLowerCase().includes(term) ||
+        p.brand?.toLowerCase().includes(term) ||
+        p.line?.toLowerCase().includes(term) ||
+        p.ean?.toLowerCase().includes(term)
+      );
+    });
+  }, [products, searchTerm]);
 
   const handleDelete = (id: string) => {
     deleteDocumentNonBlocking(doc(db, 'registered_products', id));
@@ -118,6 +138,16 @@ export default function RegisteredProductsPage() {
         </div>
       </div>
 
+      <div className="mb-6 relative max-w-md">
+        <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" size={18} />
+        <Input 
+          placeholder="Pesquisar por código, nome, marca, EAN..." 
+          className="pl-10"
+          value={searchTerm}
+          onChange={(e) => setSearchTerm(e.target.value)}
+        />
+      </div>
+
       <Card className="border-none shadow-xl overflow-hidden">
         <Table>
           <TableHeader className="bg-muted/50">
@@ -135,15 +165,15 @@ export default function RegisteredProductsPage() {
               <TableRow>
                 <TableCell colSpan={6} className="text-center py-10">Carregando produtos...</TableCell>
               </TableRow>
-            ) : products?.length === 0 ? (
+            ) : filteredProducts.length === 0 ? (
               <TableRow>
                 <TableCell colSpan={6} className="text-center py-20">
                   <Package className="mx-auto mb-4 opacity-20" size={48} />
-                  <p className="text-muted-foreground">Nenhum produto cadastrado ainda.</p>
+                  <p className="text-muted-foreground">Nenhum produto encontrado.</p>
                 </TableCell>
               </TableRow>
             ) : (
-              products?.map((p) => (
+              filteredProducts.map((p) => (
                 <TableRow key={p.id}>
                   <TableCell>
                     <Badge variant={p.status === 'Active' ? 'default' : 'secondary'}>
