@@ -25,20 +25,20 @@ export default function ImportRegisteredProductsPage() {
   const handleDownloadTemplate = () => {
     const templateData = [
       {
-        "Status (Active/Inactive)": "Active",
+        "Status": "Active",
         "Marca": "Marca Exemplo",
         "Linha": "Linha Premium",
-        "CÓDIGO": "PRD001",
-        "DESCRIÇÃO": "Produto Exemplo para Venda",
-        "Quantidade na caixa": 12,
+        "Código": "PRD001",
+        "Descrição": "Produto Exemplo para Venda",
+        "Qtd Caixa": 12,
         "Unidade": "PC",
         "EAN": "7891234567890",
         "DUN14": "17891234567897",
         "Classificação Fiscal": "Nacional",
         "NCM": "39241000",
         "CEST": "1400100",
-        "Peso Líquido Unitário (Kg)": 0.5,
-        "Peso Caixa (Kg)": 6.5,
+        "Peso Liq Unit": 0.5,
+        "Peso Caixa": 6.5,
         "ST": "0%"
       }
     ];
@@ -46,13 +46,27 @@ export default function ImportRegisteredProductsPage() {
     const worksheet = XLSX.utils.json_to_sheet(templateData);
     const workbook = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(workbook, worksheet, "Modelo");
-    XLSX.writeFile(workbook, "modelo_cadastro_products.xlsx");
+    XLSX.writeFile(workbook, "modelo_cadastro_produtos.xlsx");
   };
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
       setFile(e.target.files[0]);
     }
+  };
+
+  const getRowValue = (row: any, keys: string[]) => {
+    for (const key of keys) {
+      // Busca exata
+      if (row[key] !== undefined) return row[key];
+      // Busca case-insensitive e parcial
+      const foundKey = Object.keys(row).find(k => 
+        k.toLowerCase().includes(key.toLowerCase()) || 
+        key.toLowerCase().includes(k.toLowerCase())
+      );
+      if (foundKey) return row[foundKey];
+    }
+    return '';
   };
 
   const handleUpload = async () => {
@@ -80,23 +94,23 @@ export default function ImportRegisteredProductsPage() {
       let count = 0;
       for (const row of data as any[]) {
         const productData = {
-          status: row["Status (Active/Inactive)"] || 'Active',
-          brand: row["Marca"] || '',
-          line: row["Linha"] || '',
-          code: String(row["CÓDIGO"] || row["Código"] || ''),
-          description: row["DESCRIÇÃO"] || row["Descrição"] || '',
-          quantityPerBox: Number(row["Quantidade na caixa"] || 0),
-          unit: row["Unidade"] || '',
-          ean: String(row["EAN"] || ''),
-          dun14: String(row["DUN14"] || ''),
-          taxClassification: row["Classificação Fiscal"] || '',
-          ncm: row["NCM"] || '',
-          cest: row["CEST"] || '',
-          unitNetWeightKg: Number(row["Peso Líquido Unitário (Kg)"] || 0),
-          boxWeightKg: Number(row["Peso Caixa (Kg)"] || 0),
-          st: String(row["ST"] || ''),
-          factoryId: '', // Vazio inicialmente
-          catalogProductId: '', // Inicialmente vazio para vínculo manual
+          status: getRowValue(row, ["Status", "Ativo/Inativo"]) || 'Active',
+          brand: getRowValue(row, ["Marca", "Brand"]) || '',
+          line: getRowValue(row, ["Linha", "Line"]) || '',
+          code: String(getRowValue(row, ["Código", "CÓDIGO", "Code"]) || ''),
+          description: getRowValue(row, ["Descrição", "DESCRIÇÃO", "Description"]) || '',
+          quantityPerBox: Number(getRowValue(row, ["Qtd Caixa", "Quantidade na caixa", "Quantity"]) || 0),
+          unit: getRowValue(row, ["Unidade", "Unit"]) || '',
+          ean: String(getRowValue(row, ["EAN", "GTIN"]) || ''),
+          dun14: String(getRowValue(row, ["DUN14", "DUN-14"]) || ''),
+          taxClassification: getRowValue(row, ["Classificação Fiscal", "Tax Classification"]) || '',
+          ncm: getRowValue(row, ["NCM"]) || '',
+          cest: getRowValue(row, ["CEST"]) || '',
+          unitNetWeightKg: Number(getRowValue(row, ["Peso Liq Unit", "Peso Líquido Unitário (Kg)"]) || 0),
+          boxWeightKg: Number(getRowValue(row, ["Peso Caixa", "Peso Caixa (Kg)"]) || 0),
+          st: String(getRowValue(row, ["ST"]) || ''),
+          factoryId: '', 
+          catalogProductId: '', 
           createdAt: serverTimestamp(),
           updatedAt: serverTimestamp()
         };
@@ -106,12 +120,12 @@ export default function ImportRegisteredProductsPage() {
       }
 
       setIsSuccess(true);
-      toast({ title: "Importação concluída", description: `${count} produtos foram adicionados à fila de cadastro.` });
+      toast({ title: "Importação concluída", description: `${count} produtos foram adicionados.` });
       setIsLoading(false);
     } catch (error) {
       console.error(error);
       setIsLoading(false);
-      toast({ title: "Erro na importação", description: "Verifique o formato do arquivo e tente novamente.", variant: "destructive" });
+      toast({ title: "Erro na importação", description: "Verifique o formato do arquivo.", variant: "destructive" });
     }
   };
 
@@ -133,7 +147,7 @@ export default function ImportRegisteredProductsPage() {
               <Download className="text-primary" size={20} /> Passo 1: Modelo
             </CardTitle>
             <CardDescription>
-              Baixe o modelo oficial para garantir que as colunas estejam no formato correto.
+              Baixe o modelo Excel para ver como organizar os dados.
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -149,7 +163,7 @@ export default function ImportRegisteredProductsPage() {
               <UploadCloud className="text-primary" size={20} /> Passo 2: Upload
             </CardTitle>
             <CardDescription>
-              Selecione o arquivo preenchido para cadastrar os produtos em lote.
+              Selecione o arquivo Excel preenchido.
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-6">
@@ -170,18 +184,13 @@ export default function ImportRegisteredProductsPage() {
               )}
             </div>
 
-            {isSuccess ? (
+            {isSuccess && (
               <div className="p-4 bg-accent/10 rounded-lg flex items-start gap-3">
                 <CheckCircle2 className="text-accent mt-0.5" size={20} />
                 <div>
                   <p className="font-bold text-accent">Sucesso!</p>
-                  <p className="text-sm">Os produtos foram importados. Agora você pode voltar e associá-los ao catálogo.</p>
+                  <p className="text-sm">Os produtos foram importados. Vá para a lista para vincular os preços do catálogo.</p>
                 </div>
-              </div>
-            ) : (
-              <div className="p-4 bg-muted/50 rounded-lg flex items-start gap-3 text-sm">
-                <AlertCircle className="text-muted-foreground mt-0.5" size={20} />
-                <p>O vínculo com o catálogo deve ser feito manualmente na edição de cada produto após a importação.</p>
               </div>
             )}
           </CardContent>

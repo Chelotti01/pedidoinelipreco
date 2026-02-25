@@ -2,352 +2,76 @@
 {
   "entities": {
     "Factory": {
-      "$schema": "http://json-schema.org/draft-07/schema#",
       "title": "Factory",
       "type": "object",
-      "description": "Represents a manufacturing factory, which corresponds to a specific tab in the uploaded XLSX price sheet. Products and discounts are associated with factories.",
+      "description": "Manufacturing factory information.",
       "properties": {
-        "id": {
-          "type": "string",
-          "description": "Unique identifier for the Factory entity."
-        },
-        "name": {
-          "type": "string",
-          "description": "The name of the factory, typically derived from the XLSX sheet tab name."
-        },
-        "createdAt": {
-          "type": "string",
-          "description": "The timestamp when the factory record was created.",
-          "format": "date-time"
-        },
-        "updatedAt": {
-          "type": "string",
-          "description": "The timestamp when the factory record was last updated.",
-          "format": "date-time"
-        }
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
       },
-      "required": [
-        "id",
-        "name"
-      ]
+      "required": ["id", "name"]
     },
     "CatalogProduct": {
-      "$schema": "http://json-schema.org/draft-07/schema#",
       "title": "CatalogProduct",
       "type": "object",
-      "description": "Represents a product and its pricing details as extracted from the uploaded XLSX price sheets. This serves as the master catalog for pricing information.",
+      "description": "Product pricing extracted from XLSX.",
       "properties": {
-        "id": {
-          "type": "string",
-          "description": "Unique identifier for the CatalogProduct entity."
-        },
-        "name": {
-          "type": "string",
-          "description": "The name of the product, typically found in Column A of the XLSX sheet."
-        },
-        "unit": {
-          "type": "string",
-          "description": "The unit of measurement for the product (e.g., 'PC', 'KG'), typically found in Column B of the XLSX sheet."
-        },
-        "closedLoadPrice": {
-          "type": "number",
-          "description": "The price of the product when purchased in a closed load quantity, typically found in Column C of the XLSX sheet."
-        },
-        "fractionalLoadPrice": {
-          "type": "number",
-          "description": "The price of the product when purchased in a fractional load quantity, typically found in Column D of the XLSX sheet."
-        },
-        "factoryId": {
-          "type": "string",
-          "description": "Reference to the Factory entity that produces this catalog product. (Relationship: Factory 1:N CatalogProduct)"
-        },
-        "lastPriceUpdateAt": {
-          "type": "string",
-          "description": "The timestamp indicating when this product's pricing data was last updated from an XLSX upload.",
-          "format": "date-time"
-        },
-        "createdAt": {
-          "type": "string",
-          "description": "The timestamp when the catalog product record was created.",
-          "format": "date-time"
-        },
-        "updatedAt": {
-          "type": "string",
-          "description": "The timestamp when the catalog product record was last updated.",
-          "format": "date-time"
-        }
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "unit": { "type": "string" },
+        "closedLoadPrice": { "type": "number" },
+        "fractionalLoadPrice": { "type": "number" },
+        "factoryId": { "type": "string" },
+        "lastPriceUpdateAt": { "type": "string", "format": "date-time" }
       },
-      "required": [
-        "id",
-        "name",
-        "unit",
-        "closedLoadPrice",
-        "fractionalLoadPrice",
-        "factoryId",
-        "lastPriceUpdateAt"
-      ]
-    },
-    "Discount": {
-      "$schema": "http://json-schema.org/draft-07/schema#",
-      "title": "Discount",
-      "type": "object",
-      "description": "Represents a discount rule extracted from the XLSX price sheet, typically from the second 'Produto' section. Discounts can be applied to specific products or factory-wide.",
-      "properties": {
-        "id": {
-          "type": "string",
-          "description": "Unique identifier for the Discount entity."
-        },
-        "name": {
-          "type": "string",
-          "description": "A descriptive name or identifier for the discount, usually from Column A in the discount section of the XLSX."
-        },
-        "value": {
-          "type": "number",
-          "description": "The numeric value of the discount (e.g., percentage or fixed amount), usually from Column C in the discount section of the XLSX."
-        },
-        "factoryId": {
-          "type": "string",
-          "description": "Reference to the Factory entity this discount is associated with. (Relationship: Factory 1:N Discount)"
-        },
-        "catalogProductIds": {
-          "type": "array",
-          "description": "References to CatalogProduct entities to which this discount applies. An empty array implies a factory-wide discount if no specific products are listed. (Relationship: Discount N:N CatalogProduct)",
-          "items": {
-            "type": "string"
-          }
-        },
-        "createdAt": {
-          "type": "string",
-          "description": "The timestamp when the discount record was created.",
-          "format": "date-time"
-        },
-        "updatedAt": {
-          "type": "string",
-          "description": "The timestamp when the discount record was last updated.",
-          "format": "date-time"
-        }
-      },
-      "required": [
-        "id",
-        "name",
-        "value",
-        "factoryId"
-      ]
+      "required": ["id", "name", "unit", "closedLoadPrice", "factoryId"]
     },
     "RegisteredProduct": {
-      "$schema": "http://json-schema.org/draft-07/schema#",
       "title": "RegisteredProduct",
       "type": "object",
-      "description": "Represents a product registered in a parallel system for sales representatives to use in order creation. It maintains its own detailed attributes and dynamically pulls pricing from a linked CatalogProduct.",
+      "description": "Master parallel product registration for sellers.",
       "properties": {
-        "id": {
-          "type": "string",
-          "description": "Unique identifier for the RegisteredProduct entity."
-        },
-        "status": {
-          "type": "string",
-          "description": "The operational status of the product, either 'Active' or 'Inactive'."
-        },
-        "brand": {
-          "type": "string",
-          "description": "The brand name of the registered product."
-        },
-        "line": {
-          "type": "string",
-          "description": "The product line to which this registered product belongs."
-        },
-        "code": {
-          "type": "string",
-          "description": "An internal product code or SKU for the registered product."
-        },
-        "description": {
-          "type": "string",
-          "description": "A detailed description of the registered product."
-        },
-        "quantityPerBox": {
-          "type": "number",
-          "description": "The number of individual units contained within one shipping box or package."
-        },
-        "unit": {
-          "type": "string",
-          "description": "The unit of measurement for the product (e.g., 'PC', 'KG')."
-        },
-        "ean": {
-          "type": "string",
-          "description": "The European Article Number (EAN) for the registered product."
-        },
-        "dun14": {
-          "type": "string",
-          "description": "The Distribution Unit Number (DUN-14) for the registered product."
-        },
-        "taxClassification": {
-          "type": "string",
-          "description": "The tax classification code applicable to the product."
-        },
-        "ncm": {
-          "type": "string",
-          "description": "The Nomenclatura Comum do Mercosul (NCM) code for the product."
-        },
-        "cest": {
-          "type": "string",
-          "description": "The Código Especificador da Substituição Tributária (CEST) code for the product."
-        },
-        "unitNetWeightKg": {
-          "type": "number",
-          "description": "The net weight of a single unit of the product in kilograms."
-        },
-        "boxWeightKg": {
-          "type": "number",
-          "description": "The total weight of a full box of the product in kilograms."
-        },
-        "st": {
-          "type": "string",
-          "description": "Supplementary Tax (ST) information or status related to the product."
-        },
-        "factoryId": {
-          "type": "string",
-          "description": "Reference to the Factory entity this registered product is associated with."
-        },
-        "catalogProductId": {
-          "type": "string",
-          "description": "Reference to the CatalogProduct entity from which this registered product will retrieve its pricing information. (Relationship: CatalogProduct 1:1 RegisteredProduct)"
-        },
-        "createdAt": {
-          "type": "string",
-          "description": "The timestamp when the registered product record was created.",
-          "format": "date-time"
-        },
-        "updatedAt": {
-          "type": "string",
-          "description": "The timestamp when the registered product record was last updated.",
-          "format": "date-time"
-        }
+        "id": { "type": "string" },
+        "status": { "type": "string", "enum": ["Active", "Inactive"] },
+        "brand": { "type": "string" },
+        "line": { "type": "string" },
+        "code": { "type": "string" },
+        "description": { "type": "string" },
+        "quantityPerBox": { "type": "number" },
+        "unit": { "type": "string" },
+        "ean": { "type": "string" },
+        "dun14": { "type": "string" },
+        "taxClassification": { "type": "string" },
+        "ncm": { "type": "string" },
+        "cest": { "type": "string" },
+        "unitNetWeightKg": { "type": "number" },
+        "boxWeightKg": { "type": "number" },
+        "st": { "type": "string" },
+        "factoryId": { "type": "string" },
+        "catalogProductId": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
       },
-      "required": [
-        "id",
-        "status",
-        "brand",
-        "line",
-        "code",
-        "description",
-        "quantityPerBox",
-        "unit",
-        "ean",
-        "dun14",
-        "taxClassification",
-        "ncm",
-        "cest",
-        "unitNetWeightKg",
-        "boxWeightKg",
-        "st",
-        "catalogProductId"
-      ]
+      "required": ["id", "status", "code", "description"]
     }
   },
   "auth": {
-    "providers": [
-      "password",
-      "anonymous"
-    ]
+    "providers": ["password", "anonymous"]
   },
   "firestore": {
-    "structure": [
-      {
-        "path": "/factories/{factoryId}",
-        "definition": {
-          "entityName": "Factory",
-          "schema": {
-            "$ref": "#/backend/entities/Factory"
-          },
-          "description": "Stores master factory information. Read access for authenticated users, write access restricted to administrators.",
-          "params": [
-            {
-              "name": "factoryId",
-              "description": "The unique identifier for the factory."
-            }
-          ]
-        }
-      },
-      {
-        "path": "/catalog_products/{catalogProductId}",
-        "definition": {
-          "entityName": "CatalogProduct",
-          "schema": {
-            "$ref": "#/backend/entities/CatalogProduct"
-          },
-          "description": "Stores master product pricing and details imported from XLSX files.",
-          "params": [
-            {
-              "name": "catalogProductId",
-              "description": "The unique identifier for the catalog product."
-            }
-          ]
-        }
-      },
-      {
-        "path": "/discounts/{discountId}",
-        "definition": {
-          "entityName": "Discount",
-          "schema": {
-            "$ref": "#/backend/entities/Discount"
-          },
-          "description": "Stores master discount rules imported from XLSX files.",
-          "params": [
-            {
-              "name": "discountId",
-              "description": "The unique identifier for the discount."
-            }
-          ]
-        }
-      },
-      {
-        "path": "/registered_products/{registeredProductId}",
-        "definition": {
-          "entityName": "RegisteredProduct",
-          "schema": {
-            "$ref": "#/backend/entities/RegisteredProduct"
-          },
-          "description": "Stores detailed product information registered by sellers.",
-          "params": [
-            {
-              "name": "registeredProductId",
-              "description": "The unique identifier for the registered product."
-            }
-          ]
-        }
-      },
-      {
-        "path": "/roles_admin/{userId}",
-        "definition": {
-          "entityName": "AdminRole",
-          "schema": {
-            "$ref": "#/backend/entities/AdminRole"
-          },
-          "description": "Implements DBAC for admin privileges.",
-          "params": [
-            {
-              "name": "userId",
-              "description": "The unique identifier of the user."
-            }
-          ]
-        }
-      },
-      {
-        "path": "/roles_seller/{userId}",
-        "definition": {
-          "entityName": "SellerRole",
-          "schema": {
-            "$ref": "#/backend/entities/SellerRole"
-          },
-          "description": "Implements DBAC for seller privileges.",
-          "params": [
-            {
-              "name": "userId",
-              "description": "The unique identifier of the user."
-            }
-          ]
-        }
-      }
-    ]
+    "/factories/{factoryId}": {
+      "schema": "#/entities/Factory",
+      "description": "Factories list."
+    },
+    "/catalog_products/{catalogProductId}": {
+      "schema": "#/entities/CatalogProduct",
+      "description": "Master pricing catalog."
+    },
+    "/registered_products/{registeredProductId}": {
+      "schema": "#/entities/RegisteredProduct",
+      "description": "Parallel product registrations."
+    }
   }
 }

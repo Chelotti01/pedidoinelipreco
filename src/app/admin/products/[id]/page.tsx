@@ -1,7 +1,7 @@
 
 "use client"
 
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo, useEffect, useRef } from 'react';
 import { useRouter, useParams } from 'next/navigation';
 import { useFirestore, useCollection, useDoc, useMemoFirebase, updateDocumentNonBlocking } from '@/firebase';
 import { collection, query, orderBy, serverTimestamp, doc } from 'firebase/firestore';
@@ -44,8 +44,10 @@ export default function EditRegisteredProductPage() {
     catalogProductId: ''
   });
 
+  const isInitialized = useRef(false);
+
   useEffect(() => {
-    if (product) {
+    if (product && !isInitialized.current) {
       setFormData({
         status: product.status || 'Active',
         brand: product.brand || '',
@@ -65,6 +67,7 @@ export default function EditRegisteredProductPage() {
         factoryId: product.factoryId || '',
         catalogProductId: product.catalogProductId || ''
       });
+      isInitialized.current = true;
     }
   }, [product]);
 
@@ -81,11 +84,7 @@ export default function EditRegisteredProductPage() {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!formData.catalogProductId) {
-      toast({ title: "Vínculo obrigatório", description: "Selecione um produto do catálogo para vincular o preço.", variant: "destructive" });
-      return;
-    }
-
+    
     updateDocumentNonBlocking(productRef, {
       ...formData,
       quantityPerBox: Number(formData.quantityPerBox),
@@ -111,7 +110,7 @@ export default function EditRegisteredProductPage() {
       <div className="container mx-auto px-4 py-20 text-center">
         <AlertCircle className="mx-auto mb-4 text-destructive" size={48} />
         <h2 className="text-2xl font-bold mb-2">Produto não encontrado</h2>
-        <p className="text-muted-foreground mb-6">O produto que você está tentando editar não existe ou foi removido.</p>
+        <p className="text-muted-foreground mb-6">O produto (ID: {id}) não existe ou foi removido.</p>
         <Link href="/admin/products">
           <Button>Voltar para Lista</Button>
         </Link>
