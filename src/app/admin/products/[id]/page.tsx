@@ -20,7 +20,6 @@ export default function EditRegisteredProductPage() {
   const params = useParams();
   const { toast } = useToast();
   
-  // Captura o ID da URL de forma segura
   const id = Array.isArray(params.id) ? params.id[0] : params.id;
 
   const productRef = useMemoFirebase(() => id ? doc(db, 'registered_products', id) : null, [db, id]);
@@ -48,7 +47,7 @@ export default function EditRegisteredProductPage() {
 
   const [hasPopulated, setHasPopulated] = useState(false);
 
-  // Popula o formulário apenas quando os dados chegam e ainda não foram populados
+  // Popula o formulário assim que o produto é carregado com sucesso
   useEffect(() => {
     if (product && !hasPopulated) {
       setFormData({
@@ -57,15 +56,15 @@ export default function EditRegisteredProductPage() {
         line: product.line || '',
         code: product.code || '',
         description: product.description || '',
-        quantityPerBox: String(product.quantityPerBox || ''),
+        quantityPerBox: product.quantityPerBox !== undefined ? String(product.quantityPerBox) : '',
         unit: product.unit || '',
         ean: product.ean || '',
         dun14: product.dun14 || '',
         taxClassification: product.taxClassification || '',
         ncm: product.ncm || '',
         cest: product.cest || '',
-        unitNetWeightKg: String(product.unitNetWeightKg || ''),
-        boxWeightKg: String(product.boxWeightKg || ''),
+        unitNetWeightKg: product.unitNetWeightKg !== undefined ? String(product.unitNetWeightKg) : '',
+        boxWeightKg: product.boxWeightKg !== undefined ? String(product.boxWeightKg) : '',
         st: product.st || '',
         factoryId: product.factoryId || '',
         catalogProductId: product.catalogProductId || ''
@@ -87,8 +86,17 @@ export default function EditRegisteredProductPage() {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!productRef) return;
+    if (!productRef || !hasPopulated) {
+      toast({ title: "Erro ao salvar", description: "Os dados originais ainda não foram carregados.", variant: "destructive" });
+      return;
+    }
     
+    // Garantir que não estamos salvando dados vazios se o carregamento falhou
+    if (!formData.code || !formData.description) {
+      toast({ title: "Erro ao salvar", description: "Código e Descrição são campos obrigatórios.", variant: "destructive" });
+      return;
+    }
+
     updateDocumentNonBlocking(productRef, {
       ...formData,
       quantityPerBox: Number(formData.quantityPerBox) || 0,
@@ -101,27 +109,26 @@ export default function EditRegisteredProductPage() {
     router.push('/admin/products');
   };
 
-  // Estado de carregamento: só sai daqui quando o produto for carregado E populado no state local
-  // ou se o carregamento terminar e o produto for null (não encontrado)
-  if (isProductLoading || (id && !product && !hasPopulated)) {
+  // Se estiver carregando OU se o ID existe mas ainda não populamos os dados (evita flash de form vazio)
+  if (isProductLoading || (id && !hasPopulated)) {
     return (
       <div className="flex h-[80vh] items-center justify-center flex-col gap-4">
         <Loader2 className="animate-spin text-primary" size={48} />
         <div className="text-center">
-          <p className="text-muted-foreground font-medium animate-pulse">Sincronizando com banco de dados...</p>
-          <p className="text-xs text-muted-foreground/60 mt-1">Isso pode levar alguns segundos na primeira carga.</p>
+          <p className="text-muted-foreground font-medium animate-pulse">Buscando dados no banco de dados...</p>
+          <p className="text-xs text-muted-foreground/60 mt-1">Sincronizando ficha técnica...</p>
         </div>
       </div>
     );
   }
 
-  // Se o carregamento terminou, não populou nada e o produto é null, então realmente não existe
-  if (!isProductLoading && !product && !hasPopulated) {
+  // Se o carregamento terminou e não há produto
+  if (!isProductLoading && !product) {
     return (
       <div className="container mx-auto px-4 py-20 text-center">
         <AlertCircle className="mx-auto mb-4 text-destructive" size={48} />
         <h2 className="text-2xl font-bold mb-2">Produto não encontrado</h2>
-        <p className="text-muted-foreground mb-6">O produto solicitado não existe ou o ID está incorreto.</p>
+        <p className="text-muted-foreground mb-6">O produto solicitado não existe ou foi removido.</p>
         <Link href="/admin/products">
           <Button>Voltar para Lista</Button>
         </Link>
@@ -171,11 +178,11 @@ export default function EditRegisteredProductPage() {
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <Label>Marca</Label>
-                    <Input required value={formData.brand} onChange={(e) => setFormData({...formData, brand: e.target.value})} />
+                    <Input value={formData.brand} onChange={(e) => setFormData({...formData, brand: e.target.value})} />
                   </div>
                   <div className="space-y-2">
                     <Label>Linha</Label>
-                    <Input required value={formData.line} onChange={(e) => setFormData({...formData, line: e.target.value})} />
+                    <Input value={formData.line} onChange={(e) => setFormData({...formData, line: e.target.value})} />
                   </div>
                 </div>
               </CardContent>
@@ -189,11 +196,11 @@ export default function EditRegisteredProductPage() {
                 <div className="grid grid-cols-3 gap-4">
                   <div className="space-y-2">
                     <Label>Unidade</Label>
-                    <Input placeholder="ex: PC" required value={formData.unit} onChange={(e) => setFormData({...formData, unit: e.target.value})} />
+                    <Input placeholder="ex: PC" value={formData.unit} onChange={(e) => setFormData({...formData, unit: e.target.value})} />
                   </div>
                   <div className="space-y-2">
                     <Label>Qtd/Caixa</Label>
-                    <Input type="number" required value={formData.quantityPerBox} onChange={(e) => setFormData({...formData, quantityPerBox: e.target.value})} />
+                    <Input type="number" value={formData.quantityPerBox} onChange={(e) => setFormData({...formData, quantityPerBox: e.target.value})} />
                   </div>
                   <div className="space-y-2">
                     <Label>ST</Label>
@@ -203,11 +210,11 @@ export default function EditRegisteredProductPage() {
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <Label>Peso Líq. Unit (Kg)</Label>
-                    <Input type="number" step="0.001" required value={formData.unitNetWeightKg} onChange={(e) => setFormData({...formData, unitNetWeightKg: e.target.value})} />
+                    <Input type="number" step="0.001" value={formData.unitNetWeightKg} onChange={(e) => setFormData({...formData, unitNetWeightKg: e.target.value})} />
                   </div>
                   <div className="space-y-2">
                     <Label>Peso Caixa (Kg)</Label>
-                    <Input type="number" step="0.001" required value={formData.boxWeightKg} onChange={(e) => setFormData({...formData, boxWeightKg: e.target.value})} />
+                    <Input type="number" step="0.001" value={formData.boxWeightKg} onChange={(e) => setFormData({...formData, boxWeightKg: e.target.value})} />
                   </div>
                 </div>
               </CardContent>

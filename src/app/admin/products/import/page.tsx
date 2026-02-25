@@ -60,20 +60,18 @@ export default function ImportRegisteredProductsPage() {
    */
   const getRowValue = (row: any, keys: string[]) => {
     for (const key of keys) {
-      if (row[key] !== undefined && row[key] !== null) return row[key];
+      if (row[key] !== undefined && row[key] !== null && row[key] !== '') return row[key];
       
-      const foundKey = Object.keys(row).find(k => 
-        k.toLowerCase().trim() === key.toLowerCase().trim() ||
-        k.toLowerCase().replace(/\s/g, '').includes(key.toLowerCase().replace(/\s/g, ''))
-      );
+      const foundKey = Object.keys(row).find(k => {
+        const normalizedK = k.toLowerCase().trim().normalize('NFD').replace(/[\u0300-\u036f]/g, "");
+        const normalizedTarget = key.toLowerCase().trim().normalize('NFD').replace(/[\u0300-\u036f]/g, "");
+        return normalizedK === normalizedTarget || normalizedK.includes(normalizedTarget);
+      });
       if (foundKey) return row[foundKey];
     }
     return '';
   };
 
-  /**
-   * Tenta converter para número de forma segura, aceitando vírgulas brasileiras.
-   */
   const safeNumber = (val: any) => {
     if (val === undefined || val === null || val === '') return 0;
     if (typeof val === 'number') return val;
@@ -106,13 +104,18 @@ export default function ImportRegisteredProductsPage() {
       
       let count = 0;
       for (const row of data as any[]) {
-        // Importa TUDO da forma que está, garantindo apenas campos mínimos para não quebrar a UI
+        const code = String(getRowValue(row, ["Código", "Codigo", "Cód", "Ref", "Code"]) || '');
+        const description = String(getRowValue(row, ["Descrição", "Descricao", "Produto", "Item", "Description"]) || '');
+
+        // Ignorar linhas que não têm pelo menos código ou descrição
+        if (!code && !description) continue;
+
         const productData = {
           status: String(getRowValue(row, ["Status", "Ativo", "Situacao"]) || 'Active'),
           brand: String(getRowValue(row, ["Marca", "Fabricante", "Brand"]) || ''),
           line: String(getRowValue(row, ["Linha", "Colecao", "Line"]) || ''),
-          code: String(getRowValue(row, ["Código", "Cód", "Ref", "Code"]) || `TEMP-${Date.now()}-${count}`),
-          description: String(getRowValue(row, ["Descrição", "Produto", "Item", "Description"]) || 'Sem Descrição'),
+          code: code || `TEMP-${Date.now()}-${count}`,
+          description: description || 'Sem Descrição',
           quantityPerBox: safeNumber(getRowValue(row, ["Qtd Caixa", "Embalagem", "Quantity"])),
           unit: String(getRowValue(row, ["Unidade", "Und", "Unit"]) || 'UN'),
           ean: String(getRowValue(row, ["EAN", "GTIN", "Barras"]) || ''),
@@ -134,12 +137,12 @@ export default function ImportRegisteredProductsPage() {
       }
 
       setIsSuccess(true);
-      toast({ title: "Importação concluída", description: `${count} itens processados exatamente como na planilha.` });
+      toast({ title: "Importação concluída", description: `${count} itens processados com sucesso.` });
       setIsLoading(false);
     } catch (error) {
       console.error(error);
       setIsLoading(false);
-      toast({ title: "Erro na importação", description: "Ocorreu um erro ao processar os dados brutos.", variant: "destructive" });
+      toast({ title: "Erro na importação", description: "Ocorreu um erro ao processar os dados.", variant: "destructive" });
     }
   };
 
@@ -150,7 +153,7 @@ export default function ImportRegisteredProductsPage() {
           <Link href="/admin/products" className="text-muted-foreground hover:text-primary">
             <ChevronLeft size={28} />
           </Link>
-          <h1 className="text-2xl font-bold">Importação Direta</h1>
+          <h1 className="text-2xl font-bold">Importação de Produtos</h1>
         </div>
       </div>
 
@@ -161,7 +164,7 @@ export default function ImportRegisteredProductsPage() {
               <Download className="text-primary" size={20} /> Modelo de Referência
             </CardTitle>
             <CardDescription>
-              Os nomes das colunas não precisam ser exatos, o sistema tentará identificar cada campo.
+              Baixe o modelo para garantir que os dados sejam importados corretamente.
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -174,10 +177,10 @@ export default function ImportRegisteredProductsPage() {
         <Card className="shadow-xl">
           <CardHeader>
             <CardTitle className="text-lg flex items-center gap-2">
-              <UploadCloud className="text-primary" size={20} /> Upload de Dados Brutos
+              <UploadCloud className="text-primary" size={20} /> Upload da Planilha
             </CardTitle>
             <CardDescription>
-              Selecione sua planilha. O sistema importará tudo o que encontrar.
+              Selecione sua planilha preenchida. O sistema importará os novos cadastros.
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-6">
@@ -190,17 +193,12 @@ export default function ImportRegisteredProductsPage() {
                 onChange={handleFileChange}
                 disabled={isLoading}
               />
-              {file && (
-                <p className="text-xs text-muted-foreground mt-1">
-                  Arquivo pronto: {file.name}
-                </p>
-              )}
             </div>
 
             {isSuccess && (
               <div className="p-4 bg-accent/10 rounded-lg border border-accent/20">
-                <p className="font-bold text-accent">Processamento concluído!</p>
-                <p className="text-sm">Os produtos foram salvos. Agora você pode editá-los e vincular preços.</p>
+                <p className="font-bold text-accent">Sucesso!</p>
+                <p className="text-sm">Os produtos foram importados. Agora você pode editá-los e vincular ao catálogo.</p>
               </div>
             )}
           </CardContent>
@@ -212,7 +210,7 @@ export default function ImportRegisteredProductsPage() {
                 disabled={isLoading || !file}
               >
                 {isLoading ? <Loader2 className="animate-spin" /> : <UploadCloud size={20} />}
-                Importar Tudo
+                Processar Importação
               </Button>
             ) : (
               <Link href="/admin/products" className="w-full">
