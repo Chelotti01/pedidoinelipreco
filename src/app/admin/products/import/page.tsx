@@ -10,7 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
-import { FileSpreadsheet, Download, UploadCloud, Loader2, CheckCircle2, ChevronLeft, AlertCircle } from "lucide-react";
+import { FileSpreadsheet, Download, UploadCloud, Loader2, CheckCircle2, ChevronLeft } from "lucide-react";
 import Link from 'next/link';
 import * as XLSX from 'xlsx';
 
@@ -55,18 +55,31 @@ export default function ImportRegisteredProductsPage() {
     }
   };
 
+  /**
+   * Busca valor de forma flexível, aceitando qualquer variação de nome de coluna.
+   */
   const getRowValue = (row: any, keys: string[]) => {
     for (const key of keys) {
-      // Busca exata
-      if (row[key] !== undefined) return row[key];
-      // Busca case-insensitive e parcial
+      if (row[key] !== undefined && row[key] !== null) return row[key];
+      
       const foundKey = Object.keys(row).find(k => 
-        k.toLowerCase().includes(key.toLowerCase()) || 
-        key.toLowerCase().includes(k.toLowerCase())
+        k.toLowerCase().trim() === key.toLowerCase().trim() ||
+        k.toLowerCase().replace(/\s/g, '').includes(key.toLowerCase().replace(/\s/g, ''))
       );
       if (foundKey) return row[foundKey];
     }
     return '';
+  };
+
+  /**
+   * Tenta converter para número de forma segura, aceitando vírgulas brasileiras.
+   */
+  const safeNumber = (val: any) => {
+    if (val === undefined || val === null || val === '') return 0;
+    if (typeof val === 'number') return val;
+    const cleaned = String(val).replace(',', '.').replace(/[^\d.-]/g, '');
+    const num = parseFloat(cleaned);
+    return isNaN(num) ? 0 : num;
   };
 
   const handleUpload = async () => {
@@ -81,7 +94,7 @@ export default function ImportRegisteredProductsPage() {
       const workbook = XLSX.read(arrayBuffer);
       const firstSheetName = workbook.SheetNames[0];
       const worksheet = workbook.Sheets[firstSheetName];
-      const data = XLSX.utils.sheet_to_json(worksheet);
+      const data = XLSX.utils.sheet_to_json(worksheet, { defval: '' });
 
       if (data.length === 0) {
         toast({ title: "Arquivo vazio", description: "O arquivo selecionado não contém dados.", variant: "destructive" });
@@ -93,22 +106,23 @@ export default function ImportRegisteredProductsPage() {
       
       let count = 0;
       for (const row of data as any[]) {
+        // Importa TUDO da forma que está, garantindo apenas campos mínimos para não quebrar a UI
         const productData = {
-          status: getRowValue(row, ["Status", "Ativo/Inativo"]) || 'Active',
-          brand: getRowValue(row, ["Marca", "Brand"]) || '',
-          line: getRowValue(row, ["Linha", "Line"]) || '',
-          code: String(getRowValue(row, ["Código", "CÓDIGO", "Code"]) || ''),
-          description: getRowValue(row, ["Descrição", "DESCRIÇÃO", "Description"]) || '',
-          quantityPerBox: Number(getRowValue(row, ["Qtd Caixa", "Quantidade na caixa", "Quantity"]) || 0),
-          unit: getRowValue(row, ["Unidade", "Unit"]) || '',
-          ean: String(getRowValue(row, ["EAN", "GTIN"]) || ''),
-          dun14: String(getRowValue(row, ["DUN14", "DUN-14"]) || ''),
-          taxClassification: getRowValue(row, ["Classificação Fiscal", "Tax Classification"]) || '',
-          ncm: getRowValue(row, ["NCM"]) || '',
-          cest: getRowValue(row, ["CEST"]) || '',
-          unitNetWeightKg: Number(getRowValue(row, ["Peso Liq Unit", "Peso Líquido Unitário (Kg)"]) || 0),
-          boxWeightKg: Number(getRowValue(row, ["Peso Caixa", "Peso Caixa (Kg)"]) || 0),
-          st: String(getRowValue(row, ["ST"]) || ''),
+          status: String(getRowValue(row, ["Status", "Ativo", "Situacao"]) || 'Active'),
+          brand: String(getRowValue(row, ["Marca", "Fabricante", "Brand"]) || ''),
+          line: String(getRowValue(row, ["Linha", "Colecao", "Line"]) || ''),
+          code: String(getRowValue(row, ["Código", "Cód", "Ref", "Code"]) || `TEMP-${Date.now()}-${count}`),
+          description: String(getRowValue(row, ["Descrição", "Produto", "Item", "Description"]) || 'Sem Descrição'),
+          quantityPerBox: safeNumber(getRowValue(row, ["Qtd Caixa", "Embalagem", "Quantity"])),
+          unit: String(getRowValue(row, ["Unidade", "Und", "Unit"]) || 'UN'),
+          ean: String(getRowValue(row, ["EAN", "GTIN", "Barras"]) || ''),
+          dun14: String(getRowValue(row, ["DUN14", "DUN-14", "DUN"]) || ''),
+          taxClassification: String(getRowValue(row, ["Classificação Fiscal", "Classificacao", "Tax"]) || ''),
+          ncm: String(getRowValue(row, ["NCM"]) || ''),
+          cest: String(getRowValue(row, ["CEST"]) || ''),
+          unitNetWeightKg: safeNumber(getRowValue(row, ["Peso Liq Unit", "Peso Líquido", "Weight"])),
+          boxWeightKg: safeNumber(getRowValue(row, ["Peso Caixa", "Peso Bruto"])),
+          st: String(getRowValue(row, ["ST", "Substituicao", "Imposto"]) || '0%'),
           factoryId: '', 
           catalogProductId: '', 
           createdAt: serverTimestamp(),
@@ -120,12 +134,12 @@ export default function ImportRegisteredProductsPage() {
       }
 
       setIsSuccess(true);
-      toast({ title: "Importação concluída", description: `${count} produtos foram adicionados.` });
+      toast({ title: "Importação concluída", description: `${count} itens processados exatamente como na planilha.` });
       setIsLoading(false);
     } catch (error) {
       console.error(error);
       setIsLoading(false);
-      toast({ title: "Erro na importação", description: "Verifique o formato do arquivo.", variant: "destructive" });
+      toast({ title: "Erro na importação", description: "Ocorreu um erro ao processar os dados brutos.", variant: "destructive" });
     }
   };
 
@@ -136,7 +150,7 @@ export default function ImportRegisteredProductsPage() {
           <Link href="/admin/products" className="text-muted-foreground hover:text-primary">
             <ChevronLeft size={28} />
           </Link>
-          <h1 className="text-2xl font-bold">Importar Produtos</h1>
+          <h1 className="text-2xl font-bold">Importação Direta</h1>
         </div>
       </div>
 
@@ -144,10 +158,10 @@ export default function ImportRegisteredProductsPage() {
         <Card className="border-primary/20 bg-primary/5">
           <CardHeader>
             <CardTitle className="text-lg flex items-center gap-2">
-              <Download className="text-primary" size={20} /> Passo 1: Modelo
+              <Download className="text-primary" size={20} /> Modelo de Referência
             </CardTitle>
             <CardDescription>
-              Baixe o modelo Excel para ver como organizar os dados.
+              Os nomes das colunas não precisam ser exatos, o sistema tentará identificar cada campo.
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -160,10 +174,10 @@ export default function ImportRegisteredProductsPage() {
         <Card className="shadow-xl">
           <CardHeader>
             <CardTitle className="text-lg flex items-center gap-2">
-              <UploadCloud className="text-primary" size={20} /> Passo 2: Upload
+              <UploadCloud className="text-primary" size={20} /> Upload de Dados Brutos
             </CardTitle>
             <CardDescription>
-              Selecione o arquivo Excel preenchido.
+              Selecione sua planilha. O sistema importará tudo o que encontrar.
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-6">
@@ -177,20 +191,16 @@ export default function ImportRegisteredProductsPage() {
                 disabled={isLoading}
               />
               {file && (
-                <p className="text-xs text-muted-foreground mt-1 flex items-center gap-1">
-                  <CheckCircle2 size={12} className="text-accent" />
-                  Selecionado: {file.name}
+                <p className="text-xs text-muted-foreground mt-1">
+                  Arquivo pronto: {file.name}
                 </p>
               )}
             </div>
 
             {isSuccess && (
-              <div className="p-4 bg-accent/10 rounded-lg flex items-start gap-3">
-                <CheckCircle2 className="text-accent mt-0.5" size={20} />
-                <div>
-                  <p className="font-bold text-accent">Sucesso!</p>
-                  <p className="text-sm">Os produtos foram importados. Vá para a lista para vincular os preços do catálogo.</p>
-                </div>
+              <div className="p-4 bg-accent/10 rounded-lg border border-accent/20">
+                <p className="font-bold text-accent">Processamento concluído!</p>
+                <p className="text-sm">Os produtos foram salvos. Agora você pode editá-los e vincular preços.</p>
               </div>
             )}
           </CardContent>
@@ -202,12 +212,12 @@ export default function ImportRegisteredProductsPage() {
                 disabled={isLoading || !file}
               >
                 {isLoading ? <Loader2 className="animate-spin" /> : <UploadCloud size={20} />}
-                Iniciar Importação
+                Importar Tudo
               </Button>
             ) : (
               <Link href="/admin/products" className="w-full">
                 <Button variant="outline" className="w-full h-12">
-                  Voltar para Produtos
+                  Ver Produtos Importados
                 </Button>
               </Link>
             )}
