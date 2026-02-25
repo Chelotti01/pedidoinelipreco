@@ -1,3 +1,4 @@
+
 "use client"
 
 import { useState } from 'react';
@@ -10,6 +11,8 @@ import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 import { UploadCloud, FileSpreadsheet, Loader2, CheckCircle2, ArrowRight, Zap } from "lucide-react";
 import { saveStoredData } from '@/lib/store';
+import { useFirestore } from '@/firebase';
+import { collection, doc, writeBatch, serverTimestamp } from 'firebase/firestore';
 import Link from 'next/link';
 
 export default function UploadPage() {
@@ -17,7 +20,7 @@ export default function UploadPage() {
   const [isLoading, setIsLoading] = useState(false);
   const [isSuccess, setIsSuccess] = useState(false);
   const { toast } = useToast();
-  const router = useRouter();
+  const db = useFirestore();
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
@@ -43,11 +46,43 @@ export default function UploadPage() {
         
         try {
           const result = await intelligentlyProcessPriceSheet({ xlsxDataUri: dataUri });
+          
+          // Salva no LocalStorage para compatibilidade com partes existentes
           saveStoredData(result);
+
+          // Sincroniza com o Firestore para habilitar vínculos dinâmicos
+          const batch = writeBatch(db);
+          
+          for (const factoryData of result) {
+            // Cria ou atualiza a fábrica (usa o nome como ID para evitar duplicatas de nomes iguais)
+            const factoryId = factoryData.factoryName.toLowerCase().replace(/\s+/g, '-');
+            const factoryRef = doc(db, 'factories', factoryId);
+            batch.set(factoryRef, {
+              name: factoryData.factoryName,
+              updatedAt: serverTimestamp()
+            }, { merge: true });
+
+            // Adiciona produtos do catálogo vinculados a esta fábrica
+            for (const product of factoryData.products) {
+              const productId = `${factoryId}-${product.name.toLowerCase().replace(/\s+/g, '-')}`;
+              const productRef = doc(db, 'catalog_products', productId);
+              batch.set(productRef, {
+                name: product.name,
+                unit: product.unit,
+                closedLoadPrice: product.closedLoadPrice,
+                fractionalLoadPrice: product.fractionalLoadPrice,
+                factoryId: factoryId,
+                lastPriceUpdateAt: serverTimestamp()
+              }, { merge: true });
+            }
+          }
+
+          await batch.commit();
+
           setIsSuccess(true);
           toast({
             title: "Processamento concluído",
-            description: `${result.length} fábricas processadas com sucesso.`,
+            description: `${result.length} fábricas sincronizadas com o banco de dados.`,
           });
         } catch (error) {
           console.error(error);
@@ -91,7 +126,7 @@ export default function UploadPage() {
           </div>
           <CardTitle className="text-2xl">Atualizar Tabela de Preços</CardTitle>
           <CardDescription>
-            Faça upload do arquivo .xlsx seguindo o padrão de fábricas por abas.
+            Faça upload do arquivo .xlsx. Os dados serão salvos no banco para vinculação.
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -122,11 +157,11 @@ export default function UploadPage() {
             >
               {isLoading ? (
                 <>
-                  <Loader2 className="animate-spin" /> Analisando planilha...
+                  <Loader2 className="animate-spin" /> Sincronizando banco...
                 </>
               ) : (
                 <>
-                  <UploadCloud size={20} /> Processar com IA
+                  <UploadCloud size={20} /> Processar e Sincronizar
                 </>
               )}
             </Button>
@@ -135,11 +170,11 @@ export default function UploadPage() {
         {isSuccess && (
           <CardFooter className="bg-accent/5 flex flex-col items-center gap-4 py-6 border-t border-accent/20">
             <div className="flex items-center gap-2 text-accent font-bold text-lg">
-              <CheckCircle2 size={24} /> Processamento Finalizado!
+              <CheckCircle2 size={24} /> Banco de Dados Atualizado!
             </div>
-            <Link href="/catalog" className="w-full">
+            <Link href="/admin/products" className="w-full">
               <Button variant="outline" className="w-full h-12 border-accent text-accent hover:bg-accent hover:text-white transition-all group">
-                Ir para o Catálogo <ArrowRight className="ml-2 group-hover:translate-x-1 transition-transform" />
+                Vincular Produtos <ArrowRight className="ml-2 group-hover:translate-x-1 transition-transform" />
               </Button>
             </Link>
           </CardFooter>
@@ -151,15 +186,15 @@ export default function UploadPage() {
         <ul className="space-y-3 text-sm text-muted-foreground">
           <li className="flex gap-2">
             <span className="bg-primary/10 text-primary w-5 h-5 flex items-center justify-center rounded text-xs font-bold shrink-0">1</span>
-            O arquivo deve conter uma aba para cada fábrica fornecedora.
+            O upload salva os itens no banco de dados "Catálogo".
           </li>
           <li className="flex gap-2">
             <span className="bg-primary/10 text-primary w-5 h-5 flex items-center justify-center rounded text-xs font-bold shrink-0">2</span>
-            A primeira ocorrência do termo "Produto" inicia a lista de itens e preços.
+            Após o upload, as fábricas aparecerão no seletor da tela de cadastro.
           </li>
           <li className="flex gap-2">
             <span className="bg-primary/10 text-primary w-5 h-5 flex items-center justify-center rounded text-xs font-bold shrink-0">3</span>
-            A segunda ocorrência do termo "Produto" inicia a lista de descontos aplicáveis.
+            Sempre que subir uma nova planilha, os preços vinculados são atualizados.
           </li>
         </ul>
       </div>
