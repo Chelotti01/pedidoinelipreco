@@ -33,6 +33,10 @@ service cloud.firestore {
       allow read, write: if isSignedIn();
     }
 
+    match /orders/{orderId} {
+      allow read, write: if isSignedIn();
+    }
+
     match /roles_admin/{userId} {
       allow read: if isSignedIn();
       allow write: if isAdmin();

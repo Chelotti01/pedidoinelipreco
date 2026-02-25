@@ -2,8 +2,9 @@
 "use client"
 
 import { useState, useMemo } from 'react';
-import { useFirestore, useCollection, useMemoFirebase } from '@/firebase';
-import { collection, query, orderBy } from 'firebase/firestore';
+import { useRouter } from 'next/navigation';
+import { useFirestore, useCollection, useMemoFirebase, addDocumentNonBlocking } from '@/firebase';
+import { collection, query, orderBy, serverTimestamp } from 'firebase/firestore';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -21,13 +22,15 @@ export type OrderItem = {
   productId: string;
   catalogProductId: string;
   factoryName: string;
+  code: string;
   name: string;
+  ean: string;
   unit: string;
   quantity: number;
   priceType: 'closed' | 'fractional';
-  unitPrice: number;
-  unitPriceWithST: number;
-  appliedDiscount: number;
+  unitPriceNet: number;
+  unitPriceFinal: number;
+  appliedContract: number;
   stRate: number;
   total: number;
   weight: number;
@@ -36,6 +39,7 @@ export type OrderItem = {
 export default function NewOrderPage() {
   const db = useFirestore();
   const { toast } = useToast();
+  const router = useRouter();
   
   const factoriesQuery = useMemoFirebase(() => query(collection(db, 'factories'), orderBy('name')), [db]);
   const { data: factories, isLoading: isFactoriesLoading } = useCollection(factoriesQuery);
@@ -47,6 +51,7 @@ export default function NewOrderPage() {
   const { data: catalogProducts, isLoading: isCatalogLoading } = useCollection(catalogProductsQuery);
 
   const [orderItems, setOrderItems] = useState<OrderItem[]>([]);
+  const [isFinalizing, setIsFinalizing] = useState(false);
 
   const [selectedFactoryId, setSelectedFactoryId] = useState<string>("none");
   const [selectedProductId, setSelectedProductId] = useState<string>("none");
@@ -88,10 +93,8 @@ export default function NewOrderPage() {
     const catalogDiscount = useCatalogDiscount ? (currentCatalogProduct.discountAmount || 0) : 0;
     const priceAfterCatalog = Math.max(0, basePrice - catalogDiscount);
     
-    // Preço antes do ST (com contrato como aditivo)
     const finalUnitPriceBeforeST = priceAfterCatalog * (1 + (contractPercent || 0) / 100);
     
-    // Cálculo do ST
     const stRate = parseST(currentRegisteredProduct?.st);
     const stAmount = finalUnitPriceBeforeST * stRate;
     const finalUnitPriceWithST = finalUnitPriceBeforeST + stAmount;
@@ -113,26 +116,25 @@ export default function NewOrderPage() {
       return;
     }
 
-    const { basePrice, finalUnitPriceWithST, finalUnitPriceBeforeST, stRate } = unitCalculations;
+    const { finalUnitPriceWithST, finalUnitPriceBeforeST, stRate } = unitCalculations;
     
     const qtyPerBox = currentRegisteredProduct.quantityPerBox || 1;
     const total = finalUnitPriceWithST * qtyPerBox * (quantity || 1);
-    
     const weight = (currentRegisteredProduct.boxWeightKg || 0) * (quantity || 1);
-
-    const totalDiffPct = basePrice > 0 ? ((finalUnitPriceBeforeST - basePrice) / basePrice) * 100 : 0;
 
     const newItem: OrderItem = {
       productId: currentRegisteredProduct.id,
       catalogProductId: currentCatalogProduct.id,
       factoryName: factories?.find(f => f.id === selectedFactoryId)?.name || "Fábrica",
+      code: currentRegisteredProduct.code,
       name: currentRegisteredProduct.description,
+      ean: currentRegisteredProduct.ean || '',
       unit: currentRegisteredProduct.unit,
       quantity: quantity || 1,
       priceType,
-      unitPrice: finalUnitPriceBeforeST,
-      unitPriceWithST: finalUnitPriceWithST,
-      appliedDiscount: Number(totalDiffPct.toFixed(2)),
+      unitPriceNet: finalUnitPriceBeforeST,
+      unitPriceFinal: finalUnitPriceWithST,
+      appliedContract: contractPercent,
       stRate: stRate * 100,
       total,
       weight
@@ -141,12 +143,40 @@ export default function NewOrderPage() {
     setOrderItems([...orderItems, newItem]);
     toast({
       title: "Produto adicionado",
-      description: `${currentRegisteredProduct.description} foi adicionado ao pedido com impostos incluídos.`,
+      description: `${currentRegisteredProduct.description} adicionado ao carrinho.`,
     });
 
     setSelectedProductId("none");
     setQuantity(1);
     setContractPercent(0);
+  };
+
+  const handleFinalizeOrder = async () => {
+    if (orderItems.length === 0) return;
+
+    setIsFinalizing(true);
+    const orderData = {
+      items: orderItems,
+      totalAmount: orderTotal,
+      totalWeight: orderTotalWeight,
+      createdAt: serverTimestamp(),
+    };
+
+    try {
+      await addDocumentNonBlocking(collection(db, 'orders'), orderData);
+      toast({
+        title: "Pedido Finalizado!",
+        description: "O pedido foi gravado no histórico com sucesso.",
+      });
+      router.push('/orders/history');
+    } catch (error) {
+      toast({
+        title: "Erro ao salvar pedido",
+        description: "Ocorreu um problema ao gravar no banco de dados.",
+        variant: "destructive"
+      });
+      setIsFinalizing(false);
+    }
   };
 
   const removeProduct = (index: number) => {
@@ -182,8 +212,13 @@ export default function NewOrderPage() {
             <p className="text-sm text-muted-foreground">Monte seu carrinho com preços dinâmicos e impostos (ST).</p>
           </div>
         </div>
-        <div className="bg-primary/10 text-primary px-4 py-2 rounded-lg font-bold flex items-center gap-2 self-start md:self-auto">
-          <Zap size={18} /> InteliPreço Mobile
+        <div className="flex gap-2">
+          <Link href="/orders/history">
+            <Button variant="outline" size="sm">Histórico de Pedidos</Button>
+          </Link>
+          <div className="bg-primary/10 text-primary px-4 py-2 rounded-lg font-bold flex items-center gap-2 self-start md:self-auto">
+            <Zap size={18} /> InteliPreço
+          </div>
         </div>
       </div>
 
@@ -403,7 +438,7 @@ export default function NewOrderPage() {
                             {item.quantity} cx
                           </TableCell>
                           <TableCell className="text-right text-xs">
-                            R$ {formatCurrency(item.unitPriceWithST)}
+                            R$ {formatCurrency(item.unitPriceFinal)}
                           </TableCell>
                           <TableCell className="text-right font-bold text-primary">
                             R$ {formatCurrency(item.total)}
@@ -443,11 +478,16 @@ export default function NewOrderPage() {
                   </div>
                 </div>
                 <div className="grid grid-cols-2 gap-4 w-full">
-                  <Button variant="outline" className="h-14 border-primary text-primary font-bold" onClick={() => setOrderItems([])}>
+                  <Button variant="outline" className="h-14 border-primary text-primary font-bold" onClick={() => setOrderItems([])} disabled={isFinalizing}>
                     Esvaziar Carrinho
                   </Button>
-                  <Button className="h-14 bg-accent hover:bg-accent/90 text-white shadow-xl gap-2 group text-lg font-bold">
-                    <ReceiptText size={20} /> Finalizar Pedido <ArrowRight className="group-hover:translate-x-1 transition-transform" />
+                  <Button 
+                    className="h-14 bg-accent hover:bg-accent/90 text-white shadow-xl gap-2 group text-lg font-bold"
+                    onClick={handleFinalizeOrder}
+                    disabled={isFinalizing}
+                  >
+                    {isFinalizing ? <Loader2 className="animate-spin" /> : <ReceiptText size={20} />}
+                    Finalizar Pedido <ArrowRight className="group-hover:translate-x-1 transition-transform" />
                   </Button>
                 </div>
               </CardFooter>

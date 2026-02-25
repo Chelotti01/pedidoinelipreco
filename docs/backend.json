@@ -56,6 +56,18 @@
         "updatedAt": { "type": "string", "format": "date-time" }
       },
       "required": ["id", "status", "code", "description"]
+    },
+    "Order": {
+      "title": "Order",
+      "type": "object",
+      "description": "Customer order history.",
+      "properties": {
+        "id": { "type": "string" },
+        "items": { "type": "array" },
+        "totalAmount": { "type": "number" },
+        "totalWeight": { "type": "number" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      }
     }
   },
   "auth": {
@@ -73,6 +85,10 @@
     "/registered_products/{registeredProductId}": {
       "schema": "#/entities/RegisteredProduct",
       "description": "Parallel product registrations."
+    },
+    "/orders/{orderId}": {
+      "schema": "#/entities/Order",
+      "description": "Orders history."
     }
   }
 }

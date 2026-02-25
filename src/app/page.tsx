@@ -1,7 +1,8 @@
+
 import Link from 'next/link';
 import { Button } from "@/components/ui/button";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
-import { ShoppingCart, UploadCloud, ListChecks, ArrowRight, ShieldCheck, Zap, Settings } from "lucide-react";
+import { ShoppingCart, UploadCloud, ListChecks, ArrowRight, ShieldCheck, Zap, Settings, History } from "lucide-react";
 
 export default function Home() {
   return (
@@ -16,6 +17,7 @@ export default function Home() {
             <h1 className="text-xl font-bold tracking-tight text-primary">Pedido InteliPreço</h1>
           </div>
           <nav className="hidden md:flex items-center gap-6">
+            <Link href="/orders/history" className="text-sm font-medium hover:text-primary transition-colors">Histórico</Link>
             <Link href="/catalog" className="text-sm font-medium hover:text-primary transition-colors">Catálogo</Link>
             <Link href="/admin/products" className="text-sm font-medium hover:text-primary transition-colors text-accent font-bold">Gerir Produtos</Link>
             <Link href="/upload" className="text-sm font-medium hover:text-primary transition-colors">Importar XLSX</Link>
@@ -39,14 +41,14 @@ export default function Home() {
               Importe suas tabelas de preços XLSX e deixe nossa IA organizar produtos, fábricas e descontos automaticamente para você.
             </p>
             <div className="flex flex-col sm:flex-row gap-4 justify-center">
-              <Link href="/admin/products">
-                <Button size="lg" className="h-14 px-8 text-lg gap-2 bg-accent hover:bg-accent/90">
-                  <Settings size={20} /> Cadastro de Produtos
+              <Link href="/orders/new">
+                <Button size="lg" className="h-14 px-8 text-lg gap-2 shadow-xl">
+                  <ShoppingCart size={20} /> Começar Pedido
                 </Button>
               </Link>
-              <Link href="/upload">
+              <Link href="/orders/history">
                 <Button size="lg" variant="outline" className="h-14 px-8 text-lg gap-2 border-primary text-primary">
-                  <UploadCloud size={20} /> Importar Tabela
+                  <History size={20} /> Ver Histórico
                 </Button>
               </Link>
             </div>
@@ -60,11 +62,11 @@ export default function Home() {
               <Card className="border-none shadow-md bg-background/50">
                 <CardHeader>
                   <div className="w-12 h-12 bg-primary/10 rounded-full flex items-center justify-center text-primary mb-4">
-                    <UploadCloud size={24} />
+                    <History size={24} />
                   </div>
-                  <CardTitle>Processamento XLSX</CardTitle>
+                  <CardTitle>Histórico & PDF</CardTitle>
                   <CardDescription>
-                    Upload fácil de planilhas. Nossa IA entende cabeçalhos e estruturas complexas.
+                    Mantenha o registro de todas as vendas e exporte orçamentos em PDF com um clique.
                   </CardDescription>
                 </CardHeader>
               </Card>
@@ -74,9 +76,9 @@ export default function Home() {
                   <div className="w-12 h-12 bg-accent/10 rounded-full flex items-center justify-center text-accent mb-4">
                     <ShieldCheck size={24} />
                   </div>
-                  <CardTitle>Cálculo Dinâmico</CardTitle>
+                  <CardTitle>Cálculo de ST</CardTitle>
                   <CardDescription>
-                    Descontos por fábrica e tipo de carga calculados em tempo real durante o pedido.
+                    Impostos de Substituição Tributária calculados automaticamente por item.
                   </CardDescription>
                 </CardHeader>
               </Card>
@@ -84,11 +86,11 @@ export default function Home() {
               <Card className="border-none shadow-md bg-background/50">
                 <CardHeader>
                   <div className="w-12 h-12 bg-primary/10 rounded-full flex items-center justify-center text-primary mb-4">
-                    <ShoppingCart size={24} />
+                    <Weight size={24} />
                   </div>
-                  <CardTitle>Pedido Rápido</CardTitle>
+                  <CardTitle>Controle Logístico</CardTitle>
                   <CardDescription>
-                    Interface intuitiva para montar carrinhos, filtrar por fábrica e finalizar orçamentos.
+                    Soma automática de pesos das caixas para despacho imediato da carga.
                   </CardDescription>
                 </CardHeader>
               </Card>
