@@ -8,7 +8,7 @@ import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/com
 import { Button } from "@/components/ui/button";
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import { Plus, Package, Edit, Trash2, ChevronLeft, Upload, AlertTriangle } from "lucide-react";
+import { Plus, Package, Edit, Trash2, ChevronLeft, Upload, AlertTriangle, Tooltip, TooltipTrigger, TooltipContent, TooltipProvider } from "lucide-react";
 import Link from 'next/link';
 import { useToast } from "@/hooks/use-toast";
 import {
@@ -136,8 +136,16 @@ export default function RegisteredProductsPage() {
                     </Badge>
                   </TableCell>
                   <TableCell>
-                    <div className="font-bold">{p.code}</div>
-                    <div className="text-xs text-muted-foreground">{p.description}</div>
+                    <div className="flex items-center gap-3">
+                      <div 
+                        className={`h-3.5 w-3.5 rounded-full shrink-0 ${p.catalogProductId ? 'bg-green-500 shadow-[0_0_8px_rgba(34,197,94,0.6)]' : 'bg-red-500 shadow-[0_0_8px_rgba(239,68,68,0.6)]'}`}
+                        title={p.catalogProductId ? 'Vinculado ao Catálogo' : 'Não Vinculado'}
+                      />
+                      <div>
+                        <div className="font-bold">{p.code}</div>
+                        <div className="text-xs text-muted-foreground line-clamp-1">{p.description}</div>
+                      </div>
+                    </div>
                   </TableCell>
                   <TableCell>
                     <div>{p.brand}</div>
@@ -182,6 +190,17 @@ export default function RegisteredProductsPage() {
           </TableBody>
         </Table>
       </Card>
+      
+      <div className="mt-6 flex gap-6 text-sm text-muted-foreground items-center justify-end px-4">
+        <div className="flex items-center gap-2">
+          <div className="h-3 w-3 rounded-full bg-green-500" />
+          <span>Vinculado ao Catálogo (Preço OK)</span>
+        </div>
+        <div className="flex items-center gap-2">
+          <div className="h-3 w-3 rounded-full bg-red-500" />
+          <span>Sem Vínculo (Ficha incompleta)</span>
+        </div>
+      </div>
     </div>
   );
 }
