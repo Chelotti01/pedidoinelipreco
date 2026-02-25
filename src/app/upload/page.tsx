@@ -28,6 +28,19 @@ export default function UploadPage() {
     }
   };
 
+  /**
+   * Sanitiza uma string para ser usada como ID no Firestore.
+   * Remove acentos e substitui qualquer caractere não alfanumérico por hífen.
+   */
+  const sanitizeId = (text: string) => {
+    return text
+      .toLowerCase()
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, "") // Remove acentos
+      .replace(/[^a-z0-9]+/g, '-')     // Substitui caracteres especiais/espaços por hífen
+      .replace(/^-+|-+$/g, '');        // Remove hífens no início ou fim
+  };
+
   const handleUpload = async () => {
     if (!file) {
       toast({
@@ -47,11 +60,10 @@ export default function UploadPage() {
         try {
           const result = await intelligentlyProcessPriceSheet({ xlsxDataUri: dataUri });
           
-          // Sincroniza com o Firestore em lotes para evitar limites (máx 500 por lote)
           const allOps: {ref: any, data: any}[] = [];
           
           for (const factoryData of result) {
-            const factoryId = factoryData.factoryName.toLowerCase().replace(/\s+/g, '-');
+            const factoryId = sanitizeId(factoryData.factoryName);
             const factoryRef = doc(db, 'factories', factoryId);
             
             allOps.push({ 
@@ -63,7 +75,8 @@ export default function UploadPage() {
             });
 
             for (const product of factoryData.products) {
-              const productId = `${factoryId}-${product.name.toLowerCase().replace(/\s+/g, '-')}`;
+              const safeProductName = sanitizeId(product.name);
+              const productId = `${factoryId}-${safeProductName}`;
               const productRef = doc(db, 'catalog_products', productId);
               
               allOps.push({ 
@@ -81,7 +94,7 @@ export default function UploadPage() {
             }
           }
 
-          // Executa os commits em pedaços de 400 operações para segurança
+          // Commit em lotes para performance e segurança
           for (let i = 0; i < allOps.length; i += 400) {
             const batch = writeBatch(db);
             const chunk = allOps.slice(i, i + 400);
@@ -89,19 +102,18 @@ export default function UploadPage() {
             await batch.commit();
           }
 
-          // Salva no LocalStorage apenas como redundância
           saveStoredData(result);
 
           setIsSuccess(true);
           toast({
             title: "Processamento concluído",
-            description: `${result.length} fábricas e ${allOps.length - result.length} produtos sincronizados com o banco de dados.`,
+            description: `${result.length} fábricas e ${allOps.length - result.length} produtos sincronizados.`,
           });
-        } catch (error) {
+        } catch (error: any) {
           console.error(error);
           toast({
             title: "Erro no processamento",
-            description: "Não foi possível extrair ou salvar os dados. Verifique o formato do arquivo.",
+            description: error.message || "Não foi possível extrair ou salvar os dados.",
             variant: "destructive"
           });
         } finally {
@@ -114,7 +126,7 @@ export default function UploadPage() {
       setIsLoading(false);
       toast({
         title: "Erro ao ler arquivo",
-        description: "Ocorreu um erro inesperado ao tentar ler o arquivo selecionado.",
+        description: "Ocorreu um erro inesperado ao ler o arquivo.",
         variant: "destructive"
       });
     }
