@@ -8,9 +8,20 @@ import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/com
 import { Button } from "@/components/ui/button";
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import { Plus, Package, Edit, Trash2, ChevronLeft, Upload } from "lucide-react";
+import { Plus, Package, Edit, Trash2, ChevronLeft, Upload, AlertTriangle } from "lucide-react";
 import Link from 'next/link';
 import { useToast } from "@/hooks/use-toast";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 
 export default function RegisteredProductsPage() {
   const db = useFirestore();
@@ -22,10 +33,22 @@ export default function RegisteredProductsPage() {
   const { data: products, isLoading } = useCollection(productsQuery);
 
   const handleDelete = (id: string, name: string) => {
-    if (confirm(`Deseja realmente excluir o produto ${name}?`)) {
-      deleteDocumentNonBlocking(doc(db, 'registered_products', id));
-      toast({ title: "Produto excluído", description: "O registro foi removido com sucesso." });
-    }
+    deleteDocumentNonBlocking(doc(db, 'registered_products', id));
+    toast({ title: "Produto excluído", description: "O registro foi removido com sucesso." });
+  };
+
+  const handleDeleteAll = () => {
+    if (!products || products.length === 0) return;
+    
+    products.forEach((p) => {
+      deleteDocumentNonBlocking(doc(db, 'registered_products', p.id));
+    });
+
+    toast({ 
+      title: "Limpeza concluída", 
+      description: `${products.length} produtos foram removidos do sistema.`,
+      variant: "destructive"
+    });
   };
 
   return (
@@ -41,6 +64,32 @@ export default function RegisteredProductsPage() {
           </div>
         </div>
         <div className="flex gap-2">
+          {products && products.length > 0 && (
+            <AlertDialog>
+              <AlertDialogTrigger asChild>
+                <Button variant="destructive" className="gap-2">
+                  <Trash2 size={18} /> Excluir Tudo
+                </Button>
+              </AlertDialogTrigger>
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle className="flex items-center gap-2">
+                    <AlertTriangle className="text-destructive" /> Atenção!
+                  </AlertDialogTitle>
+                  <AlertDialogDescription>
+                    Esta ação excluirá permanentemente todos os <strong>{products.length} produtos</strong> cadastrados. 
+                    Esta ação não pode ser desfeita.
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                  <AlertDialogAction onClick={handleDeleteAll} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+                    Sim, excluir tudo
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
+          )}
           <Link href="/admin/products/import">
             <Button variant="outline" className="gap-2">
               <Upload size={18} /> Importar
@@ -103,14 +152,28 @@ export default function RegisteredProductsPage() {
                       <Link href={`/admin/products/${p.id}`}>
                         <Button variant="ghost" size="icon"><Edit size={16} /></Button>
                       </Link>
-                      <Button 
-                        variant="ghost" 
-                        size="icon" 
-                        className="text-destructive"
-                        onClick={() => handleDelete(p.id, p.description)}
-                      >
-                        <Trash2 size={16} />
-                      </Button>
+                      
+                      <AlertDialog>
+                        <AlertDialogTrigger asChild>
+                          <Button variant="ghost" size="icon" className="text-destructive">
+                            <Trash2 size={16} />
+                          </Button>
+                        </AlertDialogTrigger>
+                        <AlertDialogContent>
+                          <AlertDialogHeader>
+                            <AlertDialogTitle>Excluir Produto?</AlertDialogTitle>
+                            <AlertDialogDescription>
+                              Deseja realmente excluir o produto <strong>{p.description}</strong>?
+                            </AlertDialogDescription>
+                          </AlertDialogHeader>
+                          <AlertDialogFooter>
+                            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                            <AlertDialogAction onClick={() => handleDelete(p.id, p.description)} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+                              Excluir
+                            </AlertDialogAction>
+                          </AlertDialogFooter>
+                        </AlertDialogContent>
+                      </AlertDialog>
                     </div>
                   </TableCell>
                 </TableRow>
