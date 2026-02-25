@@ -2,7 +2,7 @@
 import Link from 'next/link';
 import { Button } from "@/components/ui/button";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
-import { ShoppingCart, UploadCloud, ListChecks, ArrowRight, ShieldCheck, Zap, Settings, History } from "lucide-react";
+import { ShoppingCart, UploadCloud, ListChecks, ArrowRight, ShieldCheck, Zap, Settings, History, Weight } from "lucide-react";
 
 export default function Home() {
   return (
