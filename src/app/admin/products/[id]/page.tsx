@@ -1,7 +1,7 @@
 
 "use client"
 
-import { useState, useMemo, useEffect, useRef } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { useRouter, useParams } from 'next/navigation';
 import { useFirestore, useCollection, useDoc, useMemoFirebase, updateDocumentNonBlocking } from '@/firebase';
 import { collection, query, orderBy, serverTimestamp, doc } from 'firebase/firestore';
@@ -19,9 +19,11 @@ export default function EditRegisteredProductPage() {
   const router = useRouter();
   const params = useParams();
   const { toast } = useToast();
-  const id = params.id as string;
+  
+  // Garante que o ID seja uma string
+  const id = Array.isArray(params.id) ? params.id[0] : params.id;
 
-  const productRef = useMemoFirebase(() => doc(db, 'registered_products', id), [db, id]);
+  const productRef = useMemoFirebase(() => id ? doc(db, 'registered_products', id) : null, [db, id]);
   const { data: product, isLoading: isProductLoading } = useDoc(productRef);
 
   const [formData, setFormData] = useState({
@@ -44,10 +46,11 @@ export default function EditRegisteredProductPage() {
     catalogProductId: ''
   });
 
-  const isInitialized = useRef(false);
+  const [hasPopulated, setHasPopulated] = useState(false);
 
+  // Popula o formulário assim que o produto é carregado
   useEffect(() => {
-    if (product && !isInitialized.current) {
+    if (product && !hasPopulated) {
       setFormData({
         status: product.status || 'Active',
         brand: product.brand || '',
@@ -67,9 +70,9 @@ export default function EditRegisteredProductPage() {
         factoryId: product.factoryId || '',
         catalogProductId: product.catalogProductId || ''
       });
-      isInitialized.current = true;
+      setHasPopulated(true);
     }
-  }, [product]);
+  }, [product, hasPopulated]);
 
   const factoriesQuery = useMemoFirebase(() => query(collection(db, 'factories'), orderBy('name')), [db]);
   const { data: factories } = useCollection(factoriesQuery);
@@ -84,12 +87,13 @@ export default function EditRegisteredProductPage() {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    if (!productRef) return;
     
     updateDocumentNonBlocking(productRef, {
       ...formData,
-      quantityPerBox: Number(formData.quantityPerBox),
-      unitNetWeightKg: Number(formData.unitNetWeightKg),
-      boxWeightKg: Number(formData.boxWeightKg),
+      quantityPerBox: Number(formData.quantityPerBox) || 0,
+      unitNetWeightKg: Number(formData.unitNetWeightKg) || 0,
+      boxWeightKg: Number(formData.boxWeightKg) || 0,
       updatedAt: serverTimestamp()
     });
 
@@ -97,20 +101,21 @@ export default function EditRegisteredProductPage() {
     router.push('/admin/products');
   };
 
-  if (isProductLoading) {
+  if (isProductLoading || (!product && !hasPopulated && id)) {
     return (
-      <div className="flex h-[80vh] items-center justify-center">
+      <div className="flex h-[80vh] items-center justify-center flex-col gap-4">
         <Loader2 className="animate-spin text-primary" size={48} />
+        <p className="text-muted-foreground animate-pulse">Carregando dados do banco...</p>
       </div>
     );
   }
 
-  if (!isProductLoading && !product) {
+  if (!isProductLoading && !product && hasPopulated === false) {
     return (
       <div className="container mx-auto px-4 py-20 text-center">
         <AlertCircle className="mx-auto mb-4 text-destructive" size={48} />
         <h2 className="text-2xl font-bold mb-2">Produto não encontrado</h2>
-        <p className="text-muted-foreground mb-6">O produto (ID: {id}) não existe ou foi removido.</p>
+        <p className="text-muted-foreground mb-6">O produto solicitado não existe ou o ID está incorreto.</p>
         <Link href="/admin/products">
           <Button>Voltar para Lista</Button>
         </Link>
@@ -122,7 +127,7 @@ export default function EditRegisteredProductPage() {
     <div className="container mx-auto px-4 py-12 max-w-4xl">
       <div className="mb-8 flex items-center justify-between">
         <div className="flex items-center gap-3">
-          <Link href="/admin/products" className="text-muted-foreground hover:text-primary">
+          <Link href="/admin/products" className="text-muted-foreground hover:text-primary transition-colors">
             <ChevronLeft size={28} />
           </Link>
           <h1 className="text-3xl font-bold tracking-tight">Editar Produto</h1>
@@ -132,7 +137,7 @@ export default function EditRegisteredProductPage() {
       <form onSubmit={handleSubmit}>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
           <div className="space-y-6">
-            <Card className="shadow-lg">
+            <Card className="shadow-lg border-none">
               <CardHeader className="bg-primary/5">
                 <CardTitle className="text-lg">Informações Básicas</CardTitle>
               </CardHeader>
@@ -170,7 +175,7 @@ export default function EditRegisteredProductPage() {
               </CardContent>
             </Card>
 
-            <Card className="shadow-lg">
+            <Card className="shadow-lg border-none">
               <CardHeader className="bg-accent/5">
                 <CardTitle className="text-lg">Logística e Pesos</CardTitle>
               </CardHeader>
@@ -241,7 +246,7 @@ export default function EditRegisteredProductPage() {
                 </div>
 
                 {formData.catalogProductId && (
-                  <div className="p-3 bg-muted rounded-md text-xs space-y-1">
+                  <div className="p-3 bg-muted rounded-md text-xs space-y-1 border-l-4 border-primary">
                     <p className="font-bold text-primary flex items-center gap-1"><Search size={12}/> Item vinculado com sucesso</p>
                     <p>O preço deste cadastro mudará automaticamente quando uma nova planilha da fábrica for enviada.</p>
                   </div>
@@ -249,7 +254,7 @@ export default function EditRegisteredProductPage() {
               </CardContent>
             </Card>
 
-            <Card className="shadow-lg">
+            <Card className="shadow-lg border-none">
               <CardHeader className="bg-muted/30">
                 <CardTitle className="text-lg">Dados Fiscais / EAN</CardTitle>
               </CardHeader>
@@ -278,7 +283,7 @@ export default function EditRegisteredProductPage() {
                 </div>
               </CardContent>
               <CardFooter className="pt-6">
-                <Button type="submit" className="w-full gap-2 h-12 text-lg font-bold">
+                <Button type="submit" className="w-full gap-2 h-12 text-lg font-bold shadow-lg">
                   <Save size={20} /> Salvar Alterações
                 </Button>
               </CardFooter>
