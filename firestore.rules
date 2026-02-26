@@ -4,51 +4,12 @@ service cloud.firestore {
   match /databases/{database}/documents {
 
     /**
-     * PEDIDO INTELIPREÇO: PROTOTYPE SECURITY RULES
+     * PEDIDO INTELIPREÇO: REGRAS LIBERADAS PARA DESENVOLVIMENTO
+     * ATENÇÃO: Acesso público total habilitado conforme solicitado.
      */
 
-    function isSignedIn() {
-      return request.auth != null;
-    }
-
-    function isAdmin() {
-      return isSignedIn(); // Simplificado para protótipo
-    }
-
-    // --- COLLECTION RULES ---
-
-    match /factories/{factoryId} {
-      allow read, write: if isSignedIn();
-    }
-
-    match /catalog_products/{catalogProductId} {
-      allow read, write: if isSignedIn();
-    }
-
-    match /discounts/{discountId} {
-      allow read, write: if isSignedIn();
-    }
-
-    match /registered_products/{registeredProductId} {
-      allow read, write: if isSignedIn();
-    }
-
-    match /customers/{customerId} {
-      allow read, write: if isSignedIn();
-    }
-
-    match /orders/{orderId} {
-      allow read, write: if isSignedIn();
-    }
-
-    match /roles_admin/{userId} {
-      allow read: if isSignedIn();
-      allow write: if isAdmin();
-    }
-
-    match /roles_seller/{userId} {
-      allow read: if isSignedIn();
-      allow write: if isAdmin();
+    match /{document=**} {
+      allow read, write: if true;
     }
   }
 }
