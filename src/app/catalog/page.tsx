@@ -1,4 +1,3 @@
-
 "use client"
 
 import { useState, useMemo } from 'react';
@@ -10,8 +9,10 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "@/components/ui/table";
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
-import { Search, Factory, ShoppingCart, Package, Zap, UploadCloud, Tag, Loader2 } from "lucide-react";
+import { Search, Factory, ShoppingCart, Package, Zap, UploadCloud, Tag, Loader2, Calendar } from "lucide-react";
 import Link from 'next/link';
+import { format } from 'date-fns';
+import { ptBR } from 'date-fns/locale';
 
 export default function CatalogPage() {
   const db = useFirestore();
@@ -29,7 +30,8 @@ export default function CatalogPage() {
     if (!catalogProducts) return [];
     
     return catalogProducts.filter(p => {
-      const matchesSearch = p.name.toLowerCase().includes(searchTerm.toLowerCase());
+      const name = p.name || "";
+      const matchesSearch = name.toLowerCase().includes(searchTerm.toLowerCase());
       const matchesFactory = factoryFilter === "all" || p.factoryId === factoryFilter;
       return matchesSearch && matchesFactory;
     });
@@ -131,6 +133,7 @@ export default function CatalogPage() {
                 <TableHead className="font-bold">Carga Fechada</TableHead>
                 <TableHead className="font-bold">Carga Fracionada</TableHead>
                 <TableHead className="font-bold text-accent">Desconto (R$)</TableHead>
+                <TableHead className="font-bold flex items-center gap-1"><Calendar size={14} /> Atualizado em</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -142,10 +145,10 @@ export default function CatalogPage() {
                   </TableCell>
                   <TableCell>{p.unit}</TableCell>
                   <TableCell className="text-primary font-semibold">
-                    R$ {p.closedLoadPrice.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                    R$ {(p.closedLoadPrice || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
                   </TableCell>
                   <TableCell className="text-muted-foreground">
-                    R$ {p.fractionalLoadPrice.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                    R$ {(p.fractionalLoadPrice || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
                   </TableCell>
                   <TableCell>
                     {p.discountAmount && p.discountAmount > 0 ? (
@@ -156,6 +159,13 @@ export default function CatalogPage() {
                     ) : (
                       <span className="text-muted-foreground/40">-</span>
                     )}
+                  </TableCell>
+                  <TableCell className="text-xs text-muted-foreground whitespace-nowrap">
+                    {p.lastPriceUpdateAt ? (
+                      typeof p.lastPriceUpdateAt === 'string' 
+                        ? format(new Date(p.lastPriceUpdateAt), "dd/MM/yyyy", { locale: ptBR })
+                        : format(p.lastPriceUpdateAt.toDate(), "dd/MM/yyyy", { locale: ptBR })
+                    ) : '-'}
                   </TableCell>
                 </TableRow>
               ))}
