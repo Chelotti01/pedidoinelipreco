@@ -1,3 +1,4 @@
+
 "use client"
 
 import { useState, useMemo, useEffect } from 'react';
@@ -195,33 +196,6 @@ export default function NewOrderPage() {
       return;
     }
 
-    if (selectedFactory?.name?.toUpperCase().includes('ARA') && currentRegisteredProduct.line?.toUpperCase().includes('SECA UHT')) {
-      if (quantity < 30) {
-        toast({ 
-          title: "Pedido Inválido", 
-          description: "O pedido mínimo para esta linha são de 30 cxs.", 
-          variant: "destructive" 
-        });
-        return;
-      }
-      if (quantity >= 30 && quantity <= 130 && priceType !== 'fractional') {
-        toast({ 
-          title: "Ajuste Necessário", 
-          description: "De 30 a 130 caixas o pedido deve ser selecionado como Fracionado.", 
-          variant: "destructive" 
-        });
-        return;
-      }
-      if (quantity > 130 && priceType !== 'closed') {
-        toast({ 
-          title: "Ajuste Necessário", 
-          description: "Acima de 130 cxs o pedido deve ser selecionado como Carga Fechada.", 
-          variant: "destructive" 
-        });
-        return;
-      }
-    }
-
     const { finalUnitPriceWithST, finalUnitPriceBeforeST, stRate } = unitCalculations;
     
     const qtyPerBox = currentRegisteredProduct.quantityPerBox || 1;
@@ -264,6 +238,45 @@ export default function NewOrderPage() {
     if (selectedCustomerId === "none") {
       toast({ title: "Cliente obrigatório", description: "Por favor, selecione um cliente para o pedido.", variant: "destructive" });
       return;
+    }
+
+    // Validação de Regras Comerciais ARA / SECA UHT na somatória total
+    const totalQty = orderItems.reduce((acc, item) => acc + item.quantity, 0);
+    const isAraSecaUht = selectedFactory?.name?.toUpperCase().includes('ARA') && orderItems[0]?.line?.toUpperCase().includes('SECA UHT');
+
+    if (isAraSecaUht) {
+      if (totalQty < 30) {
+        toast({ 
+          title: "Pedido Inválido", 
+          description: `A somatória total dos produtos (${totalQty} cx) é inferior ao mínimo de 30 cxs exigido para esta linha.`, 
+          variant: "destructive" 
+        });
+        return;
+      }
+
+      if (totalQty >= 30 && totalQty <= 130) {
+        const hasWrongPriceType = orderItems.some(item => item.priceType !== 'fractional');
+        if (hasWrongPriceType) {
+          toast({ 
+            title: "Ajuste de Preço Necessário", 
+            description: "Para pedidos entre 30 e 130 caixas, todos os itens devem estar como 'Fracionado'. Remova e adicione novamente com o tipo correto.", 
+            variant: "destructive" 
+          });
+          return;
+        }
+      }
+
+      if (totalQty > 130) {
+        const hasWrongPriceType = orderItems.some(item => item.priceType !== 'closed');
+        if (hasWrongPriceType) {
+          toast({ 
+            title: "Ajuste de Preço Necessário", 
+            description: "Para pedidos acima de 130 caixas, todos os itens devem estar como 'Carga Fechada'. Remova e adicione novamente com o tipo correto.", 
+            variant: "destructive" 
+          });
+          return;
+        }
+      }
     }
 
     setIsFinalizing(true);
@@ -329,9 +342,9 @@ export default function NewOrderPage() {
             <div className="space-y-4 py-2 text-foreground text-sm">
               <p className="font-bold border-b pb-2">Para a linha SECA UHT, observe as condições obrigatórias:</p>
               <ul className="space-y-3 list-disc pl-4">
-                <li>O pedido mínimo é de <span className="font-black">30 caixas</span>.</li>
-                <li>De <span className="font-black">30 a 130 caixas</span>: O pedido deve ser selecionado como <span className="font-bold text-primary">Fracionado</span>.</li>
-                <li>Acima de <span className="font-black">130 caixas</span>: O pedido deve ser selecionado como <span className="font-bold text-primary">Carga Fechada</span>.</li>
+                <li>O pedido mínimo é de <span className="font-black">30 caixas no total</span>.</li>
+                <li>De <span className="font-black">30 a 130 caixas (total)</span>: O pedido deve ser <span className="font-bold text-primary">Fracionado</span>.</li>
+                <li>Acima de <span className="font-black">130 caixas (total)</span>: O pedido deve ser <span className="font-bold text-primary">Carga Fechada</span>.</li>
               </ul>
             </div>
           </AlertDialogHeader>
