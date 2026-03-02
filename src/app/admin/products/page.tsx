@@ -9,7 +9,8 @@ import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/com
 import { Button } from "@/components/ui/button";
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import { Plus, Package, Edit, Trash2, ChevronLeft, Upload, AlertTriangle, Copy, Search } from "lucide-react";
+import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
+import { Plus, Package, Edit, Trash2, ChevronLeft, Upload, AlertTriangle, Copy, Search, FilterX } from "lucide-react";
 import Link from 'next/link';
 import { useToast } from "@/hooks/use-toast";
 import { Input } from "@/components/ui/input";
@@ -28,7 +29,12 @@ import {
 export default function RegisteredProductsPage() {
   const db = useFirestore();
   const { toast } = useToast();
+  
+  // States para busca e filtros
   const [searchTerm, setSearchTerm] = useState("");
+  const [statusFilter, setStatusFilter] = useState("all");
+  const [brandFilter, setBrandFilter] = useState("all");
+  const [linkFilter, setLinkFilter] = useState("all");
 
   const productsQuery = useMemoFirebase(() => {
     return query(collection(db, 'registered_products'), orderBy('createdAt', 'desc'));
@@ -36,21 +42,43 @@ export default function RegisteredProductsPage() {
 
   const { data: products, isLoading } = useCollection(productsQuery);
 
+  // Extrair marcas únicas para o filtro
+  const uniqueBrands = useMemo(() => {
+    if (!products) return [];
+    const brands = products.map(p => p.brand).filter(Boolean);
+    return Array.from(new Set(brands)).sort();
+  }, [products]);
+
   const filteredProducts = useMemo(() => {
     if (!products) return [];
-    if (!searchTerm.trim()) return products;
     
-    const term = searchTerm.toLowerCase();
     return products.filter((p) => {
-      return (
+      const term = searchTerm.toLowerCase();
+      const matchesSearch = !searchTerm.trim() || (
         p.code?.toLowerCase().includes(term) ||
         p.description?.toLowerCase().includes(term) ||
         p.brand?.toLowerCase().includes(term) ||
-        p.line?.toLowerCase().includes(term) ||
         p.ean?.toLowerCase().includes(term)
       );
+
+      const matchesStatus = statusFilter === "all" || p.status === statusFilter;
+      const matchesBrand = brandFilter === "all" || p.brand === brandFilter;
+      
+      const isLinked = !!p.catalogProductId;
+      const matchesLink = linkFilter === "all" || 
+        (linkFilter === "linked" && isLinked) || 
+        (linkFilter === "unlinked" && !isLinked);
+
+      return matchesSearch && matchesStatus && matchesBrand && matchesLink;
     });
-  }, [products, searchTerm]);
+  }, [products, searchTerm, statusFilter, brandFilter, linkFilter]);
+
+  const resetFilters = () => {
+    setSearchTerm("");
+    setStatusFilter("all");
+    setBrandFilter("all");
+    setLinkFilter("all");
+  };
 
   const handleDelete = (id: string) => {
     deleteDocumentNonBlocking(doc(db, 'registered_products', id));
@@ -90,19 +118,19 @@ export default function RegisteredProductsPage() {
     <div className="container mx-auto px-4 py-12">
       <div className="mb-10 flex items-center justify-between flex-wrap gap-4">
         <div className="flex items-center gap-3">
-          <Link href="/" className="text-muted-foreground hover:text-primary">
+          <Link href="/" className="text-muted-foreground hover:text-primary transition-colors">
             <ChevronLeft size={28} />
           </Link>
           <div>
-            <h1 className="text-3xl font-bold tracking-tight">Produtos Registrados</h1>
-            <p className="text-muted-foreground">Gerencie o cadastro paralelo para vendedores.</p>
+            <h1 className="text-3xl font-bold tracking-tight text-primary">Produtos Registrados</h1>
+            <p className="text-muted-foreground">Gerencie o cadastro paralelo e vínculos de preços.</p>
           </div>
         </div>
         <div className="flex gap-2">
           {products && products.length > 0 && (
             <AlertDialog>
               <AlertDialogTrigger asChild>
-                <Button variant="destructive" className="gap-2">
+                <Button variant="destructive" className="gap-2 shadow-sm">
                   <Trash2 size={18} /> Excluir Tudo
                 </Button>
               </AlertDialogTrigger>
@@ -126,27 +154,74 @@ export default function RegisteredProductsPage() {
             </AlertDialog>
           )}
           <Link href="/admin/products/import">
-            <Button variant="outline" className="gap-2">
+            <Button variant="outline" className="gap-2 bg-white">
               <Upload size={18} /> Importar
             </Button>
           </Link>
           <Link href="/admin/products/new">
-            <Button className="gap-2">
+            <Button className="gap-2 shadow-lg hover:shadow-primary/20">
               <Plus size={18} /> Novo Produto
             </Button>
           </Link>
         </div>
       </div>
 
-      <div className="mb-6 relative max-w-md">
-        <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" size={18} />
-        <Input 
-          placeholder="Pesquisar por código, nome, marca, EAN..." 
-          className="pl-10"
-          value={searchTerm}
-          onChange={(e) => setSearchTerm(e.target.value)}
-        />
-      </div>
+      {/* Barra de Filtros */}
+      <Card className="mb-8 border-none shadow-sm bg-muted/30">
+        <CardContent className="p-4 space-y-4">
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+            <div className="relative col-span-1 md:col-span-1">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" size={18} />
+              <Input 
+                placeholder="Pesquisar..." 
+                className="pl-10 bg-white"
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+              />
+            </div>
+            
+            <Select value={statusFilter} onValueChange={setStatusFilter}>
+              <SelectTrigger className="bg-white">
+                <SelectValue placeholder="Status" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Todos os Status</SelectItem>
+                <SelectItem value="Active">Ativos</SelectItem>
+                <SelectItem value="Inactive">Inativos</SelectItem>
+              </SelectContent>
+            </Select>
+
+            <Select value={linkFilter} onValueChange={setLinkFilter}>
+              <SelectTrigger className="bg-white">
+                <SelectValue placeholder="Vínculo (Bolas)" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Todos os Vínculos</SelectItem>
+                <SelectItem value="linked">Vinculados (Verde)</SelectItem>
+                <SelectItem value="unlinked">Não Vinculados (Vermelho)</SelectItem>
+              </SelectContent>
+            </Select>
+
+            <Select value={brandFilter} onValueChange={setBrandFilter}>
+              <SelectTrigger className="bg-white">
+                <SelectValue placeholder="Marca" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Todas as Marcas</SelectItem>
+                {uniqueBrands.map(brand => (
+                  <SelectItem key={brand} value={brand}>{brand}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          
+          <div className="flex justify-end">
+            <Button variant="ghost" size="sm" onClick={resetFilters} className="text-muted-foreground gap-2">
+              <FilterX size={16} /> Limpar Filtros
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
 
       <Card className="border-none shadow-xl overflow-hidden">
         <Table>
@@ -169,63 +244,65 @@ export default function RegisteredProductsPage() {
               <TableRow>
                 <TableCell colSpan={6} className="text-center py-20">
                   <Package className="mx-auto mb-4 opacity-20" size={48} />
-                  <p className="text-muted-foreground">Nenhum produto encontrado.</p>
+                  <p className="text-muted-foreground font-medium">Nenhum produto encontrado com esses filtros.</p>
                 </TableCell>
               </TableRow>
             ) : (
               filteredProducts.map((p) => (
-                <TableRow key={p.id}>
+                <TableRow key={p.id} className="hover:bg-muted/10 transition-colors">
                   <TableCell>
-                    <Badge variant={p.status === 'Active' ? 'default' : 'secondary'}>
+                    <Badge variant={p.status === 'Active' ? 'default' : 'secondary'} className="px-3">
                       {p.status === 'Active' ? 'Ativo' : 'Inativo'}
                     </Badge>
                   </TableCell>
                   <TableCell>
                     <div className="flex items-center gap-3">
                       <div 
-                        className={`h-3.5 w-3.5 rounded-full shrink-0 ${p.catalogProductId ? 'bg-green-500 shadow-[0_0_8px_rgba(34,197,94,0.6)]' : 'bg-red-500 shadow-[0_0_8px_rgba(239,68,68,0.6)]'}`}
+                        className={`h-4 w-4 rounded-full shrink-0 border-2 border-white shadow-sm ${p.catalogProductId ? 'bg-green-500 shadow-[0_0_8px_rgba(34,197,94,0.4)]' : 'bg-red-500 shadow-[0_0_8px_rgba(239,68,68,0.4)]'}`}
                         title={p.catalogProductId ? 'Vinculado ao Catálogo' : 'Não Vinculado'}
                       />
-                      <div>
-                        <div className="font-bold">{p.code}</div>
-                        <div className="text-xs text-muted-foreground line-clamp-1">{p.description}</div>
+                      <div className="flex flex-col">
+                        <span className="font-bold text-slate-800">{p.code}</span>
+                        <span className="text-[11px] text-muted-foreground line-clamp-1 uppercase font-medium">{p.description}</span>
                       </div>
                     </div>
                   </TableCell>
                   <TableCell>
-                    <div>{p.brand}</div>
-                    <div className="text-xs text-muted-foreground">{p.line}</div>
+                    <div className="font-semibold text-slate-700">{p.brand}</div>
+                    <div className="text-[10px] text-muted-foreground uppercase">{p.line}</div>
                   </TableCell>
                   <TableCell>
-                    {p.unit} ({p.quantityPerBox} cx)
+                    <span className="text-sm font-medium">{p.unit} ({p.quantityPerBox} cx)</span>
                   </TableCell>
-                  <TableCell className="font-mono text-xs">{p.ean}</TableCell>
+                  <TableCell className="font-mono text-xs text-muted-foreground">{p.ean}</TableCell>
                   <TableCell className="text-right">
-                    <div className="flex justify-end gap-2">
-                      <Button variant="ghost" size="icon" title="Duplicar" onClick={() => handleDuplicate(p)}>
+                    <div className="flex justify-end gap-1">
+                      <Button variant="ghost" size="icon" title="Duplicar" onClick={() => handleDuplicate(p)} className="h-8 w-8 text-primary/70 hover:text-primary hover:bg-primary/10">
                         <Copy size={16} />
                       </Button>
                       <Link href={`/admin/products/${p.id}`}>
-                        <Button variant="ghost" size="icon"><Edit size={16} /></Button>
+                        <Button variant="ghost" size="icon" className="h-8 w-8 text-slate-600 hover:text-primary hover:bg-primary/10">
+                          <Edit size={16} />
+                        </Button>
                       </Link>
                       
                       <AlertDialog>
                         <AlertDialogTrigger asChild>
-                          <Button variant="ghost" size="icon" className="text-destructive">
+                          <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive/70 hover:text-destructive hover:bg-destructive/10">
                             <Trash2 size={16} />
                           </Button>
                         </AlertDialogTrigger>
                         <AlertDialogContent>
                           <AlertDialogHeader>
-                            <AlertDialogTitle>Excluir Produto?</AlertDialogTitle>
+                            <AlertDialogTitle>Excluir este item?</AlertDialogTitle>
                             <AlertDialogDescription>
-                              Deseja realmente excluir o produto <strong>{p.description}</strong>?
+                              Deseja realmente excluir o produto <strong>{p.description}</strong>? Esta ação não pode ser desfeita.
                             </AlertDialogDescription>
                           </AlertDialogHeader>
                           <AlertDialogFooter>
                             <AlertDialogCancel>Cancelar</AlertDialogCancel>
                             <AlertDialogAction onClick={() => handleDelete(p.id)} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
-                              Excluir
+                              Excluir Item
                             </AlertDialogAction>
                           </AlertDialogFooter>
                         </AlertDialogContent>
@@ -239,15 +316,18 @@ export default function RegisteredProductsPage() {
         </Table>
       </Card>
       
-      <div className="mt-6 flex gap-6 text-sm text-muted-foreground items-center justify-end px-4">
-        <div className="flex items-center gap-2">
-          <div className="h-3 w-3 rounded-full bg-green-500" />
-          <span>Vinculado ao Catálogo (Preço OK)</span>
+      <div className="mt-8 flex flex-col md:flex-row gap-6 text-xs text-muted-foreground items-center justify-between px-4 bg-muted/20 py-4 rounded-lg">
+        <div className="flex gap-6">
+          <div className="flex items-center gap-2">
+            <div className="h-3 w-3 rounded-full bg-green-500" />
+            <span className="font-medium">Vinculado ao Catálogo (Preço Atualizado)</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <div className="h-3 w-3 rounded-full bg-red-500" />
+            <span className="font-medium">Sem Vínculo (Requer Amarração)</span>
+          </div>
         </div>
-        <div className="flex items-center gap-2">
-          <div className="h-3 w-3 rounded-full bg-red-500" />
-          <span>Sem Vínculo (Ficha incompleta)</span>
-        </div>
+        <p className="italic">Total de {filteredProducts.length} itens encontrados.</p>
       </div>
     </div>
   );
