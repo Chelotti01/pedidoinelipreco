@@ -10,7 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
-import { Plus, Package, Edit, Trash2, ChevronLeft, Upload, AlertTriangle, Copy, Search, FilterX, AlertCircle } from "lucide-react";
+import { Plus, Package, Edit, Trash2, ChevronLeft, Upload, AlertTriangle, Copy, Search, FilterX, AlertCircle, Factory } from "lucide-react";
 import Link from 'next/link';
 import { useToast } from "@/hooks/use-toast";
 import { Input } from "@/components/ui/input";
@@ -38,6 +38,7 @@ export default function RegisteredProductsPage() {
   const [brandFilter, setBrandFilter] = useState("all");
   const [lineFilter, setLineFilter] = useState("all");
   const [linkFilter, setLinkFilter] = useState("all");
+  const [factoryFilter, setFactoryFilter] = useState("all");
   const [isLoadedFromStorage, setIsLoadedFromStorage] = useState(false);
 
   // Carregar filtros salvos no mount
@@ -51,6 +52,7 @@ export default function RegisteredProductsPage() {
         setBrandFilter(parsed.brandFilter || "all");
         setLineFilter(parsed.lineFilter || "all");
         setLinkFilter(parsed.linkFilter || "all");
+        setFactoryFilter(parsed.factoryFilter || "all");
       } catch (e) {
         console.error("Erro ao carregar filtros", e);
       }
@@ -61,10 +63,10 @@ export default function RegisteredProductsPage() {
   // Salvar filtros sempre que mudarem
   useEffect(() => {
     if (isLoadedFromStorage) {
-      const filters = { searchTerm, statusFilter, brandFilter, lineFilter, linkFilter };
+      const filters = { searchTerm, statusFilter, brandFilter, lineFilter, linkFilter, factoryFilter };
       sessionStorage.setItem(STORAGE_KEY, JSON.stringify(filters));
     }
-  }, [searchTerm, statusFilter, brandFilter, lineFilter, linkFilter, isLoadedFromStorage]);
+  }, [searchTerm, statusFilter, brandFilter, lineFilter, linkFilter, factoryFilter, isLoadedFromStorage]);
 
   const productsQuery = useMemoFirebase(() => {
     return query(collection(db, 'registered_products'), orderBy('createdAt', 'desc'));
@@ -74,6 +76,9 @@ export default function RegisteredProductsPage() {
 
   const catalogQuery = useMemoFirebase(() => query(collection(db, 'catalog_products')), [db]);
   const { data: catalogProducts } = useCollection(catalogQuery);
+
+  const factoriesQuery = useMemoFirebase(() => query(collection(db, 'factories'), orderBy('name')), [db]);
+  const { data: factories } = useCollection(factoriesQuery);
 
   // Extrair marcas únicas para o filtro
   const uniqueBrands = useMemo(() => {
@@ -116,15 +121,16 @@ export default function RegisteredProductsPage() {
       const matchesStatus = statusFilter === "all" || p.status === statusFilter;
       const matchesBrand = brandFilter === "all" || p.brand === brandFilter;
       const matchesLine = lineFilter === "all" || p.line === lineFilter;
+      const matchesFactory = factoryFilter === "all" || p.factoryId === factoryFilter;
       
       const matchesLink = linkFilter === "all" || 
         (linkFilter === "linked" && p.isLinked) || 
         (linkFilter === "broken" && p.isLinkBroken) ||
         (linkFilter === "unlinked" && p.isUnlinked);
 
-      return matchesSearch && matchesStatus && matchesBrand && matchesLine && matchesLink;
+      return matchesSearch && matchesStatus && matchesBrand && matchesLine && matchesLink && matchesFactory;
     });
-  }, [products, catalogProducts, searchTerm, statusFilter, brandFilter, lineFilter, linkFilter]);
+  }, [products, catalogProducts, searchTerm, statusFilter, brandFilter, lineFilter, linkFilter, factoryFilter]);
 
   const resetFilters = () => {
     setSearchTerm("");
@@ -132,6 +138,7 @@ export default function RegisteredProductsPage() {
     setBrandFilter("all");
     setLineFilter("all");
     setLinkFilter("all");
+    setFactoryFilter("all");
     sessionStorage.removeItem(STORAGE_KEY);
   };
 
@@ -224,7 +231,7 @@ export default function RegisteredProductsPage() {
       {/* Barra de Filtros */}
       <Card className="mb-8 border-none shadow-sm bg-muted/30">
         <CardContent className="p-4 space-y-4">
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-5 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-6 gap-4">
             <div className="relative col-span-1 sm:col-span-2 md:col-span-1">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" size={18} />
               <Input 
@@ -235,6 +242,18 @@ export default function RegisteredProductsPage() {
               />
             </div>
             
+            <Select value={factoryFilter} onValueChange={setFactoryFilter}>
+              <SelectTrigger className="bg-white">
+                <SelectValue placeholder="Fábrica" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Todas as Fábricas</SelectItem>
+                {factories?.map(f => (
+                  <SelectItem key={f.id} value={f.id}>{f.name}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+
             <Select value={statusFilter} onValueChange={setStatusFilter}>
               <SelectTrigger className="bg-white">
                 <SelectValue placeholder="Status" />
