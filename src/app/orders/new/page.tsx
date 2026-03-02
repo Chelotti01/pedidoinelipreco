@@ -318,13 +318,15 @@ export default function NewOrderPage() {
             <AlertDialogTitle className="flex items-center gap-2 text-primary">
               <AlertTriangle className="text-orange-500" /> Regras Comerciais ARA
             </AlertDialogTitle>
-            <AlertDialogDescription className="space-y-4 py-2 text-foreground">
-              <p className="font-bold border-b pb-2">Para a linha SECA UHT, observe as condições obrigatórias:</p>
-              <ul className="space-y-3 list-disc pl-4 text-sm">
-                <li>O pedido mínimo é de <span className="font-black">30 caixas</span>.</li>
-                <li>De <span className="font-black">30 a 130 caixas</span>: O pedido deve ser selecionado como <span className="font-bold text-primary">Fracionado</span>.</li>
-                <li>Acima de <span className="font-black">130 caixas</span>: O pedido deve ser selecionado como <span className="font-bold text-primary">Carga Fechada</span>.</li>
-              </ul>
+            <AlertDialogDescription asChild>
+              <div className="space-y-4 py-2 text-foreground">
+                <p className="font-bold border-b pb-2">Para a linha SECA UHT, observe as condições obrigatórias:</p>
+                <ul className="space-y-3 list-disc pl-4 text-sm">
+                  <li>O pedido mínimo é de <span className="font-black">30 caixas</span>.</li>
+                  <li>De <span className="font-black">30 a 130 caixas</span>: O pedido deve ser selecionado como <span className="font-bold text-primary">Fracionado</span>.</li>
+                  <li>Acima de <span className="font-black">130 caixas</span>: O pedido deve ser selecionado como <span className="font-bold text-primary">Carga Fechada</span>.</li>
+                </ul>
+              </div>
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
