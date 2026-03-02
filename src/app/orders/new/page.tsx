@@ -81,14 +81,20 @@ export default function NewOrderPage() {
   const [contractPercent, setContractPercent] = useState<number>(0);
   
   const [showAraRulesDialog, setShowAraRulesDialog] = useState(false);
+  const [showBvgRulesDialog, setShowBvgRulesDialog] = useState(false);
 
   const selectedFactory = useMemo(() => {
     return factories?.find(f => f.id === selectedFactoryId);
   }, [selectedFactoryId, factories]);
 
   useEffect(() => {
-    if (selectedFactory?.name?.toUpperCase().includes('ARA') && lineFilter?.toUpperCase().includes('SECA UHT')) {
+    const factoryName = selectedFactory?.name?.toUpperCase() || '';
+    const selectedLine = lineFilter?.toUpperCase() || '';
+
+    if (factoryName.includes('ARA') && selectedLine.includes('SECA UHT')) {
       setShowAraRulesDialog(true);
+    } else if (factoryName.includes('BVG') && selectedLine.includes('REFRIGERADA')) {
+      setShowBvgRulesDialog(true);
     }
   }, [selectedFactoryId, lineFilter, selectedFactory]);
 
@@ -271,9 +277,12 @@ export default function NewOrderPage() {
     }
 
     const totalQty = orderItems.reduce((acc, item) => acc + item.quantity, 0);
-    const isAraSecaUht = selectedFactory?.name?.toUpperCase().includes('ARA') && orderItems[0]?.line?.toUpperCase().includes('SECA UHT');
+    const totalWeight = orderItems.reduce((acc, item) => acc + item.weight, 0);
+    const factoryName = selectedFactory?.name?.toUpperCase() || '';
+    const selectedLine = orderItems[0]?.line?.toUpperCase() || '';
 
-    if (isAraSecaUht) {
+    // Regras ARA
+    if (factoryName.includes('ARA') && selectedLine.includes('SECA UHT')) {
       if (totalQty < 30) {
         toast({ 
           title: "Pedido Inválido", 
@@ -305,6 +314,18 @@ export default function NewOrderPage() {
           });
           return;
         }
+      }
+    }
+
+    // Regras BVG
+    if (factoryName.includes('BVG') && selectedLine.includes('REFRIGERADA')) {
+      if (totalWeight < 70) {
+        toast({ 
+          title: "Peso Mínimo Insuficiente", 
+          description: `O peso total do pedido (${totalWeight.toFixed(2)} Kg) é inferior ao mínimo de 70 Kg exigido para esta linha da fábrica BVG.`, 
+          variant: "destructive" 
+        });
+        return;
       }
     }
 
@@ -368,7 +389,7 @@ export default function NewOrderPage() {
 
     try {
       const html2canvas = (await import('html2canvas')).default;
-      const { jsPDF } = await import('jspdf');
+      const { jsPDF } = await import('jsPDF');
 
       const canvas = await html2canvas(pdfRef.current, { scale: 2, useCORS: true });
       const imgData = canvas.toDataURL('image/png');
@@ -392,6 +413,7 @@ export default function NewOrderPage() {
 
   return (
     <div className="container mx-auto px-4 py-8 md:py-12">
+      {/* Dialog ARA */}
       <AlertDialog open={showAraRulesDialog} onOpenChange={setShowAraRulesDialog}>
         <AlertDialogContent className="max-w-md">
           <AlertDialogHeader>
@@ -404,6 +426,27 @@ export default function NewOrderPage() {
                 <li>O pedido mínimo é de <span className="font-black">30 caixas no total</span>.</li>
                 <li>De <span className="font-black">30 a 130 caixas (total)</span>: O pedido deve ser <span className="font-bold text-primary">Fracionado</span>.</li>
                 <li>Acima de <span className="font-black">130 caixas (total)</span>: O pedido deve ser <span className="font-bold text-primary">Carga Fechada</span>.</li>
+              </ul>
+            </div>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogAction className="w-full">Entendido, prosseguir</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Dialog BVG */}
+      <AlertDialog open={showBvgRulesDialog} onOpenChange={setShowBvgRulesDialog}>
+        <AlertDialogContent className="max-w-md">
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center gap-2 text-primary">
+              <AlertTriangle className="text-orange-500" /> Regras Comerciais BVG
+            </AlertDialogTitle>
+            <div className="space-y-4 py-2 text-foreground text-sm">
+              <div className="font-bold border-b pb-2 text-sm">Para a linha REFRIGERADA, observe as condições obrigatórias:</div>
+              <ul className="space-y-3 list-disc pl-4">
+                <li>O pedido mínimo é de <span className="font-black text-lg">70 KG</span> no total.</li>
+                <li>Verifique o peso das caixas no carrinho antes de finalizar.</li>
               </ul>
             </div>
           </AlertDialogHeader>
