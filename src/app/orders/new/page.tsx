@@ -82,6 +82,7 @@ export default function NewOrderPage() {
   
   const [showAraRulesDialog, setShowAraRulesDialog] = useState(false);
   const [showBvgRulesDialog, setShowBvgRulesDialog] = useState(false);
+  const [showMrvRulesDialog, setShowMrvRulesDialog] = useState(false);
 
   const selectedFactory = useMemo(() => {
     return factories?.find(f => f.id === selectedFactoryId);
@@ -95,6 +96,8 @@ export default function NewOrderPage() {
       setShowAraRulesDialog(true);
     } else if (factoryName.includes('BVG') && selectedLine.includes('REFRIGERADA')) {
       setShowBvgRulesDialog(true);
+    } else if (factoryName.includes('MRV') && selectedLine.includes('SECA')) {
+      setShowMrvRulesDialog(true);
     }
   }, [selectedFactoryId, lineFilter, selectedFactory]);
 
@@ -278,6 +281,7 @@ export default function NewOrderPage() {
 
     const totalQty = orderItems.reduce((acc, item) => acc + item.quantity, 0);
     const totalWeight = orderItems.reduce((acc, item) => acc + item.weight, 0);
+    const totalAmount = orderItems.reduce((acc, item) => acc + item.total, 0);
     const factoryName = selectedFactory?.name?.toUpperCase() || '';
     const selectedLine = orderItems[0]?.line?.toUpperCase() || '';
 
@@ -323,6 +327,18 @@ export default function NewOrderPage() {
         toast({ 
           title: "Peso Mínimo Insuficiente", 
           description: `O peso total do pedido (${totalWeight.toFixed(2)} Kg) é inferior ao mínimo de 70 Kg exigido para esta linha da fábrica BVG.`, 
+          variant: "destructive" 
+        });
+        return;
+      }
+    }
+
+    // Regras MRV
+    if (factoryName.includes('MRV') && selectedLine.includes('SECA')) {
+      if (totalAmount < 1500) {
+        toast({ 
+          title: "Pedido Mínimo Insuficiente", 
+          description: `O valor total do pedido (R$ ${totalAmount.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}) é inferior ao mínimo de R$ 1.500,00 exigido para esta linha da fábrica MRV.`, 
           variant: "destructive" 
         });
         return;
@@ -389,7 +405,7 @@ export default function NewOrderPage() {
 
     try {
       const html2canvas = (await import('html2canvas')).default;
-      const { jsPDF } = await import('jsPDF');
+      const { jsPDF } = await import('jspdf');
 
       const canvas = await html2canvas(pdfRef.current, { scale: 2, useCORS: true });
       const imgData = canvas.toDataURL('image/png');
@@ -447,6 +463,27 @@ export default function NewOrderPage() {
               <ul className="space-y-3 list-disc pl-4">
                 <li>O pedido mínimo é de <span className="font-black text-lg">70 KG</span> no total.</li>
                 <li>Verifique o peso das caixas no carrinho antes de finalizar.</li>
+              </ul>
+            </div>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogAction className="w-full">Entendido, prosseguir</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Dialog MRV */}
+      <AlertDialog open={showMrvRulesDialog} onOpenChange={setShowMrvRulesDialog}>
+        <AlertDialogContent className="max-w-md">
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center gap-2 text-primary">
+              <AlertTriangle className="text-orange-500" /> Regras Comerciais MRV
+            </AlertDialogTitle>
+            <div className="space-y-4 py-2 text-foreground text-sm">
+              <div className="font-bold border-b pb-2 text-sm">Para a linha SECA, observe as condições obrigatórias:</div>
+              <ul className="space-y-3 list-disc pl-4">
+                <li>O pedido mínimo é de <span className="font-black text-lg">R$ 1.500,00</span> no total.</li>
+                <li>A finalização do pedido será bloqueada se o valor for inferior ao mínimo.</li>
               </ul>
             </div>
           </AlertDialogHeader>
