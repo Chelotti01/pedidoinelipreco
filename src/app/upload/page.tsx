@@ -1,3 +1,4 @@
+
 "use client"
 
 import { useState } from 'react';
@@ -8,15 +9,27 @@ import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter }
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
-import { UploadCloud, FileSpreadsheet, Loader2, CheckCircle2, ArrowRight, Zap } from "lucide-react";
+import { UploadCloud, FileSpreadsheet, Loader2, CheckCircle2, ArrowRight, Zap, Trash2, AlertTriangle } from "lucide-react";
 import { saveStoredData } from '@/lib/store';
-import { useFirestore } from '@/firebase';
-import { collection, doc, writeBatch, serverTimestamp } from 'firebase/firestore';
+import { useFirestore, useCollection, useMemoFirebase } from '@/firebase';
+import { collection, doc, writeBatch, serverTimestamp, query, getDocs } from 'firebase/firestore';
 import Link from 'next/link';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 
 export default function UploadPage() {
   const [file, setFile] = useState<File | null>(null);
   const [isLoading, setIsLoading] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
   const [isSuccess, setIsSuccess] = useState(false);
   const { toast } = useToast();
   const db = useFirestore();
@@ -29,7 +42,6 @@ export default function UploadPage() {
 
   /**
    * Sanitiza uma string para ser usada como ID no Firestore de forma determinística.
-   * Colapsa múltiplos espaços para garantir que nomes visualmente iguais gerem o mesmo ID.
    */
   const sanitizeId = (text: string) => {
     return text
@@ -40,6 +52,45 @@ export default function UploadPage() {
       .replace(/\s+/g, ' ')            // Colapsa múltiplos espaços em um só
       .replace(/[^a-z0-9]+/g, '-')     // Substitui caracteres especiais por hífen
       .replace(/^-+|-+$/g, '');        // Remove hífens no início ou fim
+  };
+
+  const handleClearDatabase = async () => {
+    setIsDeleting(true);
+    try {
+      const catalogSnap = await getDocs(collection(db, 'catalog_products'));
+      const factoriesSnap = await getDocs(collection(db, 'factories'));
+
+      const batch = writeBatch(db);
+      let count = 0;
+
+      catalogSnap.forEach((d) => {
+        batch.delete(d.ref);
+        count++;
+      });
+
+      factoriesSnap.forEach((d) => {
+        batch.delete(d.ref);
+        count++;
+      });
+
+      if (count > 0) {
+        await batch.commit();
+      }
+
+      toast({
+        title: "Banco de dados limpo",
+        description: `${count} registros (produtos e fábricas) foram removidos.`,
+      });
+    } catch (error) {
+      console.error(error);
+      toast({
+        title: "Erro ao limpar",
+        description: "Não foi possível remover todos os registros.",
+        variant: "destructive"
+      });
+    } finally {
+      setIsDeleting(false);
+    }
   };
 
   const handleUpload = async () => {
@@ -83,8 +134,6 @@ export default function UploadPage() {
               
               if (!safeProductName) continue;
 
-              // O ID é fixo baseado na fábrica, nome e unidade. 
-              // Se o item já existir, o Firestore irá atualizar (merge), não duplicar.
               const productId = `${factoryId}-${safeProductName}-${safeUnit}`;
               const productRef = doc(db, 'catalog_products', productId);
               
@@ -148,9 +197,35 @@ export default function UploadPage() {
           <Zap size={24} className="text-primary" />
           <h1 className="text-2xl font-bold text-primary">Pedido InteliPreço</h1>
         </Link>
-        <Link href="/catalog">
-           <Button variant="ghost" size="sm">Ver Catálogo</Button>
-        </Link>
+        <div className="flex gap-2">
+          <AlertDialog>
+            <AlertDialogTrigger asChild>
+              <Button variant="ghost" size="sm" className="text-destructive hover:bg-destructive/10">
+                <Trash2 size={16} className="mr-2" /> Limpar Catálogo Atual
+              </Button>
+            </AlertDialogTrigger>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle className="flex items-center gap-2">
+                  <AlertTriangle className="text-destructive" /> Limpar Banco de Dados?
+                </AlertDialogTitle>
+                <AlertDialogDescription>
+                  Isso excluirá permanentemente **todos os produtos do catálogo e todas as fábricas** registradas. 
+                  Os produtos vinculados (paralelos) não serão excluídos, mas perderão a referência de preço até que uma nova planilha seja importada.
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                <AlertDialogAction onClick={handleClearDatabase} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+                  Sim, apagar tudo
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
+          <Link href="/catalog">
+             <Button variant="ghost" size="sm">Ver Catálogo</Button>
+          </Link>
+        </div>
       </div>
 
       <Card className="border-2 border-dashed border-primary/20 bg-white shadow-xl">
@@ -173,6 +248,7 @@ export default function UploadPage() {
                 accept=".xlsx" 
                 onChange={handleFileChange}
                 className="cursor-pointer file:bg-primary/10 file:text-primary file:border-0 file:rounded-md file:mr-4 file:px-4 file:py-2 hover:border-primary transition-colors"
+                disabled={isDeleting}
               />
               {file && (
                 <p className="text-xs text-muted-foreground mt-1 flex items-center gap-1">
@@ -185,7 +261,7 @@ export default function UploadPage() {
             <Button 
               className="w-full h-12 text-lg font-semibold gap-2 transition-all hover:shadow-lg" 
               onClick={handleUpload}
-              disabled={isLoading || !file}
+              disabled={isLoading || !file || isDeleting}
             >
               {isLoading ? (
                 <>
