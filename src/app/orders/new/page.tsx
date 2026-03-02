@@ -602,6 +602,10 @@ export default function NewOrderPage() {
                     <span>- R$ {formatCurrency(unitCalculations.catalogDiscount)}</span>
                   </div>
                 )}
+                <div className="flex justify-between text-xs text-accent font-bold">
+                  <span>Preço Líquido (NET):</span>
+                  <span>R$ {formatCurrency(unitCalculations.priceAfterCatalog)}</span>
+                </div>
                 <div className="flex justify-between text-xs text-primary font-medium">
                   <span>(+) Aditivo Contrato ({contractPercent}%):</span>
                   <span>+ R$ {formatCurrency(unitCalculations.finalUnitPriceBeforeST - unitCalculations.priceAfterCatalog)}</span>
