@@ -46,6 +46,7 @@ export type OrderItem = {
   stRate: number;
   total: number;
   weight: number;
+  line: string;
 };
 
 export default function NewOrderPage() {
@@ -73,7 +74,7 @@ export default function NewOrderPage() {
   const [selectedProductId, setSelectedProductId] = useState<string>("none");
   const [productSearch, setProductSearch] = useState<string>("");
   const [brandFilter, setBrandFilter] = useState<string>("all");
-  const [lineFilter, setLineFilter] = useState<string>("all");
+  const [lineFilter, setLineFilter] = useState<string>("none");
   const [quantity, setQuantity] = useState<number>(1);
   const [priceType, setPriceType] = useState<'closed' | 'fractional'>('closed');
   const [useCatalogDiscount, setUseCatalogDiscount] = useState<boolean>(true);
@@ -112,7 +113,7 @@ export default function NewOrderPage() {
   }, [selectedFactoryId, registeredProducts]);
 
   const filteredProducts = useMemo(() => {
-    if (selectedFactoryId === "none" || !registeredProducts) return [];
+    if (selectedFactoryId === "none" || !registeredProducts || lineFilter === "none") return [];
     
     let filtered = registeredProducts.filter(p => 
       p.factoryId === selectedFactoryId && p.catalogProductId
@@ -122,9 +123,8 @@ export default function NewOrderPage() {
       filtered = filtered.filter(p => p.brand === brandFilter);
     }
 
-    if (lineFilter !== "all") {
-      filtered = filtered.filter(p => p.line === lineFilter);
-    }
+    // Linha é obrigatória, então sempre filtramos pelo valor selecionado
+    filtered = filtered.filter(p => p.line === lineFilter);
 
     if (productSearch.trim()) {
       const term = productSearch.toLowerCase();
@@ -190,6 +190,16 @@ export default function NewOrderPage() {
       return;
     }
 
+    // Validação: Não permitir misturar linhas no mesmo pedido
+    if (orderItems.length > 0 && currentRegisteredProduct.line !== orderItems[0].line) {
+      toast({ 
+        title: "Mistura de Linhas Não Permitida", 
+        description: `Este pedido já contém itens da linha "${orderItems[0].line}". Para adicionar itens da linha "${currentRegisteredProduct.line}", finalize ou limpe o carrinho atual.`, 
+        variant: "destructive" 
+      });
+      return;
+    }
+
     // Validação específica ARA + SECA UHT
     if (selectedFactory?.name?.toUpperCase().includes('ARA') && currentRegisteredProduct.line?.toUpperCase().includes('SECA UHT')) {
       if (quantity < 30) {
@@ -239,7 +249,8 @@ export default function NewOrderPage() {
       appliedContract: contractPercent,
       stRate: stRate * 100,
       total,
-      weight
+      weight,
+      line: currentRegisteredProduct.line || ''
     };
 
     setOrderItems([...orderItems, newItem]);
@@ -318,16 +329,14 @@ export default function NewOrderPage() {
             <AlertDialogTitle className="flex items-center gap-2 text-primary">
               <AlertTriangle className="text-orange-500" /> Regras Comerciais ARA
             </AlertDialogTitle>
-            <AlertDialogDescription asChild>
-              <div className="space-y-4 py-2 text-foreground">
-                <p className="font-bold border-b pb-2">Para a linha SECA UHT, observe as condições obrigatórias:</p>
-                <ul className="space-y-3 list-disc pl-4 text-sm">
-                  <li>O pedido mínimo é de <span className="font-black">30 caixas</span>.</li>
-                  <li>De <span className="font-black">30 a 130 caixas</span>: O pedido deve ser selecionado como <span className="font-bold text-primary">Fracionado</span>.</li>
-                  <li>Acima de <span className="font-black">130 caixas</span>: O pedido deve ser selecionado como <span className="font-bold text-primary">Carga Fechada</span>.</li>
-                </ul>
-              </div>
-            </AlertDialogDescription>
+            <div className="space-y-4 py-2 text-foreground text-sm">
+              <p className="font-bold border-b pb-2">Para a linha SECA UHT, observe as condições obrigatórias:</p>
+              <ul className="space-y-3 list-disc pl-4">
+                <li>O pedido mínimo é de <span className="font-black">30 caixas</span>.</li>
+                <li>De <span className="font-black">30 a 130 caixas</span>: O pedido deve ser selecionado como <span className="font-bold text-primary">Fracionado</span>.</li>
+                <li>Acima de <span className="font-black">130 caixas</span>: O pedido deve ser selecionado como <span className="font-bold text-primary">Carga Fechada</span>.</li>
+              </ul>
+            </div>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogAction className="w-full">Entendido, prosseguir</AlertDialogAction>
@@ -406,7 +415,7 @@ export default function NewOrderPage() {
                       setSelectedProductId("none");
                       setProductSearch("");
                       setBrandFilter("all");
-                      setLineFilter("all");
+                      setLineFilter("none");
                     }}>
                       <SelectTrigger>
                         <SelectValue placeholder="Escolha a fábrica" />
@@ -439,13 +448,16 @@ export default function NewOrderPage() {
                           </Select>
                         </div>
                         <div className="space-y-2">
-                          <Label className="text-xs">Linha</Label>
-                          <Select value={lineFilter} onValueChange={setLineFilter}>
+                          <Label className="text-xs">Linha (Obrigatório)</Label>
+                          <Select 
+                            value={lineFilter} 
+                            onValueChange={setLineFilter}
+                            disabled={orderItems.length > 0}
+                          >
                             <SelectTrigger className="h-9">
-                              <SelectValue placeholder="Todas" />
+                              <SelectValue placeholder="Selecione a Linha" />
                             </SelectTrigger>
                             <SelectContent>
-                              <SelectItem value="all">Todas as Linhas</SelectItem>
                               {availableLines.map(line => (
                                 <SelectItem key={line} value={line}>
                                   <div className="flex items-center gap-2">
@@ -456,6 +468,9 @@ export default function NewOrderPage() {
                               ))}
                             </SelectContent>
                           </Select>
+                          {orderItems.length > 0 && (
+                            <p className="text-[10px] text-muted-foreground">Linha travada conforme itens no carrinho.</p>
+                          )}
                         </div>
                       </div>
 
@@ -483,7 +498,7 @@ export default function NewOrderPage() {
                           disabled={filteredProducts.length === 0}
                         >
                           <SelectTrigger>
-                            <SelectValue placeholder={filteredProducts.length === 0 ? "Nenhum resultado" : "Selecione o produto"} />
+                            <SelectValue placeholder={lineFilter === "none" ? "Selecione a linha primeiro" : filteredProducts.length === 0 ? "Nenhum resultado" : "Selecione o produto"} />
                           </SelectTrigger>
                           <SelectContent>
                             <SelectItem value="none">Selecione o produto</SelectItem>
@@ -634,6 +649,7 @@ export default function NewOrderPage() {
                             <div className="flex items-center gap-2 mt-1">
                               <Badge variant="secondary" className="text-[10px] py-0">{item.factoryName}</Badge>
                               <span className="text-[10px] text-muted-foreground">{item.priceType === 'closed' ? 'Carga Fechada' : 'Fracionado'}</span>
+                              <Badge variant="outline" className="text-[9px] py-0 border-primary text-primary">{item.line}</Badge>
                             </div>
                           </TableCell>
                           <TableCell className="text-center font-medium text-xs">
@@ -675,7 +691,10 @@ export default function NewOrderPage() {
                   </div>
                 </div>
                 <div className="grid grid-cols-2 gap-4 w-full">
-                  <Button variant="outline" className="h-14 border-primary text-primary font-bold" onClick={() => setOrderItems([])} disabled={isFinalizing}>
+                  <Button variant="outline" className="h-14 border-primary text-primary font-bold" onClick={() => {
+                    setOrderItems([]);
+                    setLineFilter("none");
+                  }} disabled={isFinalizing}>
                     Limpar
                   </Button>
                   <Button 
