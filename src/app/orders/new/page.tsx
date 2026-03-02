@@ -1,7 +1,7 @@
 
 "use client"
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useFirestore, useCollection, useMemoFirebase, addDocumentNonBlocking } from '@/firebase';
 import { collection, query, orderBy, serverTimestamp } from 'firebase/firestore';
@@ -15,8 +15,20 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Switch } from "@/components/ui/switch";
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "@/components/ui/table";
 import { useToast } from "@/hooks/use-toast";
-import { ShoppingCart, Plus, Trash2, Calculator, ReceiptText, ChevronLeft, Zap, ArrowRight, Loader2, Weight, Tag, Info, Gavel, User, AlertTriangle, Search, Filter, Snowflake, Sun } from "lucide-react";
+import { 
+  ShoppingCart, Plus, Trash2, Calculator, ReceiptText, ChevronLeft, Zap, ArrowRight, 
+  Loader2, Weight, Tag, Info, Gavel, User, AlertTriangle, Search, Snowflake, Sun 
+} from "lucide-react";
 import Link from 'next/link';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 
 export type OrderItem = {
   productId: string;
@@ -66,8 +78,21 @@ export default function NewOrderPage() {
   const [priceType, setPriceType] = useState<'closed' | 'fractional'>('closed');
   const [useCatalogDiscount, setUseCatalogDiscount] = useState<boolean>(true);
   const [contractPercent, setContractPercent] = useState<number>(0);
+  
+  // Controle do Alerta de Regras ARA
+  const [showAraRulesDialog, setShowAraRulesDialog] = useState(false);
 
-  // Extrair marcas e linhas únicas da fábrica selecionada
+  const selectedFactory = useMemo(() => {
+    return factories?.find(f => f.id === selectedFactoryId);
+  }, [selectedFactoryId, factories]);
+
+  // Monitorar seleção de ARA e Linha SECA UHT
+  useEffect(() => {
+    if (selectedFactory?.name?.toUpperCase().includes('ARA') && lineFilter?.toUpperCase().includes('SECA UHT')) {
+      setShowAraRulesDialog(true);
+    }
+  }, [selectedFactoryId, lineFilter, selectedFactory]);
+
   const availableBrands = useMemo(() => {
     if (selectedFactoryId === "none" || !registeredProducts) return [];
     const brands = registeredProducts
@@ -118,18 +143,7 @@ export default function NewOrderPage() {
 
   const currentCatalogProduct = useMemo(() => {
     if (!currentRegisteredProduct?.catalogProductId || !catalogProducts) return null;
-    
-    let found = catalogProducts.find(p => p.id === currentRegisteredProduct.catalogProductId);
-    
-    if (!found) {
-      found = catalogProducts.find(cp => 
-        cp.factoryId === currentRegisteredProduct.factoryId &&
-        cp.name.toLowerCase() === currentRegisteredProduct.description.toLowerCase() &&
-        cp.unit.toLowerCase() === currentRegisteredProduct.unit.toLowerCase()
-      );
-    }
-    
-    return found;
+    return catalogProducts.find(p => p.id === currentRegisteredProduct.catalogProductId);
   }, [currentRegisteredProduct, catalogProducts]);
 
   const selectedCustomer = useMemo(() => {
@@ -176,6 +190,34 @@ export default function NewOrderPage() {
       return;
     }
 
+    // Validação específica ARA + SECA UHT
+    if (selectedFactory?.name?.toUpperCase().includes('ARA') && currentRegisteredProduct.line?.toUpperCase().includes('SECA UHT')) {
+      if (quantity < 30) {
+        toast({ 
+          title: "Pedido Inválido", 
+          description: "O pedido mínimo para esta linha são de 30 cxs.", 
+          variant: "destructive" 
+        });
+        return;
+      }
+      if (quantity >= 30 && quantity <= 130 && priceType !== 'fractional') {
+        toast({ 
+          title: "Ajuste Necessário", 
+          description: "De 30 a 130 caixas o pedido deve ser selecionado como Fracionado.", 
+          variant: "destructive" 
+        });
+        return;
+      }
+      if (quantity > 130 && priceType !== 'closed') {
+        toast({ 
+          title: "Ajuste Necessário", 
+          description: "Acima de 130 cxs o pedido deve ser selecionado como Carga Fechada.", 
+          variant: "destructive" 
+        });
+        return;
+      }
+    }
+
     const { finalUnitPriceWithST, finalUnitPriceBeforeST, stRate } = unitCalculations;
     
     const qtyPerBox = currentRegisteredProduct.quantityPerBox || 1;
@@ -185,7 +227,7 @@ export default function NewOrderPage() {
     const newItem: OrderItem = {
       productId: currentRegisteredProduct.id,
       catalogProductId: currentCatalogProduct.id,
-      factoryName: factories?.find(f => f.id === selectedFactoryId)?.name || "Fábrica",
+      factoryName: selectedFactory?.name || "Fábrica",
       code: currentRegisteredProduct.code,
       name: currentRegisteredProduct.description,
       ean: currentRegisteredProduct.ean || '',
@@ -269,6 +311,28 @@ export default function NewOrderPage() {
 
   return (
     <div className="container mx-auto px-4 py-8 md:py-12">
+      {/* Alerta de Regras ARA */}
+      <AlertDialog open={showAraRulesDialog} onOpenChange={setShowAraRulesDialog}>
+        <AlertDialogContent className="max-w-md">
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center gap-2 text-primary">
+              <AlertTriangle className="text-orange-500" /> Regras Comerciais ARA
+            </AlertDialogTitle>
+            <AlertDialogDescription className="space-y-4 py-2 text-foreground">
+              <p className="font-bold border-b pb-2">Para a linha SECA UHT, observe as condições obrigatórias:</p>
+              <ul className="space-y-3 list-disc pl-4 text-sm">
+                <li>O pedido mínimo é de <span className="font-black">30 caixas</span>.</li>
+                <li>De <span className="font-black">30 a 130 caixas</span>: O pedido deve ser selecionado como <span className="font-bold text-primary">Fracionado</span>.</li>
+                <li>Acima de <span className="font-black">130 caixas</span>: O pedido deve ser selecionado como <span className="font-bold text-primary">Carga Fechada</span>.</li>
+              </ul>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogAction className="w-full">Entendido, prosseguir</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
       <div className="mb-8 flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div className="flex items-center gap-3">
           <Link href="/catalog" className="text-muted-foreground hover:text-primary transition-colors">
@@ -357,7 +421,6 @@ export default function NewOrderPage() {
                   {selectedFactoryId !== "none" && (
                     <div className="space-y-4 animate-in fade-in slide-in-from-top-2 duration-300">
                       
-                      {/* Filtros de Marca e Linha */}
                       <div className="grid grid-cols-2 gap-3">
                         <div className="space-y-2">
                           <Label className="text-xs">Marca</Label>
@@ -427,9 +490,6 @@ export default function NewOrderPage() {
                             ))}
                           </SelectContent>
                         </Select>
-                        {filteredProducts.length > 0 && (
-                          <p className="text-[10px] text-muted-foreground italic">Mostrando {filteredProducts.length} itens filtrados.</p>
-                        )}
                       </div>
                     </div>
                   )}
@@ -439,7 +499,7 @@ export default function NewOrderPage() {
                       <AlertTriangle size={16} className="text-destructive shrink-0 mt-0.5" />
                       <div className="text-[10px] text-destructive leading-tight">
                         <p className="font-bold">Vínculo Quebrado ou Inexistente</p>
-                        <p>O preço deste item não foi encontrado no catálogo. Vá em Admin {">"} Produtos e refaça a amarração deste item.</p>
+                        <p>O preço deste item não foi encontrado no catálogo.</p>
                       </div>
                     </div>
                   )}
@@ -468,22 +528,6 @@ export default function NewOrderPage() {
                     </RadioGroup>
                   </div>
 
-                  {currentCatalogProduct && currentCatalogProduct.discountAmount > 0 && (
-                    <div className="flex items-center justify-between p-3 bg-accent/10 border border-accent/20 rounded-lg">
-                      <div className="flex items-center gap-2">
-                        <Tag size={16} className="text-accent" />
-                        <div className="text-xs">
-                          <p className="font-bold text-accent">Desconto Catálogo</p>
-                          <p className="text-muted-foreground">R$ {formatCurrency(currentCatalogProduct.discountAmount)}</p>
-                        </div>
-                      </div>
-                      <Switch 
-                        checked={useCatalogDiscount} 
-                        onCheckedChange={setUseCatalogDiscount} 
-                      />
-                    </div>
-                  )}
-
                   <div className="grid grid-cols-2 gap-4">
                     <div className="space-y-2">
                       <Label>Quantidade (Caixas)</Label>
@@ -511,24 +555,14 @@ export default function NewOrderPage() {
             </CardContent>
             
             {unitCalculations && (
-              <div className="px-6 py-4 bg-muted/50 border-y space-y-2 animate-in fade-in slide-in-from-bottom-2 duration-300">
+              <div className="px-6 py-4 bg-muted/50 border-y space-y-2">
                 <div className="flex justify-between text-xs text-muted-foreground">
-                  <span>Preço Tabela ({priceType === 'closed' ? 'Fechada' : 'Fracionada'}):</span>
+                  <span>Preço Tabela:</span>
                   <span>R$ {formatCurrency(unitCalculations.basePrice)}</span>
                 </div>
-                {useCatalogDiscount && unitCalculations.catalogDiscount > 0 && (
-                  <div className="flex justify-between text-xs text-accent font-medium">
-                    <span>(-) Desconto Catálogo:</span>
-                    <span>- R$ {formatCurrency(unitCalculations.catalogDiscount)}</span>
-                  </div>
-                )}
                 <div className="flex justify-between text-xs text-primary font-medium">
                   <span>(+) Aditivo Contrato ({contractPercent}%):</span>
                   <span>+ R$ {formatCurrency(unitCalculations.finalUnitPriceBeforeST - unitCalculations.priceAfterCatalog)}</span>
-                </div>
-                <div className="flex justify-between text-xs text-muted-foreground">
-                  <span>Subtotal (C/ Contrato):</span>
-                  <span>R$ {formatCurrency(unitCalculations.finalUnitPriceBeforeST)}</span>
                 </div>
                 <div className="flex justify-between text-xs text-destructive font-medium">
                   <span className="flex items-center gap-1"><Gavel size={12} /> (+) Imposto ST ({ (unitCalculations.stRate * 100).toFixed(0) }%):</span>
@@ -536,8 +570,7 @@ export default function NewOrderPage() {
                 </div>
                 <div className="pt-2 border-t flex justify-between items-center">
                   <div className="flex flex-col">
-                    <span className="text-sm font-bold">Unitário Líquido + ST:</span>
-                    <span className="text-[10px] text-muted-foreground">Preço final com impostos</span>
+                    <span className="text-sm font-bold">Unitário Final:</span>
                   </div>
                   <span className="text-xl font-extrabold text-primary">R$ {formatCurrency(unitCalculations.finalUnitPriceWithST)}</span>
                 </div>
@@ -568,7 +601,7 @@ export default function NewOrderPage() {
                 </CardDescription>
               </div>
               <Badge variant="outline" className="text-white border-white/40 px-3 py-1 font-bold">
-                {orderItems.length} {orderItems.length === 1 ? 'Item' : 'Itens'}
+                {orderItems.length} Itens
               </Badge>
             </CardHeader>
             <CardContent className="flex-1 p-0">
@@ -577,7 +610,7 @@ export default function NewOrderPage() {
                   <div className="w-20 h-20 bg-muted rounded-full flex items-center justify-center opacity-20">
                     <Calculator size={48} />
                   </div>
-                  <p className="font-medium">Nenhum produto adicionado ao pedido.</p>
+                  <p className="font-medium">Carrinho vazio.</p>
                 </div>
               ) : (
                 <div className="overflow-x-auto">
@@ -586,23 +619,19 @@ export default function NewOrderPage() {
                       <TableRow className="bg-muted/30">
                         <TableHead className="w-[300px]">Produto</TableHead>
                         <TableHead className="text-center">Qtd</TableHead>
-                        <TableHead className="text-right">Preço Final (+ST)</TableHead>
+                        <TableHead className="text-right">Unitário Final</TableHead>
                         <TableHead className="text-right">Total</TableHead>
                         <TableHead></TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
                       {orderItems.map((item, idx) => (
-                        <TableRow key={`${item.productId}-${idx}`} className="group hover:bg-muted/20">
+                        <TableRow key={`${item.productId}-${idx}`}>
                           <TableCell>
                             <div className="font-bold text-sm">{item.name}</div>
                             <div className="flex items-center gap-2 mt-1">
                               <Badge variant="secondary" className="text-[10px] py-0">{item.factoryName}</Badge>
                               <span className="text-[10px] text-muted-foreground">{item.priceType === 'closed' ? 'Carga Fechada' : 'Fracionado'}</span>
-                              <Badge variant="outline" className="text-[10px] py-0 text-destructive border-destructive/20">+ {item.stRate.toFixed(0)}% ST</Badge>
-                            </div>
-                            <div className="text-[10px] text-accent font-bold mt-1 flex items-center gap-1">
-                              <Weight size={10} /> {item.weight.toFixed(2)} Kg
                             </div>
                           </TableCell>
                           <TableCell className="text-center font-medium text-xs">
@@ -615,12 +644,7 @@ export default function NewOrderPage() {
                             R$ {formatCurrency(item.total)}
                           </TableCell>
                           <TableCell className="text-right">
-                            <Button 
-                              variant="ghost" 
-                              size="icon" 
-                              onClick={() => removeProduct(idx)} 
-                              className="text-destructive h-8 w-8 hover:bg-destructive/10"
-                            >
+                            <Button variant="ghost" size="icon" onClick={() => removeProduct(idx)} className="text-destructive h-8 w-8 hover:bg-destructive/10">
                               <Trash2 size={16} />
                             </Button>
                           </TableCell>
@@ -635,14 +659,14 @@ export default function NewOrderPage() {
               <CardFooter className="bg-primary/5 p-8 flex flex-col border-t gap-6">
                 <div className="w-full flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
                   <div className="space-y-1">
-                    <p className="text-xs text-muted-foreground uppercase font-bold tracking-widest">Valor Total Líquido (C/ Impostos)</p>
+                    <p className="text-xs text-muted-foreground uppercase font-bold tracking-widest">Valor Total Líquido</p>
                     <p className="text-4xl font-black text-primary">R$ {formatCurrency(orderTotal)}</p>
                   </div>
                   <div className="flex flex-col gap-2">
                     <div className="flex items-center gap-3 bg-white px-5 py-3 rounded-2xl border shadow-sm">
                       <Weight size={20} className="text-primary" />
                       <div>
-                        <p className="text-[10px] text-muted-foreground uppercase font-bold">Peso Total (Carga)</p>
+                        <p className="text-[10px] text-muted-foreground uppercase font-bold">Peso Total</p>
                         <p className="text-lg font-extrabold text-foreground">{orderTotalWeight.toFixed(2)} Kg</p>
                       </div>
                     </div>
@@ -650,28 +674,20 @@ export default function NewOrderPage() {
                 </div>
                 <div className="grid grid-cols-2 gap-4 w-full">
                   <Button variant="outline" className="h-14 border-primary text-primary font-bold" onClick={() => setOrderItems([])} disabled={isFinalizing}>
-                    Esvaziar Carrinho
+                    Limpar
                   </Button>
                   <Button 
-                    className="h-14 bg-accent hover:bg-accent/90 text-white shadow-xl gap-2 group text-lg font-bold"
+                    className="h-14 bg-accent hover:bg-accent/90 text-white shadow-xl gap-2 text-lg font-bold"
                     onClick={handleFinalizeOrder}
                     disabled={isFinalizing || selectedCustomerId === "none"}
                   >
                     {isFinalizing ? <Loader2 className="animate-spin" /> : <ReceiptText size={20} />}
-                    Finalizar Pedido <ArrowRight className="group-hover:translate-x-1 transition-transform" />
+                    Finalizar Pedido
                   </Button>
                 </div>
               </CardFooter>
             )}
           </Card>
-          
-          <div className="p-4 bg-muted rounded-xl flex gap-3 items-start border">
-            <Info className="text-primary shrink-0 mt-0.5" size={18} />
-            <div className="text-xs text-muted-foreground space-y-1">
-              <p><strong>Cálculo do Preço:</strong> O preço apresentado já inclui o imposto ST (Substituição Tributária) e o aditivo de contrato.</p>
-              <p><strong>Nota Logística:</strong> O peso do pedido utiliza o Peso da Caixa multiplicado pela quantidade de caixas.</p>
-            </div>
-          </div>
         </div>
       </div>
     </div>
