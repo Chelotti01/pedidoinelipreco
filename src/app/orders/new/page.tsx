@@ -181,6 +181,50 @@ export default function NewOrderPage() {
     };
   }, [currentCatalogProduct, currentRegisteredProduct, priceType, useCatalogDiscount, contractPercent]);
 
+  // Função para mudar o tipo de preço e recalcular o carrinho
+  const handlePriceTypeChange = (newType: 'closed' | 'fractional') => {
+    setPriceType(newType);
+    
+    if (orderItems.length === 0) return;
+
+    const updatedItems = orderItems.map(item => {
+      const catalogItem = catalogProducts?.find(cp => cp.id === item.catalogProductId);
+      const registeredItem = registeredProducts?.find(rp => rp.id === item.productId);
+      
+      if (!catalogItem || !registeredItem) return item;
+
+      const basePrice = newType === 'closed' 
+        ? (catalogItem.closedLoadPrice || 0) 
+        : (catalogItem.fractionalLoadPrice || 0);
+      
+      const catalogDiscount = useCatalogDiscount ? (catalogItem.discountAmount || 0) : 0;
+      const priceAfterCatalog = Math.max(0, basePrice - catalogDiscount);
+      
+      const finalUnitPriceBeforeST = priceAfterCatalog * (1 + (item.appliedContract || 0) / 100);
+      
+      const stRate = parseST(registeredItem.st);
+      const stAmount = finalUnitPriceBeforeST * stRate;
+      const finalUnitPriceWithST = finalUnitPriceBeforeST + stAmount;
+      
+      const qtyPerBox = registeredItem.quantityPerBox || 1;
+      const total = finalUnitPriceWithST * qtyPerBox * item.quantity;
+
+      return {
+        ...item,
+        priceType: newType,
+        unitPriceNet: finalUnitPriceBeforeST,
+        unitPriceFinal: finalUnitPriceWithST,
+        total: total
+      };
+    });
+
+    setOrderItems(updatedItems);
+    toast({
+      title: "Preços atualizados",
+      description: `O carrinho foi recalculado para ${newType === 'closed' ? 'Carga Fechada' : 'Fracionado'}.`,
+    });
+  };
+
   const handleAddProduct = () => {
     if (!currentRegisteredProduct || !currentCatalogProduct || !unitCalculations) {
       toast({ title: "Erro", description: "Produto inválido ou sem preço encontrado no catálogo.", variant: "destructive" });
@@ -259,7 +303,7 @@ export default function NewOrderPage() {
         if (hasWrongPriceType) {
           toast({ 
             title: "Ajuste de Preço Necessário", 
-            description: "Para pedidos entre 30 e 130 caixas, todos os itens devem estar como 'Fracionado'. Remova e adicione novamente com o tipo correto.", 
+            description: "Para pedidos entre 30 e 130 caixas, todos os itens devem estar como 'Fracionado'. Altere a configuração acima para atualizar o carrinho.", 
             variant: "destructive" 
           });
           return;
@@ -271,7 +315,7 @@ export default function NewOrderPage() {
         if (hasWrongPriceType) {
           toast({ 
             title: "Ajuste de Preço Necessário", 
-            description: "Para pedidos acima de 130 caixas, todos os itens devem estar como 'Carga Fechada'. Remova e adicione novamente com o tipo correto.", 
+            description: "Para pedidos acima de 130 caixas, todos os itens devem estar como 'Carga Fechada'. Altere a configuração acima para atualizar o carrinho.", 
             variant: "destructive" 
           });
           return;
@@ -539,7 +583,7 @@ export default function NewOrderPage() {
                     <Label className="text-xs font-bold uppercase text-muted-foreground tracking-wider">Configuração de Preço</Label>
                     <RadioGroup 
                       value={priceType} 
-                      onValueChange={(val: any) => setPriceType(val)}
+                      onValueChange={(val: any) => handlePriceTypeChange(val)}
                       className="grid grid-cols-2 gap-2"
                     >
                       <Label
