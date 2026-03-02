@@ -83,6 +83,7 @@ export default function NewOrderPage() {
   const [showAraRulesDialog, setShowAraRulesDialog] = useState(false);
   const [showBvgRulesDialog, setShowBvgRulesDialog] = useState(false);
   const [showMrvRulesDialog, setShowMrvRulesDialog] = useState(false);
+  const [showSjoRulesDialog, setShowSjoRulesDialog] = useState(false);
 
   const selectedFactory = useMemo(() => {
     return factories?.find(f => f.id === selectedFactoryId);
@@ -98,6 +99,8 @@ export default function NewOrderPage() {
       setShowBvgRulesDialog(true);
     } else if (factoryName.includes('MRV') && selectedLine.includes('SECA')) {
       setShowMrvRulesDialog(true);
+    } else if (factoryName.includes('SJO') && selectedLine.includes('REFRIGERADA')) {
+      setShowSjoRulesDialog(true);
     }
   }, [selectedFactoryId, lineFilter, selectedFactory]);
 
@@ -333,6 +336,18 @@ export default function NewOrderPage() {
       }
     }
 
+    // Regras SJO
+    if (factoryName.includes('SJO') && selectedLine.includes('REFRIGERADA')) {
+      if (totalWeight < 1500) {
+        toast({ 
+          title: "Peso Mínimo Insuficiente", 
+          description: `O peso total do pedido (${totalWeight.toFixed(2)} Kg) é inferior ao mínimo de 1.500 Kg exigido para esta linha da fábrica SJO.`, 
+          variant: "destructive" 
+        });
+        return;
+      }
+    }
+
     // Regras MRV
     if (factoryName.includes('MRV') && selectedLine.includes('SECA')) {
       if (totalAmount < 1500) {
@@ -463,6 +478,27 @@ export default function NewOrderPage() {
               <ul className="space-y-3 list-disc pl-4">
                 <li>O pedido mínimo é de <span className="font-black text-lg">70 KG</span> no total.</li>
                 <li>Verifique o peso das caixas no carrinho antes de finalizar.</li>
+              </ul>
+            </div>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogAction className="w-full">Entendido, prosseguir</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Dialog SJO */}
+      <AlertDialog open={showSjoRulesDialog} onOpenChange={setShowSjoRulesDialog}>
+        <AlertDialogContent className="max-w-md">
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center gap-2 text-primary">
+              <AlertTriangle className="text-orange-500" /> Regras Comerciais SJO
+            </AlertDialogTitle>
+            <div className="space-y-4 py-2 text-foreground text-sm">
+              <div className="font-bold border-b pb-2 text-sm">Para a linha REFRIGERADA, observe as condições obrigatórias:</div>
+              <ul className="space-y-3 list-disc pl-4">
+                <li>O pedido mínimo é de <span className="font-black text-lg">1.500 KG</span> no total.</li>
+                <li>Verifique o peso total no carrinho antes de finalizar o pedido.</li>
               </ul>
             </div>
           </AlertDialogHeader>
