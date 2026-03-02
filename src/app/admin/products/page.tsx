@@ -10,7 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
-import { Plus, Package, Edit, Trash2, ChevronLeft, Upload, AlertTriangle, Copy, Search, FilterX } from "lucide-react";
+import { Plus, Package, Edit, Trash2, ChevronLeft, Upload, AlertTriangle, Copy, Search, FilterX, AlertCircle } from "lucide-react";
 import Link from 'next/link';
 import { useToast } from "@/hooks/use-toast";
 import { Input } from "@/components/ui/input";
@@ -72,6 +72,9 @@ export default function RegisteredProductsPage() {
 
   const { data: products, isLoading } = useCollection(productsQuery);
 
+  const catalogQuery = useMemoFirebase(() => query(collection(db, 'catalog_products')), [db]);
+  const { data: catalogProducts } = useCollection(catalogQuery);
+
   // Extrair marcas únicas para o filtro
   const uniqueBrands = useMemo(() => {
     if (!products) return [];
@@ -89,7 +92,19 @@ export default function RegisteredProductsPage() {
   const filteredProducts = useMemo(() => {
     if (!products) return [];
     
-    return products.filter((p) => {
+    return products.map(p => {
+      // Verifica se o vínculo existe mas o produto sumiu do catálogo
+      const hasLinkId = !!p.catalogProductId;
+      const targetExists = hasLinkId && catalogProducts?.some(cp => cp.id === p.catalogProductId);
+      const isLinkBroken = hasLinkId && !targetExists;
+
+      return {
+        ...p,
+        isLinkBroken,
+        isLinked: hasLinkId && targetExists,
+        isUnlinked: !hasLinkId
+      };
+    }).filter((p) => {
       const term = searchTerm.toLowerCase();
       const matchesSearch = !searchTerm.trim() || (
         p.code?.toLowerCase().includes(term) ||
@@ -102,14 +117,14 @@ export default function RegisteredProductsPage() {
       const matchesBrand = brandFilter === "all" || p.brand === brandFilter;
       const matchesLine = lineFilter === "all" || p.line === lineFilter;
       
-      const isLinked = !!p.catalogProductId;
       const matchesLink = linkFilter === "all" || 
-        (linkFilter === "linked" && isLinked) || 
-        (linkFilter === "unlinked" && !isLinked);
+        (linkFilter === "linked" && p.isLinked) || 
+        (linkFilter === "broken" && p.isLinkBroken) ||
+        (linkFilter === "unlinked" && p.isUnlinked);
 
       return matchesSearch && matchesStatus && matchesBrand && matchesLine && matchesLink;
     });
-  }, [products, searchTerm, statusFilter, brandFilter, lineFilter, linkFilter]);
+  }, [products, catalogProducts, searchTerm, statusFilter, brandFilter, lineFilter, linkFilter]);
 
   const resetFilters = () => {
     setSearchTerm("");
@@ -127,7 +142,7 @@ export default function RegisteredProductsPage() {
 
   const handleDuplicate = (product: any) => {
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
-    const { id, ...data } = product;
+    const { id, isLinkBroken, isLinked, isUnlinked, ...data } = product;
     addDocumentNonBlocking(collection(db, 'registered_products'), {
       ...data,
       code: `${data.code}-cópia`,
@@ -237,8 +252,9 @@ export default function RegisteredProductsPage() {
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">Todos os Vínculos</SelectItem>
-                <SelectItem value="linked">Vinculados (Verde)</SelectItem>
-                <SelectItem value="unlinked">Não Vinculados (Vermelho)</SelectItem>
+                <SelectItem value="linked">Vínculo OK (Verde)</SelectItem>
+                <SelectItem value="broken">Vínculo Quebrado (Amarelo)</SelectItem>
+                <SelectItem value="unlinked">Não Vinculado (Vermelho)</SelectItem>
               </SelectContent>
             </Select>
 
@@ -310,11 +326,17 @@ export default function RegisteredProductsPage() {
                   <TableCell>
                     <div className="flex items-center gap-3">
                       <div 
-                        className={`h-4 w-4 rounded-full shrink-0 border-2 border-white shadow-sm ${p.catalogProductId ? 'bg-green-500 shadow-[0_0_8px_rgba(34,197,94,0.4)]' : 'bg-red-500 shadow-[0_0_8px_rgba(239,68,68,0.4)]'}`}
-                        title={p.catalogProductId ? 'Vinculado ao Catálogo' : 'Não Vinculado'}
+                        className={`h-4 w-4 rounded-full shrink-0 border-2 border-white shadow-sm 
+                          ${p.isLinked ? 'bg-green-500 shadow-[0_0_8px_rgba(34,197,94,0.4)]' : 
+                            p.isLinkBroken ? 'bg-yellow-500 animate-pulse shadow-[0_0_8px_rgba(234,179,8,0.4)]' : 
+                            'bg-red-500 shadow-[0_0_8px_rgba(239,68,68,0.4)]'}`}
+                        title={p.isLinked ? 'Vínculo OK' : p.isLinkBroken ? 'Vínculo Quebrado (Item não encontrado no catálogo)' : 'Sem Vínculo'}
                       />
                       <div className="flex flex-col">
-                        <span className="font-bold text-slate-800">{p.code}</span>
+                        <div className="flex items-center gap-1">
+                          <span className="font-bold text-slate-800">{p.code}</span>
+                          {p.isLinkBroken && <AlertCircle size={12} className="text-yellow-600" title="Vínculo Quebrado" />}
+                        </div>
                         <span className="text-[11px] text-muted-foreground line-clamp-1 uppercase font-medium">{p.description}</span>
                       </div>
                     </div>
@@ -369,10 +391,14 @@ export default function RegisteredProductsPage() {
       </Card>
       
       <div className="mt-8 flex flex-col md:flex-row gap-6 text-xs text-muted-foreground items-center justify-between px-4 bg-muted/20 py-4 rounded-lg">
-        <div className="flex gap-6">
+        <div className="flex flex-wrap gap-6">
           <div className="flex items-center gap-2">
             <div className="h-3 w-3 rounded-full bg-green-500" />
-            <span className="font-medium">Vinculado ao Catálogo (Preço Atualizado)</span>
+            <span className="font-medium">Vínculo OK</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <div className="h-3 w-3 rounded-full bg-yellow-500" />
+            <span className="font-medium">Vínculo Quebrado (Refaça a amarração)</span>
           </div>
           <div className="flex items-center gap-2">
             <div className="h-3 w-3 rounded-full bg-red-500" />
