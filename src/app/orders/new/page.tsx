@@ -1,4 +1,3 @@
-
 "use client"
 
 import { useState, useMemo, useEffect, useRef } from 'react';
@@ -1006,19 +1005,21 @@ export default function NewOrderPage() {
               </tr>
             </thead>
             <tbody>
-              {filteredProducts.map((p, idx) => {
-                const catalog = catalogProducts?.find(cp => cp.id === p.catalogProductId);
-                const prices = calculateItemPrices(p, catalog, exportContractPercent);
-                if (!prices) return null;
-                return (
-                  <tr key={p.id} className={idx % 2 === 0 ? 'bg-white' : 'bg-slate-50'}>
-                    <td className="p-2 border font-bold">{p.code}</td>
-                    <td className="p-2 border">{p.ean}</td>
-                    <td className="p-2 border uppercase">{p.description}</td>
-                    <td className="p-2 border text-right">R$ {formatCurrency(prices.finalUnitPriceBeforeST)}</td>
-                    <td className="p-2 border text-right font-bold text-primary">R$ {formatCurrency(prices.finalUnitPriceWithST)}</td>
-                  </tr>
-                );
+              {[...filteredProducts]
+                .sort((a, b) => (a.code || "").localeCompare(b.code || "", undefined, { numeric: true, sensitivity: 'base' }))
+                .map((p, idx) => {
+                  const catalog = catalogProducts?.find(cp => cp.id === p.catalogProductId);
+                  const prices = calculateItemPrices(p, catalog, exportContractPercent);
+                  if (!prices) return null;
+                  return (
+                    <tr key={p.id} className={idx % 2 === 0 ? 'bg-white' : 'bg-slate-50'}>
+                      <td className="p-2 border font-bold">{p.code}</td>
+                      <td className="p-2 border">{p.ean}</td>
+                      <td className="p-2 border uppercase">{p.description}</td>
+                      <td className="p-2 border text-right">R$ {formatCurrency(prices.finalUnitPriceBeforeST)}</td>
+                      <td className="p-2 border text-right font-bold text-primary">R$ {formatCurrency(prices.finalUnitPriceWithST)}</td>
+                    </tr>
+                  );
               })}
             </tbody>
           </table>
