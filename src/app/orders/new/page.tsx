@@ -15,7 +15,7 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Switch } from "@/components/ui/switch";
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "@/components/ui/table";
 import { useToast } from "@/hooks/use-toast";
-import { ShoppingCart, Plus, Trash2, Calculator, ReceiptText, ChevronLeft, Zap, ArrowRight, Loader2, Weight, Tag, Info, Gavel, User, AlertTriangle, LinkIcon } from "lucide-react";
+import { ShoppingCart, Plus, Trash2, Calculator, ReceiptText, ChevronLeft, Zap, ArrowRight, Loader2, Weight, Tag, Info, Gavel, User, AlertTriangle, Search, Filter } from "lucide-react";
 import Link from 'next/link';
 
 export type OrderItem = {
@@ -59,6 +59,7 @@ export default function NewOrderPage() {
   const [selectedCustomerId, setSelectedCustomerId] = useState<string>("none");
   const [selectedFactoryId, setSelectedFactoryId] = useState<string>("none");
   const [selectedProductId, setSelectedProductId] = useState<string>("none");
+  const [productSearch, setProductSearch] = useState<string>("");
   const [quantity, setQuantity] = useState<number>(1);
   const [priceType, setPriceType] = useState<'closed' | 'fractional'>('closed');
   const [useCatalogDiscount, setUseCatalogDiscount] = useState<boolean>(true);
@@ -66,23 +67,31 @@ export default function NewOrderPage() {
 
   const filteredProducts = useMemo(() => {
     if (selectedFactoryId === "none" || !registeredProducts) return [];
-    return registeredProducts.filter(p => 
+    
+    let filtered = registeredProducts.filter(p => 
       p.factoryId === selectedFactoryId && p.catalogProductId
     );
-  }, [selectedFactoryId, registeredProducts]);
+
+    if (productSearch.trim()) {
+      const term = productSearch.toLowerCase();
+      filtered = filtered.filter(p => 
+        p.code?.toLowerCase().includes(term) || 
+        p.description?.toLowerCase().includes(term)
+      );
+    }
+
+    return filtered;
+  }, [selectedFactoryId, registeredProducts, productSearch]);
 
   const currentRegisteredProduct = useMemo(() => {
     return registeredProducts?.find(p => p.id === selectedProductId);
   }, [selectedProductId, registeredProducts]);
 
-  // Busca inteligente: tenta pelo ID salvo, se não der certo, tenta por Nome + Unidade (fallback)
   const currentCatalogProduct = useMemo(() => {
     if (!currentRegisteredProduct?.catalogProductId || !catalogProducts) return null;
     
-    // 1. Tenta pelo ID exato salvo no registro
     let found = catalogProducts.find(p => p.id === currentRegisteredProduct.catalogProductId);
     
-    // 2. Se não achou (vínculo quebrado por mudança de ID), tenta por nome e unidade
     if (!found) {
       found = catalogProducts.find(cp => 
         cp.factoryId === currentRegisteredProduct.factoryId &&
@@ -169,6 +178,7 @@ export default function NewOrderPage() {
     });
 
     setSelectedProductId("none");
+    setProductSearch("");
     setQuantity(1);
     setContractPercent(0);
   };
@@ -299,6 +309,7 @@ export default function NewOrderPage() {
                     <Select value={selectedFactoryId} onValueChange={(val) => {
                       setSelectedFactoryId(val);
                       setSelectedProductId("none");
+                      setProductSearch("");
                     }}>
                       <SelectTrigger>
                         <SelectValue placeholder="Escolha a fábrica" />
@@ -312,24 +323,47 @@ export default function NewOrderPage() {
                     </Select>
                   </div>
 
-                  <div className="space-y-2">
-                    <Label>Produto Registrado</Label>
-                    <Select 
-                      value={selectedProductId} 
-                      onValueChange={setSelectedProductId} 
-                      disabled={selectedFactoryId === "none" || filteredProducts.length === 0}
-                    >
-                      <SelectTrigger>
-                        <SelectValue placeholder={selectedFactoryId === "none" ? "Aguardando fábrica..." : filteredProducts.length === 0 ? "Nenhum item amarrado" : "Selecione o produto"} />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="none">Selecione o produto</SelectItem>
-                        {filteredProducts.map(p => (
-                          <SelectItem key={p.id} value={p.id}>{p.code} - {p.description}</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
+                  {selectedFactoryId !== "none" && (
+                    <div className="space-y-4 animate-in fade-in slide-in-from-top-2 duration-300">
+                      <div className="space-y-2">
+                        <Label className="flex items-center gap-2"><Filter size={14}/> Buscar Produto (Digite para filtrar)</Label>
+                        <div className="relative">
+                          <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" size={16} />
+                          <Input 
+                            placeholder="Digite o código ou nome..." 
+                            className="pl-10"
+                            value={productSearch}
+                            onChange={(e) => {
+                              setProductSearch(e.target.value);
+                              setSelectedProductId("none"); // Reseta a seleção ao pesquisar
+                            }}
+                          />
+                        </div>
+                      </div>
+
+                      <div className="space-y-2">
+                        <Label>Produto Registrado</Label>
+                        <Select 
+                          value={selectedProductId} 
+                          onValueChange={setSelectedProductId} 
+                          disabled={filteredProducts.length === 0}
+                        >
+                          <SelectTrigger>
+                            <SelectValue placeholder={filteredProducts.length === 0 ? (productSearch ? "Nenhum resultado" : "Nenhum item amarrado") : "Selecione o produto"} />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="none">Selecione o produto</SelectItem>
+                            {filteredProducts.map(p => (
+                              <SelectItem key={p.id} value={p.id}>{p.code} - {p.description}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        {productSearch && filteredProducts.length > 0 && (
+                          <p className="text-[10px] text-muted-foreground italic">Mostrando {filteredProducts.length} itens filtrados.</p>
+                        )}
+                      </div>
+                    </div>
+                  )}
 
                   {selectedProductId !== "none" && !currentCatalogProduct && !isCatalogLoading && (
                     <div className="p-3 bg-destructive/10 border border-destructive/20 rounded-lg flex items-start gap-2">
