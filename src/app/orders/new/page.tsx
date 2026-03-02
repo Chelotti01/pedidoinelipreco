@@ -1,4 +1,3 @@
-
 "use client"
 
 import { useState, useMemo, useEffect, useRef } from 'react';
@@ -14,10 +13,11 @@ import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Switch } from "@/components/ui/switch";
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "@/components/ui/table";
+import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
 import { 
   ShoppingCart, Plus, Trash2, Calculator, ReceiptText, Zap, 
-  Loader2, Weight, Tag, User, AlertTriangle, Search, Snowflake, Sun, FileDown, LogOut 
+  Loader2, Weight, Tag, User, AlertTriangle, Search, Snowflake, Sun, FileDown, LogOut, MessageSquare
 } from "lucide-react";
 import {
   AlertDialog,
@@ -71,6 +71,7 @@ export default function NewOrderPage() {
   const { data: customers, isLoading: isCustomersLoading } = useCollection(customersQuery);
 
   const [orderItems, setOrderItems] = useState<OrderItem[]>([]);
+  const [observations, setObservations] = useState("");
   const [isFinalizing, setIsFinalizing] = useState(false);
 
   const [selectedCustomerId, setSelectedCustomerId] = useState<string>("none");
@@ -112,7 +113,6 @@ export default function NewOrderPage() {
       setShowBvgRulesDialog(true);
     } else if (factoryName.includes('MRV') && selectedLine.includes('SECA')) {
       setShowMrvRulesDialog(true);
-      // Define Fracionado como padrão para MRV SECA
       setPriceType('fractional');
     } else if (factoryName.includes('SJO') && selectedLine.includes('REFRIGERADA')) {
       setShowSjoRulesDialog(true);
@@ -350,6 +350,7 @@ export default function NewOrderPage() {
       customerId: selectedCustomerId,
       customerName: selectedCustomer?.name || 'Cliente Desconhecido',
       items: orderItems,
+      notes: observations,
       totalAmount: orderTotal,
       totalWeight: orderTotalWeight,
       createdAt: serverTimestamp(),
@@ -368,7 +369,10 @@ export default function NewOrderPage() {
   const removeProduct = (index: number) => {
     const updatedItems = orderItems.filter((_, i) => i !== index);
     setOrderItems(updatedItems);
-    if (updatedItems.length === 0) setLineFilter("none");
+    if (updatedItems.length === 0) {
+      setLineFilter("none");
+      setObservations("");
+    }
   };
 
   const handleLogout = async () => {
@@ -648,20 +652,34 @@ export default function NewOrderPage() {
               {orderItems.length === 0 ? (
                 <div className="flex flex-col items-center justify-center py-20 text-muted-foreground gap-4 opacity-30"><Calculator size={48} /><p className="font-medium">Vazio.</p></div>
               ) : (
-                <div className="overflow-x-auto">
-                  <Table>
-                    <TableHeader><TableRow className="bg-muted/30"><TableHead className="text-xs">Item</TableHead><TableHead className="text-center text-xs">Qtd</TableHead><TableHead className="text-right text-xs">Total</TableHead><TableHead></TableHead></TableRow></TableHeader>
-                    <TableBody>
-                      {orderItems.map((item, idx) => (
-                        <TableRow key={`${item.productId}-${idx}`}>
-                          <TableCell className="py-3"><div className="font-bold text-xs uppercase">{item.name}</div><div className="text-[9px] text-muted-foreground mt-0.5">{item.priceType === 'closed' ? 'FECHADA' : 'FRAC'} | {item.line}</div></TableCell>
-                          <TableCell className="text-center font-bold text-xs">{item.quantity} cx</TableCell>
-                          <TableCell className="text-right font-black text-primary text-xs">R$ {formatCurrency(item.total)}</TableCell>
-                          <TableCell className="text-right pr-2"><Button variant="ghost" size="icon" onClick={() => removeProduct(idx)} className="text-destructive h-8 w-8"><Trash2 size={16} /></Button></TableCell>
-                        </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
+                <div className="flex flex-col h-full">
+                  <div className="overflow-x-auto flex-1">
+                    <Table>
+                      <TableHeader><TableRow className="bg-muted/30"><TableHead className="text-xs">Item</TableHead><TableHead className="text-center text-xs">Qtd</TableHead><TableHead className="text-right text-xs">Total</TableHead><TableHead></TableHead></TableRow></TableHeader>
+                      <TableBody>
+                        {orderItems.map((item, idx) => (
+                          <TableRow key={`${item.productId}-${idx}`}>
+                            <TableCell className="py-3"><div className="font-bold text-xs uppercase">{item.name}</div><div className="text-[9px] text-muted-foreground mt-0.5">{item.priceType === 'closed' ? 'FECHADA' : 'FRAC'} | {item.line}</div></TableCell>
+                            <TableCell className="text-center font-bold text-xs">{item.quantity} cx</TableCell>
+                            <TableCell className="text-right font-black text-primary text-xs">R$ {formatCurrency(item.total)}</TableCell>
+                            <TableCell className="text-right pr-2"><Button variant="ghost" size="icon" onClick={() => removeProduct(idx)} className="text-destructive h-8 w-8"><Trash2 size={16} /></Button></TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </div>
+                  
+                  <div className="p-5 border-t bg-muted/10 space-y-2">
+                    <Label className="text-xs font-bold uppercase flex items-center gap-2">
+                      <MessageSquare size={14} className="text-primary" /> Observações do Pedido
+                    </Label>
+                    <Textarea 
+                      placeholder="Detalhes de entrega, restrições, etc..." 
+                      className="min-h-[80px] bg-white text-xs"
+                      value={observations}
+                      onChange={(e) => setObservations(e.target.value)}
+                    />
+                  </div>
                 </div>
               )}
             </CardContent>
@@ -675,7 +693,7 @@ export default function NewOrderPage() {
                   </div>
                 </div>
                 <div className="grid grid-cols-2 gap-3 w-full">
-                  <Button variant="outline" className="h-14 border-primary text-primary font-bold" onClick={() => { setOrderItems([]); setLineFilter("none"); }} disabled={isFinalizing}>Limpar</Button>
+                  <Button variant="outline" className="h-14 border-primary text-primary font-bold" onClick={() => { setOrderItems([]); setLineFilter("none"); setObservations(""); }} disabled={isFinalizing}>Limpar</Button>
                   <Button className="h-14 bg-accent hover:bg-accent/90 text-white shadow-lg gap-2 text-lg font-bold" onClick={handleFinalizeOrder} disabled={isFinalizing || selectedCustomerId === "none"}>{isFinalizing ? <Loader2 className="animate-spin" /> : <ReceiptText size={20} />}Finalizar</Button>
                 </div>
               </CardFooter>

@@ -1,4 +1,3 @@
-
 "use client"
 
 import { useState, useRef } from 'react';
@@ -8,7 +7,7 @@ import { doc } from 'firebase/firestore';
 import { Button } from "@/components/ui/button";
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "@/components/ui/table";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
-import { Printer, ChevronLeft, Zap, Calendar, Home, Loader2, Download } from "lucide-react";
+import { Printer, ChevronLeft, Zap, Calendar, Home, Loader2, Download, MessageSquare } from "lucide-react";
 import Link from 'next/link';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
@@ -39,15 +38,13 @@ export default function ViewOrderPage() {
     });
 
     try {
-      // Importações dinâmicas para evitar erros de SSR e pacotes pesados no carregamento inicial
       const html2canvas = (await import('html2canvas')).default;
       const { jsPDF } = await import('jspdf');
 
       const element = reportRef.current;
       
-      // Captura o elemento como um canvas
       const canvas = await html2canvas(element, {
-        scale: 2, // Aumenta a qualidade
+        scale: 2,
         useCORS: true,
         backgroundColor: '#ffffff',
         logging: false,
@@ -66,7 +63,6 @@ export default function ViewOrderPage() {
 
       pdf.addImage(imgData, 'PNG', 0, 0, pdfWidth, pdfHeight);
       
-      // Nome do arquivo amigável
       const fileName = `pedido_${order.id.slice(-6).toUpperCase()}_${format(new Date(), 'yyyy-MM-dd')}.pdf`;
       
       pdf.save(fileName);
@@ -177,6 +173,15 @@ export default function ViewOrderPage() {
                 <p className="text-[10px] sm:text-xs text-muted-foreground italic">Cálculo baseado no peso das caixas e quantidades informadas.</p>
               </div>
             </div>
+
+            {order.notes && (
+              <div className="p-6 sm:p-8 border-b border-slate-200 bg-slate-50">
+                <h3 className="text-xs font-bold text-muted-foreground uppercase tracking-widest mb-3 flex items-center gap-2">
+                  <MessageSquare size={14} className="text-primary" /> Observações do Pedido
+                </h3>
+                <p className="text-sm text-slate-700 whitespace-pre-wrap">{order.notes}</p>
+              </div>
+            )}
 
             <div className="overflow-x-auto">
               <Table>
