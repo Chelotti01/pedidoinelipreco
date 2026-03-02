@@ -28,19 +28,18 @@ export default function LoginPage() {
     setIsLoading(true);
 
     try {
-      // Configura a persistência baseada no "Lembrar de mim"
       await setPersistence(auth, rememberMe ? browserLocalPersistence : browserSessionPersistence);
 
-      // Mapeamento de usuários conforme solicitado
       let targetEmail = email;
-      if (email.toLowerCase() === 'rodrigo') targetEmail = 'vendas.piracanjuba@gmail.com';
-      if (email.toLowerCase() === 'adriana') targetEmail = 'adriana@inteli-preco.com';
+      // Mapeamento simplificado para facilitar o uso no dia a dia
+      const lowerEmail = email.toLowerCase().trim();
+      if (lowerEmail === 'rodrigo') targetEmail = 'vendas.piracanjuba@gmail.com';
+      if (lowerEmail === 'adriana') targetEmail = 'adriana@inteli-preco.com';
 
       await signInWithEmailAndPassword(auth, targetEmail, password);
       
       toast({ title: "Bem-vindo!", description: "Login realizado com sucesso." });
       
-      // Redirecionamento automático baseado no usuário
       if (targetEmail === 'adriana@inteli-preco.com') {
         router.push('/orders/new');
       } else {
@@ -59,14 +58,14 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-slate-50 px-4">
+    <div className="flex min-h-screen items-center justify-center bg-slate-100 px-4">
       <Card className="w-full max-w-md shadow-2xl border-none">
         <CardHeader className="text-center space-y-1">
-          <div className="mx-auto bg-primary w-12 h-12 rounded-xl flex items-center justify-center text-white mb-2">
-            <Zap size={28} />
+          <div className="mx-auto bg-primary w-14 h-14 rounded-2xl flex items-center justify-center text-white mb-4 shadow-lg">
+            <Zap size={32} fill="white" />
           </div>
-          <CardTitle className="text-2xl font-black text-primary">InteliPreço</CardTitle>
-          <CardDescription>Acesse o sistema para gerenciar pedidos.</CardDescription>
+          <CardTitle className="text-3xl font-black text-primary">InteliPreço</CardTitle>
+          <CardDescription>Acesso restrito ao sistema de pedidos.</CardDescription>
         </CardHeader>
         <form onSubmit={handleLogin}>
           <CardContent className="space-y-4 pt-4">
@@ -76,6 +75,8 @@ export default function LoginPage() {
                 id="email" 
                 value={email} 
                 onChange={(e) => setEmail(e.target.value)}
+                placeholder="Digite seu usuário"
+                className="h-12"
                 required
               />
             </div>
@@ -87,7 +88,8 @@ export default function LoginPage() {
                   type={showPassword ? "text" : "password"} 
                   value={password} 
                   onChange={(e) => setPassword(e.target.value)}
-                  className="pr-10"
+                  placeholder="Digite sua senha"
+                  className="pr-10 h-12"
                   required
                 />
                 <button
@@ -99,7 +101,7 @@ export default function LoginPage() {
                 </button>
               </div>
             </div>
-            <div className="flex items-center space-x-2 pt-1">
+            <div className="flex items-center space-x-2 pt-2">
               <Checkbox 
                 id="remember" 
                 checked={rememberMe} 
@@ -107,14 +109,14 @@ export default function LoginPage() {
               />
               <label
                 htmlFor="remember"
-                className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer"
+                className="text-sm font-medium leading-none cursor-pointer select-none"
               >
-                Lembrar de mim
+                Manter conectado
               </label>
             </div>
           </CardContent>
           <CardFooter className="pt-6">
-            <Button className="w-full h-12 text-lg font-bold gap-2" type="submit" disabled={isLoading}>
+            <Button className="w-full h-14 text-lg font-bold gap-2 shadow-lg" type="submit" disabled={isLoading}>
               {isLoading ? <Loader2 className="animate-spin" /> : <LogIn size={20} />}
               Entrar no Sistema
             </Button>

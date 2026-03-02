@@ -3,47 +3,43 @@
 
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { useAuth } from '@/firebase';
+import { useAuth, useUser } from '@/firebase';
 import { Button } from "@/components/ui/button";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
-import { ShoppingCart, ListChecks, ArrowRight, ShieldCheck, Zap, History, Weight, Users, LogOut } from "lucide-react";
+import { ShoppingCart, ListChecks, Zap, History, Users, LogOut, Package, FileSpreadsheet, Settings } from "lucide-react";
+import { useEffect } from 'react';
 
 export default function Home() {
   const auth = useAuth();
+  const { user } = useUser();
   const router = useRouter();
+
+  useEffect(() => {
+    // Se for a Adriana, ela nem deve ver esta página, redireciona para o novo pedido
+    if (user?.email === 'adriana@inteli-preco.com') {
+      router.push('/orders/new');
+    }
+  }, [user, router]);
 
   const handleLogout = async () => {
     await auth.signOut();
     router.push('/login');
   };
 
+  if (user?.email === 'adriana@inteli-preco.com') return null;
+
   return (
-    <div className="flex flex-col min-h-screen">
-      {/* Header */}
-      <header className="border-b bg-white/50 backdrop-blur-sm sticky top-0 z-50">
+    <div className="flex flex-col min-h-screen bg-slate-50">
+      <header className="border-b bg-white shadow-sm sticky top-0 z-50">
         <div className="container mx-auto px-4 py-4 flex items-center justify-between">
           <div className="flex items-center gap-2">
             <div className="bg-primary p-2 rounded-lg text-white">
-              <Zap size={20} />
+              <Zap size={20} fill="white" />
             </div>
-            <h1 className="text-xl font-bold tracking-tight text-primary">Pedido InteliPreço</h1>
+            <h1 className="text-xl font-black tracking-tight text-primary">InteliPreço</h1>
           </div>
-          <nav className="hidden md:flex items-center gap-6">
-            <Link href="/orders/history" className="text-sm font-medium hover:text-primary transition-colors">Histórico</Link>
-            <Link href="/catalog" className="text-sm font-medium hover:text-primary transition-colors">Catálogo</Link>
-            <Link href="/admin/products" className="text-sm font-medium hover:text-primary transition-colors">Produtos</Link>
-            <Link href="/admin/customers" className="text-sm font-medium hover:text-primary transition-colors text-accent font-bold">Clientes</Link>
-            <Link href="/upload" className="text-sm font-medium hover:text-primary transition-colors">Importar XLSX</Link>
-            <Link href="/orders/new">
-              <Button size="sm" className="gap-2">
-                <ShoppingCart size={16} /> Novo Pedido
-              </Button>
-            </Link>
-            <Button variant="ghost" size="icon" onClick={handleLogout} className="text-muted-foreground hover:text-destructive">
-              <LogOut size={20} />
-            </Button>
-          </nav>
-          <div className="md:hidden">
+          <div className="flex items-center gap-4">
+            <span className="text-xs font-bold text-muted-foreground hidden sm:inline-block">RODRIGO (ADMIN)</span>
             <Button variant="ghost" size="icon" onClick={handleLogout} className="text-muted-foreground hover:text-destructive">
               <LogOut size={20} />
             </Button>
@@ -51,83 +47,91 @@ export default function Home() {
         </div>
       </header>
 
-      <main className="flex-1">
-        {/* Hero Section */}
-        <section className="py-20 bg-gradient-to-b from-white to-background">
-          <div className="container mx-auto px-4 text-center">
-            <h2 className="text-4xl md:text-6xl font-extrabold tracking-tight mb-6 text-foreground">
-              Pedidos Inteligentes com <span className="text-primary">Precisão de IA</span>
-            </h2>
-            <p className="text-lg md:text-xl text-muted-foreground max-w-2xl mx-auto mb-10">
-              Importe suas tabelas de preços XLSX e deixe nossa IA organizar produtos, fábricas e descontos automaticamente para você.
-            </p>
-            <div className="flex flex-col sm:flex-row gap-4 justify-center">
-              <Link href="/orders/new">
-                <Button size="lg" className="h-14 px-8 text-lg gap-2 shadow-xl">
-                  <ShoppingCart size={20} /> Começar Pedido
-                </Button>
-              </Link>
-              <Link href="/admin/customers">
-                <Button size="lg" variant="outline" className="h-14 px-8 text-lg gap-2 border-primary text-primary">
-                  <Users size={20} /> Gerenciar Clientes
-                </Button>
-              </Link>
-            </div>
-          </div>
-        </section>
+      <main className="flex-1 container mx-auto px-4 py-12">
+        <div className="mb-10">
+          <h2 className="text-3xl font-black text-slate-800">Painel de Controle</h2>
+          <p className="text-muted-foreground">Gerencie o catálogo de preços e pedidos do sistema.</p>
+        </div>
 
-        {/* Features */}
-        <section className="py-20 bg-white">
-          <div className="container mx-auto px-4">
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-              <Card className="border-none shadow-md bg-background/50">
-                <CardHeader>
-                  <div className="w-12 h-12 bg-primary/10 rounded-full flex items-center justify-center text-primary mb-4">
-                    <History size={24} />
-                  </div>
-                  <CardTitle>Histórico & PDF</CardTitle>
-                  <CardDescription>
-                    Mantenha o registro de todas as vendas e exporte orçamentos em PDF com um clique.
-                  </CardDescription>
-                </CardHeader>
-              </Card>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          <Link href="/orders/new" className="group">
+            <Card className="h-full border-none shadow-md hover:shadow-xl transition-all hover:-translate-y-1 bg-primary text-white">
+              <CardHeader>
+                <div className="w-12 h-12 bg-white/20 rounded-xl flex items-center justify-center mb-4">
+                  <ShoppingCart size={24} />
+                </div>
+                <CardTitle className="text-xl">Novo Pedido</CardTitle>
+                <CardDescription className="text-white/70">Emita um novo pedido com preços dinâmicos.</CardDescription>
+              </CardHeader>
+            </Card>
+          </Link>
 
-              <Card className="border-none shadow-md bg-background/50">
-                <CardHeader>
-                  <div className="w-12 h-12 bg-accent/10 rounded-full flex items-center justify-center text-accent mb-4">
-                    <ShieldCheck size={24} />
-                  </div>
-                  <CardTitle>Cálculo de ST</CardTitle>
-                  <CardDescription>
-                    Impostos de Substituição Tributária calculados automaticamente por item.
-                  </CardDescription>
-                </CardHeader>
-              </Card>
+          <Link href="/catalog" className="group">
+            <Card className="h-full border-none shadow-md hover:shadow-xl transition-all hover:-translate-y-1">
+              <CardHeader>
+                <div className="w-12 h-12 bg-blue-100 rounded-xl flex items-center justify-center text-blue-600 mb-4">
+                  <Package size={24} />
+                </div>
+                <CardTitle className="text-xl">Catálogo de Fábrica</CardTitle>
+                <CardDescription>Visualize os preços importados das planilhas XLSX.</CardDescription>
+              </CardHeader>
+            </Card>
+          </Link>
 
-              <Card className="border-none shadow-md bg-background/50">
-                <CardHeader>
-                  <div className="w-12 h-12 bg-primary/10 rounded-full flex items-center justify-center text-primary mb-4">
-                    <Weight size={24} />
-                  </div>
-                  <CardTitle>Controle Logístico</CardTitle>
-                  <CardDescription>
-                    Soma automática de pesos das caixas para despacho imediato da carga.
-                  </CardDescription>
-                </CardHeader>
-              </Card>
-            </div>
-          </div>
-        </section>
+          <Link href="/orders/history" className="group">
+            <Card className="h-full border-none shadow-md hover:shadow-xl transition-all hover:-translate-y-1">
+              <CardHeader>
+                <div className="w-12 h-12 bg-purple-100 rounded-xl flex items-center justify-center text-purple-600 mb-4">
+                  <History size={24} />
+                </div>
+                <CardTitle className="text-xl">Histórico</CardTitle>
+                <CardDescription>Consulte e exporte PDFs de pedidos realizados.</CardDescription>
+              </CardHeader>
+            </Card>
+          </Link>
+
+          <Link href="/admin/products" className="group">
+            <Card className="h-full border-none shadow-md hover:shadow-xl transition-all hover:-translate-y-1">
+              <CardHeader>
+                <div className="w-12 h-12 bg-orange-100 rounded-xl flex items-center justify-center text-orange-600 mb-4">
+                  <ListChecks size={24} />
+                </div>
+                <CardTitle className="text-xl">Produtos Registrados</CardTitle>
+                <CardDescription>Gerencie o cadastro paralelo e amarração de preços.</CardDescription>
+              </CardHeader>
+            </Card>
+          </Link>
+
+          <Link href="/admin/customers" className="group">
+            <Card className="h-full border-none shadow-md hover:shadow-xl transition-all hover:-translate-y-1">
+              <CardHeader>
+                <div className="w-12 h-12 bg-green-100 rounded-xl flex items-center justify-center text-green-600 mb-4">
+                  <Users size={24} />
+                </div>
+                <CardTitle className="text-xl">Base de Clientes</CardTitle>
+                <CardDescription>Cadastre e edite informações dos seus clientes.</CardDescription>
+              </CardHeader>
+            </Card>
+          </Link>
+
+          <Link href="/upload" className="group">
+            <Card className="h-full border-none shadow-md hover:shadow-xl transition-all hover:-translate-y-1 border-2 border-dashed border-primary/20 bg-primary/5">
+              <CardHeader>
+                <div className="w-12 h-12 bg-primary/10 rounded-xl flex items-center justify-center text-primary mb-4">
+                  <FileSpreadsheet size={24} />
+                </div>
+                <CardTitle className="text-xl">Importar XLSX</CardTitle>
+                <CardDescription>Atualize os preços de todas as fábricas via planilha.</CardDescription>
+              </CardHeader>
+            </Card>
+          </Link>
+        </div>
       </main>
 
-      <footer className="border-t bg-white py-10">
-        <div className="container mx-auto px-4 flex flex-col md:flex-row justify-between items-center gap-4">
-          <div className="flex items-center gap-2">
-             <Zap size={16} className="text-primary" />
-             <span className="font-semibold text-primary">Pedido InteliPreço</span>
-          </div>
-          <p className="text-sm text-muted-foreground">© 2024 Pedido InteliPreço. Transformando dados em agilidade.</p>
-        </div>
+      <footer className="py-6 border-t bg-white text-center">
+        <p className="text-xs text-muted-foreground font-medium uppercase tracking-widest">
+          InteliPreço © {new Date().getFullYear()} - Sistema Inteligente de Pedidos
+        </p>
       </footer>
     </div>
   );
