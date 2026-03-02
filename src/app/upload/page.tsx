@@ -1,4 +1,3 @@
-
 "use client"
 
 import { useState } from 'react';
@@ -29,15 +28,17 @@ export default function UploadPage() {
   };
 
   /**
-   * Sanitiza uma string para ser usada como ID no Firestore.
-   * Remove acentos e substitui qualquer caractere não alfanumérico por hífen.
+   * Sanitiza uma string para ser usada como ID no Firestore de forma determinística.
+   * Colapsa múltiplos espaços para garantir que nomes visualmente iguais gerem o mesmo ID.
    */
   const sanitizeId = (text: string) => {
     return text
+      .trim()
       .toLowerCase()
       .normalize('NFD')
       .replace(/[\u0300-\u036f]/g, "") // Remove acentos
-      .replace(/[^a-z0-9]+/g, '-')     // Substitui caracteres especiais/espaços por hífen
+      .replace(/\s+/g, ' ')            // Colapsa múltiplos espaços em um só
+      .replace(/[^a-z0-9]+/g, '-')     // Substitui caracteres especiais por hífen
       .replace(/^-+|-+$/g, '');        // Remove hífens no início ou fim
   };
 
@@ -64,6 +65,8 @@ export default function UploadPage() {
           
           for (const factoryData of result) {
             const factoryId = sanitizeId(factoryData.factoryName);
+            if (!factoryId) continue;
+
             const factoryRef = doc(db, 'factories', factoryId);
             
             allOps.push({ 
@@ -77,7 +80,11 @@ export default function UploadPage() {
             for (const product of factoryData.products) {
               const safeProductName = sanitizeId(product.name);
               const safeUnit = sanitizeId(product.unit);
-              // Incluindo a unidade no ID para evitar colisões entre produtos de mesmo nome (ex: 2.5kg vs 5kg)
+              
+              if (!safeProductName) continue;
+
+              // O ID é fixo baseado na fábrica, nome e unidade. 
+              // Se o item já existir, o Firestore irá atualizar (merge), não duplicar.
               const productId = `${factoryId}-${safeProductName}-${safeUnit}`;
               const productRef = doc(db, 'catalog_products', productId);
               
@@ -96,7 +103,7 @@ export default function UploadPage() {
             }
           }
 
-          // Commit em lotes para performance e segurança
+          // Processamento em lotes (batch)
           for (let i = 0; i < allOps.length; i += 400) {
             const batch = writeBatch(db);
             const chunk = allOps.slice(i, i + 400);
@@ -109,7 +116,7 @@ export default function UploadPage() {
           setIsSuccess(true);
           toast({
             title: "Processamento concluído",
-            description: `${result.length} fábricas e ${allOps.length - result.length} produtos sincronizados.`,
+            description: `A tabela foi processada. Itens existentes foram atualizados e novos foram adicionados.`,
           });
         } catch (error: any) {
           console.error(error);
@@ -153,7 +160,7 @@ export default function UploadPage() {
           </div>
           <CardTitle className="text-2xl">Atualizar Tabela de Preços</CardTitle>
           <CardDescription>
-            Faça upload do arquivo .xlsx. Os dados serão gravados no banco para possibilitar a amarração nos produtos.
+            Importe o arquivo .xlsx. Itens com o mesmo nome e unidade serão atualizados, evitando duplicidade.
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -182,11 +189,11 @@ export default function UploadPage() {
             >
               {isLoading ? (
                 <>
-                  <Loader2 className="animate-spin" /> Gravando no Banco...
+                  <Loader2 className="animate-spin" /> Atualizando Catálogo...
                 </>
               ) : (
                 <>
-                  <UploadCloud size={20} /> Processar e Sincronizar Tudo
+                  <UploadCloud size={20} /> Processar e Atualizar Preços
                 </>
               )}
             </Button>
@@ -195,7 +202,7 @@ export default function UploadPage() {
         {isSuccess && (
           <CardFooter className="bg-accent/5 flex flex-col items-center gap-4 py-6 border-t border-accent/20">
             <div className="flex items-center gap-2 text-accent font-bold text-lg">
-              <CheckCircle2 size={24} /> Sincronização Concluída!
+              <CheckCircle2 size={24} /> Catálogo Atualizado!
             </div>
             <Link href="/admin/products" className="w-full">
               <Button variant="outline" className="w-full h-12 border-accent text-accent hover:bg-accent hover:text-white transition-all group">
@@ -207,19 +214,19 @@ export default function UploadPage() {
       </Card>
 
       <div className="mt-8 p-4 bg-muted rounded-lg">
-        <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider mb-4">Por que sincronizar?</h3>
+        <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider mb-4">Dicas de Importação</h3>
         <ul className="space-y-3 text-sm text-muted-foreground">
           <li className="flex gap-2">
             <span className="bg-primary/10 text-primary w-5 h-5 flex items-center justify-center rounded text-xs font-bold shrink-0">1</span>
-            Permite que você escolha o item do catálogo na ficha do produto.
+            O sistema identifica produtos iguais pelo **Nome** e **Unidade**.
           </li>
           <li className="flex gap-2">
             <span className="bg-primary/10 text-primary w-5 h-5 flex items-center justify-center rounded text-xs font-bold shrink-0">2</span>
-            Atualiza automaticamente o preço de venda quando a fábrica envia novos valores.
+            Diferenças de maiúsculas, minúsculas ou espaços extras são corrigidas automaticamente.
           </li>
           <li className="flex gap-2">
             <span className="bg-primary/10 text-primary w-5 h-5 flex items-center justify-center rounded text-xs font-bold shrink-0">3</span>
-            Centraliza os descontos por unidade de cada item da planilha.
+            Se o produto já existir na fábrica, apenas o preço e a data de atualização serão alterados.
           </li>
         </ul>
       </div>

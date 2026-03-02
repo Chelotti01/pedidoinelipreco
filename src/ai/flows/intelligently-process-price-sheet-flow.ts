@@ -1,4 +1,3 @@
-
 'use server';
 
 /**
@@ -10,16 +9,12 @@
 import * as XLSX from 'xlsx';
 import { Buffer } from 'buffer';
 
-export interface ProcessPriceSheetInput {
-  xlsxDataUri: string;
-}
-
 export interface Product {
   name: string;
   unit: string;
   closedLoadPrice: number;
   fractionalLoadPrice: number;
-  discountAmount?: number; // Adicionado para armazenar o desconto em R$
+  discountAmount?: number;
 }
 
 export interface Discount {
@@ -38,6 +33,7 @@ export type ProcessPriceSheetOutput = FactorySheetOutput[];
 
 /**
  * Processa a planilha XLSX localmente, identificando produtos e descontos.
+ * Implementa deduplicação para garantir que o mesmo produto não apareça duas vezes na mesma fábrica.
  */
 export async function intelligentlyProcessPriceSheet(
   input: ProcessPriceSheetInput
@@ -54,13 +50,11 @@ export async function intelligentlyProcessPriceSheet(
 
   for (const sheetName of workbook.SheetNames) {
     const worksheet = workbook.Sheets[sheetName];
-    // Converte a aba em uma matriz de matrizes (linhas e colunas)
     const rows: any[][] = XLSX.utils.sheet_to_json(worksheet, { header: 1, defval: '' });
 
     let firstProdutoIndex = -1;
     let secondProdutoIndex = -1;
 
-    // Localiza os marcadores "Produto" na Coluna A (insensível a maiúsculas)
     for (let i = 0; i < rows.length; i++) {
       const colAValue = String(rows[i][0] || '').trim().toLowerCase();
       if (colAValue === "produto") {
@@ -73,10 +67,11 @@ export async function intelligentlyProcessPriceSheet(
       }
     }
 
-    const products: Product[] = [];
+    // Usamos um Map para evitar duplicatas na mesma aba (chave: nome|unidade)
+    const productsMap = new Map<string, Product>();
     const rawDiscounts: Discount[] = [];
 
-    // Extração de Produtos (abaixo do primeiro "Produto")
+    // Extração de Produtos
     if (firstProdutoIndex !== -1) {
       const startRow = firstProdutoIndex + 1;
       const endRow = secondProdutoIndex !== -1 ? secondProdutoIndex : rows.length;
@@ -84,18 +79,20 @@ export async function intelligentlyProcessPriceSheet(
       for (let i = startRow; i < endRow; i++) {
         const row = rows[i];
         const name = String(row[0] || '').trim();
+        const unit = String(row[1] || '').trim();
         if (!name) continue;
 
-        products.push({
+        const key = `${name.toLowerCase()}|${unit.toLowerCase()}`;
+        productsMap.set(key, {
           name,
-          unit: String(row[1] || '').trim(),
+          unit,
           closedLoadPrice: parsePrice(row[2]),
           fractionalLoadPrice: parsePrice(row[3]),
         });
       }
     }
 
-    // Extração de Descontos (abaixo do segundo "Produto")
+    // Extração de Descontos
     if (secondProdutoIndex !== -1) {
       const startRow = secondProdutoIndex + 1;
       for (let i = startRow; i < rows.length; i++) {
@@ -107,16 +104,16 @@ export async function intelligentlyProcessPriceSheet(
         rawDiscounts.push({
           name,
           unit,
-          value: parsePrice(row[2]), // Valor do desconto em R$ na coluna C
+          value: parsePrice(row[2]),
         });
       }
     }
 
-    // Vincular descontos aos produtos com base em Nome e Unidade idênticos
-    const finalProducts = products.map(product => {
+    // Vincular descontos
+    const finalProducts = Array.from(productsMap.values()).map(product => {
       const match = rawDiscounts.find(d => 
-        d.name === product.name && 
-        d.unit === product.unit
+        d.name.toLowerCase() === product.name.toLowerCase() && 
+        d.unit.toLowerCase() === product.unit.toLowerCase()
       );
       return {
         ...product,
@@ -125,18 +122,15 @@ export async function intelligentlyProcessPriceSheet(
     });
 
     allFactoryData.push({
-      factoryName: sheetName,
+      factoryName: sheetName.trim(),
       products: finalProducts,
-      discounts: rawDiscounts, // Mantemos aqui para compatibilidade
+      discounts: rawDiscounts,
     });
   }
 
   return allFactoryData;
 }
 
-/**
- * Auxiliar para converter valores da planilha em números.
- */
 function parsePrice(value: any): number {
   if (typeof value === 'number') return value;
   if (!value) return 0;
@@ -150,4 +144,8 @@ function parsePrice(value: any): number {
     
   const parsed = parseFloat(cleaned);
   return isNaN(parsed) ? 0 : parsed;
+}
+
+export interface ProcessPriceSheetInput {
+  xlsxDataUri: string;
 }
