@@ -1,7 +1,7 @@
 
 "use client"
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { useCollection, useMemoFirebase } from '@/firebase';
 import { collection, query, orderBy, doc, serverTimestamp } from 'firebase/firestore';
 import { useFirestore, deleteDocumentNonBlocking, addDocumentNonBlocking } from '@/firebase';
@@ -26,6 +26,8 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 
+const STORAGE_KEY = 'products_filters_state';
+
 export default function RegisteredProductsPage() {
   const db = useFirestore();
   const { toast } = useToast();
@@ -35,6 +37,32 @@ export default function RegisteredProductsPage() {
   const [statusFilter, setStatusFilter] = useState("all");
   const [brandFilter, setBrandFilter] = useState("all");
   const [linkFilter, setLinkFilter] = useState("all");
+  const [isLoadedFromStorage, setIsLoadedFromStorage] = useState(false);
+
+  // Carregar filtros salvos no mount
+  useEffect(() => {
+    const savedFilters = sessionStorage.getItem(STORAGE_KEY);
+    if (savedFilters) {
+      try {
+        const parsed = JSON.parse(savedFilters);
+        setSearchTerm(parsed.searchTerm || "");
+        setStatusFilter(parsed.statusFilter || "all");
+        setBrandFilter(parsed.brandFilter || "all");
+        setLinkFilter(parsed.linkFilter || "all");
+      } catch (e) {
+        console.error("Erro ao carregar filtros", e);
+      }
+    }
+    setIsLoadedFromStorage(true);
+  }, []);
+
+  // Salvar filtros sempre que mudarem
+  useEffect(() => {
+    if (isLoadedFromStorage) {
+      const filters = { searchTerm, statusFilter, brandFilter, linkFilter };
+      sessionStorage.setItem(STORAGE_KEY, JSON.stringify(filters));
+    }
+  }, [searchTerm, statusFilter, brandFilter, linkFilter, isLoadedFromStorage]);
 
   const productsQuery = useMemoFirebase(() => {
     return query(collection(db, 'registered_products'), orderBy('createdAt', 'desc'));
@@ -78,6 +106,7 @@ export default function RegisteredProductsPage() {
     setStatusFilter("all");
     setBrandFilter("all");
     setLinkFilter("all");
+    sessionStorage.removeItem(STORAGE_KEY);
   };
 
   const handleDelete = (id: string) => {
