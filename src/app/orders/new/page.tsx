@@ -1,4 +1,3 @@
-
 "use client"
 
 import { useState, useMemo, useEffect } from 'react';
@@ -80,14 +79,12 @@ export default function NewOrderPage() {
   const [useCatalogDiscount, setUseCatalogDiscount] = useState<boolean>(true);
   const [contractPercent, setContractPercent] = useState<number>(0);
   
-  // Controle do Alerta de Regras ARA
   const [showAraRulesDialog, setShowAraRulesDialog] = useState(false);
 
   const selectedFactory = useMemo(() => {
     return factories?.find(f => f.id === selectedFactoryId);
   }, [selectedFactoryId, factories]);
 
-  // Monitorar seleção de ARA e Linha SECA UHT
   useEffect(() => {
     if (selectedFactory?.name?.toUpperCase().includes('ARA') && lineFilter?.toUpperCase().includes('SECA UHT')) {
       setShowAraRulesDialog(true);
@@ -123,7 +120,6 @@ export default function NewOrderPage() {
       filtered = filtered.filter(p => p.brand === brandFilter);
     }
 
-    // Linha é obrigatória, então sempre filtramos pelo valor selecionado
     filtered = filtered.filter(p => p.line === lineFilter);
 
     if (productSearch.trim()) {
@@ -190,7 +186,6 @@ export default function NewOrderPage() {
       return;
     }
 
-    // Validação: Não permitir misturar linhas no mesmo pedido
     if (orderItems.length > 0 && currentRegisteredProduct.line !== orderItems[0].line) {
       toast({ 
         title: "Mistura de Linhas Não Permitida", 
@@ -200,7 +195,6 @@ export default function NewOrderPage() {
       return;
     }
 
-    // Validação específica ARA + SECA UHT
     if (selectedFactory?.name?.toUpperCase().includes('ARA') && currentRegisteredProduct.line?.toUpperCase().includes('SECA UHT')) {
       if (quantity < 30) {
         toast({ 
@@ -300,7 +294,11 @@ export default function NewOrderPage() {
   };
 
   const removeProduct = (index: number) => {
-    setOrderItems(orderItems.filter((_, i) => i !== index));
+    const updatedItems = orderItems.filter((_, i) => i !== index);
+    setOrderItems(updatedItems);
+    if (updatedItems.length === 0) {
+      setLineFilter("none");
+    }
   };
 
   const orderTotal = useMemo(() => {
@@ -322,7 +320,6 @@ export default function NewOrderPage() {
 
   return (
     <div className="container mx-auto px-4 py-8 md:py-12">
-      {/* Alerta de Regras ARA */}
       <AlertDialog open={showAraRulesDialog} onOpenChange={setShowAraRulesDialog}>
         <AlertDialogContent className="max-w-md">
           <AlertDialogHeader>
@@ -474,40 +471,44 @@ export default function NewOrderPage() {
                         </div>
                       </div>
 
-                      <div className="space-y-2">
-                        <Label className="flex items-center gap-2 text-xs"><Search size={14}/> Buscar (Código ou Nome)</Label>
-                        <div className="relative">
-                          <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" size={16} />
-                          <Input 
-                            placeholder="Digite para filtrar..." 
-                            className="pl-10 h-9"
-                            value={productSearch}
-                            onChange={(e) => {
-                              setProductSearch(e.target.value);
-                              setSelectedProductId("none");
-                            }}
-                          />
-                        </div>
-                      </div>
+                      {lineFilter !== "none" && (
+                        <div className="space-y-4 animate-in fade-in slide-in-from-top-1 duration-300">
+                          <div className="space-y-2">
+                            <Label className="flex items-center gap-2 text-xs"><Search size={14}/> Buscar (Código ou Nome)</Label>
+                            <div className="relative">
+                              <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" size={16} />
+                              <Input 
+                                placeholder="Digite para filtrar..." 
+                                className="pl-10 h-9"
+                                value={productSearch}
+                                onChange={(e) => {
+                                  setProductSearch(e.target.value);
+                                  setSelectedProductId("none");
+                                }}
+                              />
+                            </div>
+                          </div>
 
-                      <div className="space-y-2">
-                        <Label>Produto Registrado</Label>
-                        <Select 
-                          value={selectedProductId} 
-                          onValueChange={setSelectedProductId} 
-                          disabled={filteredProducts.length === 0}
-                        >
-                          <SelectTrigger>
-                            <SelectValue placeholder={lineFilter === "none" ? "Selecione a linha primeiro" : filteredProducts.length === 0 ? "Nenhum resultado" : "Selecione o produto"} />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="none">Selecione o produto</SelectItem>
-                            {filteredProducts.map(p => (
-                              <SelectItem key={p.id} value={p.id}>{p.code} - {p.description}</SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      </div>
+                          <div className="space-y-2">
+                            <Label>Produto Registrado</Label>
+                            <Select 
+                              value={selectedProductId} 
+                              onValueChange={setSelectedProductId} 
+                              disabled={filteredProducts.length === 0}
+                            >
+                              <SelectTrigger>
+                                <SelectValue placeholder={filteredProducts.length === 0 ? "Nenhum resultado" : "Selecione o produto"} />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="none">Selecione o produto</SelectItem>
+                                {filteredProducts.map(p => (
+                                  <SelectItem key={p.id} value={p.id}>{p.code} - {p.description}</SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          </div>
+                        </div>
+                      )}
                     </div>
                   )}
 
