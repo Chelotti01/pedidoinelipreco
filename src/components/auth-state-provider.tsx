@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useEffect } from 'react';
@@ -16,7 +17,7 @@ export function AuthStateProvider({ children }: { children: React.ReactNode }) {
         router.push('/login');
       } else if (user && pathname === '/login') {
         // Redireciona para a home ou orders se já estiver logado
-        if (user.email === 'adriana@inteli-preco.com') {
+        if (user?.email === 'adriana@inteli-preco.com') {
           router.push('/orders/new');
         } else {
           router.push('/');
@@ -34,6 +35,12 @@ export function AuthStateProvider({ children }: { children: React.ReactNode }) {
         <Loader2 className="h-8 w-8 animate-spin text-primary" />
       </div>
     );
+  }
+
+  // Impede a renderização de conteúdo protegido se não estiver logado e não estiver na página de login
+  // Isso evita que hooks de dados (useCollection, useDoc) disparem erros de permissão "auth: null"
+  if (!user && pathname !== '/login') {
+    return null;
   }
 
   return <>{children}</>;
