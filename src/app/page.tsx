@@ -1,10 +1,22 @@
 
+"use client"
+
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
+import { useAuth } from '@/firebase';
 import { Button } from "@/components/ui/button";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
-import { ShoppingCart, ListChecks, ArrowRight, ShieldCheck, Zap, History, Weight, Users } from "lucide-react";
+import { ShoppingCart, ListChecks, ArrowRight, ShieldCheck, Zap, History, Weight, Users, LogOut } from "lucide-react";
 
 export default function Home() {
+  const auth = useAuth();
+  const router = useRouter();
+
+  const handleLogout = async () => {
+    await auth.signOut();
+    router.push('/login');
+  };
+
   return (
     <div className="flex flex-col min-h-screen">
       {/* Header */}
@@ -27,7 +39,15 @@ export default function Home() {
                 <ShoppingCart size={16} /> Novo Pedido
               </Button>
             </Link>
+            <Button variant="ghost" size="icon" onClick={handleLogout} className="text-muted-foreground hover:text-destructive">
+              <LogOut size={20} />
+            </Button>
           </nav>
+          <div className="md:hidden">
+            <Button variant="ghost" size="icon" onClick={handleLogout} className="text-muted-foreground hover:text-destructive">
+              <LogOut size={20} />
+            </Button>
+          </div>
         </div>
       </header>
 

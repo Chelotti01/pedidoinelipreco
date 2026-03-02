@@ -3,7 +3,7 @@
 
 import { useState, useMemo, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
-import { useFirestore, useCollection, useMemoFirebase, addDocumentNonBlocking } from '@/firebase';
+import { useFirestore, useCollection, useMemoFirebase, addDocumentNonBlocking, useAuth } from '@/firebase';
 import { collection, query, orderBy, serverTimestamp } from 'firebase/firestore';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -17,7 +17,7 @@ import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "@
 import { useToast } from "@/hooks/use-toast";
 import { 
   ShoppingCart, Plus, Trash2, Calculator, ReceiptText, Zap, 
-  Loader2, Weight, Tag, User, AlertTriangle, Search, Snowflake, Sun, FileDown 
+  Loader2, Weight, Tag, User, AlertTriangle, Search, Snowflake, Sun, FileDown, LogOut 
 } from "lucide-react";
 import {
   AlertDialog,
@@ -51,6 +51,7 @@ export type OrderItem = {
 
 export default function NewOrderPage() {
   const db = useFirestore();
+  const auth = useAuth();
   const { toast } = useToast();
   const router = useRouter();
   const pdfRef = useRef<HTMLDivElement>(null);
@@ -368,6 +369,11 @@ export default function NewOrderPage() {
     if (updatedItems.length === 0) setLineFilter("none");
   };
 
+  const handleLogout = async () => {
+    await auth.signOut();
+    router.push('/login');
+  };
+
   const orderTotal = useMemo(() => orderItems.reduce((acc, item) => acc + item.total, 0), [orderItems]);
   const orderTotalWeight = useMemo(() => orderItems.reduce((acc, item) => acc + item.weight, 0), [orderItems]);
 
@@ -473,6 +479,9 @@ export default function NewOrderPage() {
           <div className="bg-primary/10 text-primary px-4 py-2 rounded-lg font-bold flex items-center gap-2 h-10">
             <Zap size={18} /> InteliPreço
           </div>
+          <Button variant="ghost" size="sm" onClick={handleLogout} className="text-muted-foreground hover:text-destructive h-10 px-3">
+            <LogOut size={18} />
+          </Button>
         </div>
       </div>
 
