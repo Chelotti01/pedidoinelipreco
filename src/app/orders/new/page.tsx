@@ -1,7 +1,7 @@
 
 "use client"
 
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { useFirestore, useCollection, useMemoFirebase, addDocumentNonBlocking } from '@/firebase';
 import { collection, query, orderBy, serverTimestamp } from 'firebase/firestore';
@@ -17,7 +17,7 @@ import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "@
 import { useToast } from "@/hooks/use-toast";
 import { 
   ShoppingCart, Plus, Trash2, Calculator, ReceiptText, ChevronLeft, Zap, ArrowRight, 
-  Loader2, Weight, Tag, Info, Gavel, User, AlertTriangle, Search, Snowflake, Sun 
+  Loader2, Weight, Tag, Info, Gavel, User, AlertTriangle, Search, Snowflake, Sun, FileDown 
 } from "lucide-react";
 import Link from 'next/link';
 import {
@@ -52,6 +52,8 @@ export default function NewOrderPage() {
   const db = useFirestore();
   const { toast } = useToast();
   const router = useRouter();
+  const pdfRef = useRef<HTMLDivElement>(null);
+  const [isExporting, setIsExporting] = useState(false);
   
   const factoriesQuery = useMemoFirebase(() => query(collection(db, 'factories'), orderBy('name')), [db]);
   const { data: factories, isLoading: isFactoriesLoading } = useCollection(factoriesQuery);
@@ -139,22 +141,22 @@ export default function NewOrderPage() {
     return isNaN(parsed) ? 0 : parsed / 100;
   };
 
-  const unitCalculations = useMemo(() => {
-    if (!currentCatalogProduct) return null;
-    
+  const calculateItemPrices = (registeredItem: any, catalogItem: any) => {
+    if (!registeredItem || !catalogItem) return null;
+
     const basePrice = priceType === 'closed' 
-      ? (currentCatalogProduct.closedLoadPrice || 0) 
-      : (currentCatalogProduct.fractionalLoadPrice || 0);
+      ? (catalogItem.closedLoadPrice || 0) 
+      : (catalogItem.fractionalLoadPrice || 0);
     
-    const catalogDiscount = useCatalogDiscount ? (currentCatalogProduct.discountAmount || 0) : 0;
+    const catalogDiscount = useCatalogDiscount ? (catalogItem.discountAmount || 0) : 0;
     const priceAfterCatalog = Math.max(0, basePrice - catalogDiscount);
     
     const finalUnitPriceBeforeST = priceAfterCatalog * (1 + (contractPercent || 0) / 100);
     
-    const stRate = parseST(currentRegisteredProduct?.st);
+    const stRate = parseST(registeredItem.st);
     const stAmount = finalUnitPriceBeforeST * stRate;
     const finalUnitPriceWithST = finalUnitPriceBeforeST + stAmount;
-    
+
     return {
       basePrice,
       catalogDiscount,
@@ -164,6 +166,10 @@ export default function NewOrderPage() {
       stAmount,
       finalUnitPriceWithST
     };
+  };
+
+  const unitCalculations = useMemo(() => {
+    return calculateItemPrices(currentRegisteredProduct, currentCatalogProduct);
   }, [currentCatalogProduct, currentRegisteredProduct, priceType, useCatalogDiscount, contractPercent]);
 
   const handlePriceTypeChange = (newType: 'closed' | 'fractional') => {
@@ -354,6 +360,36 @@ export default function NewOrderPage() {
     });
   };
 
+  const handleExportTablePDF = async () => {
+    if (!pdfRef.current || filteredProducts.length === 0) return;
+    
+    setIsExporting(true);
+    toast({ title: "Gerando Tabela PDF", description: "Aguarde o processamento..." });
+
+    try {
+      const html2canvas = (await import('html2canvas')).default;
+      const { jsPDF } = await import('jspdf');
+
+      const canvas = await html2canvas(pdfRef.current, { scale: 2, useCORS: true });
+      const imgData = canvas.toDataURL('image/png');
+      const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+      
+      const imgProps = pdf.getImageProperties(imgData);
+      const pdfWidth = pdf.internal.pageSize.getWidth();
+      const pdfHeight = (imgProps.height * pdfWidth) / imgProps.width;
+
+      pdf.addImage(imgData, 'PNG', 0, 0, pdfWidth, pdfHeight);
+      pdf.save(`tabela_precos_${selectedFactory?.name}_${lineFilter}.pdf`);
+      
+      toast({ title: "Sucesso", description: "Tabela exportada com sucesso!" });
+    } catch (e) {
+      console.error(e);
+      toast({ title: "Erro na exportação", description: "Não foi possível gerar o PDF.", variant: "destructive" });
+    } finally {
+      setIsExporting(false);
+    }
+  };
+
   return (
     <div className="container mx-auto px-4 py-8 md:py-12">
       <AlertDialog open={showAraRulesDialog} onOpenChange={setShowAraRulesDialog}>
@@ -363,7 +399,7 @@ export default function NewOrderPage() {
               <AlertTriangle className="text-orange-500" /> Regras Comerciais ARA
             </AlertDialogTitle>
             <div className="space-y-4 py-2 text-foreground text-sm">
-              <div className="font-bold border-b pb-2">Para a linha SECA UHT, observe as condições obrigatórias:</div>
+              <div className="font-bold border-b pb-2 text-sm">Para a linha SECA UHT, observe as condições obrigatórias:</div>
               <ul className="space-y-3 list-disc pl-4">
                 <li>O pedido mínimo é de <span className="font-black">30 caixas no total</span>.</li>
                 <li>De <span className="font-black">30 a 130 caixas (total)</span>: O pedido deve ser <span className="font-bold text-primary">Fracionado</span>.</li>
@@ -388,6 +424,12 @@ export default function NewOrderPage() {
           </div>
         </div>
         <div className="flex gap-2">
+          {selectedFactoryId !== "none" && lineFilter !== "none" && (
+            <Button variant="outline" size="sm" onClick={handleExportTablePDF} disabled={isExporting} className="gap-2 border-accent text-accent hover:bg-accent/5">
+              {isExporting ? <Loader2 className="animate-spin" size={16} /> : <FileDown size={16} />}
+              Exportar Tabela PDF
+            </Button>
+          )}
           <Link href="/orders/history">
             <Button variant="outline" size="sm">Histórico de Pedidos</Button>
           </Link>
@@ -489,12 +531,11 @@ export default function NewOrderPage() {
                       {lineFilter !== "none" && (
                         <div className="space-y-4 animate-in fade-in slide-in-from-top-1 duration-300">
                           <div className="space-y-2">
-                            <Label className="flex items-center gap-2 text-xs"><Search size={14}/> Buscar e Selecionar Produto</Label>
                             <div className="relative mb-2">
                               <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" size={16} />
                               <Input 
-                                placeholder="Digite o código ou nome..." 
-                                className="pl-10 h-9"
+                                placeholder="Digite o código ou nome para filtrar..." 
+                                className="pl-10 h-10 font-medium"
                                 value={productSearch}
                                 onChange={(e) => {
                                   setProductSearch(e.target.value);
@@ -502,13 +543,14 @@ export default function NewOrderPage() {
                                 }}
                               />
                             </div>
+                            <Label className="text-[10px] text-muted-foreground uppercase font-bold px-1">Selecione o Produto</Label>
                             <Select 
                               value={selectedProductId} 
                               onValueChange={setSelectedProductId} 
                               disabled={filteredProducts.length === 0}
                             >
                               <SelectTrigger>
-                                <SelectValue placeholder={filteredProducts.length === 0 ? "Nenhum resultado" : "Selecione na lista"} />
+                                <SelectValue placeholder={filteredProducts.length === 0 ? "Nenhum resultado" : "Escolha na lista filtrada..."} />
                               </SelectTrigger>
                               <SelectContent>
                                 <SelectItem value="none">Selecione o produto</SelectItem>
@@ -738,6 +780,55 @@ export default function NewOrderPage() {
               </CardFooter>
             )}
           </Card>
+        </div>
+      </div>
+
+      {/* Tabela Oculta para Geração de PDF */}
+      <div style={{ position: 'absolute', left: '-9999px', top: '-9999px' }}>
+        <div ref={pdfRef} className="bg-white p-10 w-[800px] text-slate-800">
+          <div className="flex items-center justify-between border-b-2 border-primary pb-4 mb-6">
+            <div className="flex items-center gap-3">
+              <Zap className="text-primary" size={40} />
+              <h1 className="text-3xl font-black text-primary uppercase">Tabela de Preços</h1>
+            </div>
+            <div className="text-right text-xs">
+              <p className="font-bold">{selectedFactory?.name}</p>
+              <p className="text-muted-foreground uppercase">{lineFilter}</p>
+              <p>{new Date().toLocaleDateString('pt-BR')}</p>
+            </div>
+          </div>
+          
+          <table className="w-full text-[10px] border-collapse">
+            <thead>
+              <tr className="bg-primary text-white">
+                <th className="p-2 text-left border">Cod</th>
+                <th className="p-2 text-left border">EAN</th>
+                <th className="p-2 text-left border">Descrição</th>
+                <th className="p-2 text-right border">Preço NET</th>
+                <th className="p-2 text-right border">Final (+ST)</th>
+              </tr>
+            </thead>
+            <tbody>
+              {filteredProducts.map((p, idx) => {
+                const catalog = catalogProducts?.find(cp => cp.id === p.catalogProductId);
+                const prices = calculateItemPrices(p, catalog);
+                if (!prices) return null;
+                return (
+                  <tr key={p.id} className={idx % 2 === 0 ? 'bg-white' : 'bg-slate-50'}>
+                    <td className="p-2 border font-bold">{p.code}</td>
+                    <td className="p-2 border">{p.ean}</td>
+                    <td className="p-2 border uppercase">{p.description}</td>
+                    <td className="p-2 border text-right">R$ {formatCurrency(prices.finalUnitPriceBeforeST)}</td>
+                    <td className="p-2 border text-right font-bold text-primary">R$ {formatCurrency(prices.finalUnitPriceWithST)}</td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+          
+          <div className="mt-8 border-t pt-4 text-[8px] text-muted-foreground text-center">
+            <p>Gerado eletronicamente por InteliPreço. Valores vigentes sujeitos a alteração por parte da fábrica.</p>
+          </div>
         </div>
       </div>
     </div>
