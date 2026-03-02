@@ -15,7 +15,7 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Switch } from "@/components/ui/switch";
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "@/components/ui/table";
 import { useToast } from "@/hooks/use-toast";
-import { ShoppingCart, Plus, Trash2, Calculator, ReceiptText, ChevronLeft, Zap, ArrowRight, Loader2, Weight, Tag, Info, Gavel, User } from "lucide-react";
+import { ShoppingCart, Plus, Trash2, Calculator, ReceiptText, ChevronLeft, Zap, ArrowRight, Loader2, Weight, Tag, Info, Gavel, User, AlertTriangle, LinkIcon } from "lucide-react";
 import Link from 'next/link';
 
 export type OrderItem = {
@@ -75,9 +75,23 @@ export default function NewOrderPage() {
     return registeredProducts?.find(p => p.id === selectedProductId);
   }, [selectedProductId, registeredProducts]);
 
+  // Busca inteligente: tenta pelo ID salvo, se não der certo, tenta por Nome + Unidade (fallback)
   const currentCatalogProduct = useMemo(() => {
-    if (!currentRegisteredProduct?.catalogProductId) return null;
-    return catalogProducts?.find(p => p.id === currentRegisteredProduct.catalogProductId);
+    if (!currentRegisteredProduct?.catalogProductId || !catalogProducts) return null;
+    
+    // 1. Tenta pelo ID exato salvo no registro
+    let found = catalogProducts.find(p => p.id === currentRegisteredProduct.catalogProductId);
+    
+    // 2. Se não achou (vínculo quebrado por mudança de ID), tenta por nome e unidade
+    if (!found) {
+      found = catalogProducts.find(cp => 
+        cp.factoryId === currentRegisteredProduct.factoryId &&
+        cp.name.toLowerCase() === currentRegisteredProduct.description.toLowerCase() &&
+        cp.unit.toLowerCase() === currentRegisteredProduct.unit.toLowerCase()
+      );
+    }
+    
+    return found;
   }, [currentRegisteredProduct, catalogProducts]);
 
   const selectedCustomer = useMemo(() => {
@@ -120,7 +134,7 @@ export default function NewOrderPage() {
 
   const handleAddProduct = () => {
     if (!currentRegisteredProduct || !currentCatalogProduct || !unitCalculations) {
-      toast({ title: "Erro", description: "Produto inválido ou sem vínculo de preço.", variant: "destructive" });
+      toast({ title: "Erro", description: "Produto inválido ou sem preço encontrado no catálogo.", variant: "destructive" });
       return;
     }
 
@@ -317,6 +331,16 @@ export default function NewOrderPage() {
                     </Select>
                   </div>
 
+                  {selectedProductId !== "none" && !currentCatalogProduct && !isCatalogLoading && (
+                    <div className="p-3 bg-destructive/10 border border-destructive/20 rounded-lg flex items-start gap-2">
+                      <AlertTriangle size={16} className="text-destructive shrink-0 mt-0.5" />
+                      <div className="text-[10px] text-destructive leading-tight">
+                        <p className="font-bold">Vínculo Quebrado ou Inexistente</p>
+                        <p>O preço deste item não foi encontrado no catálogo. Vá em Admin {">"} Produtos e refaça a amarração deste item.</p>
+                      </div>
+                    </div>
+                  )}
+
                   <div className="space-y-3">
                     <Label className="text-xs font-bold uppercase text-muted-foreground tracking-wider">Configuração de Preço</Label>
                     <RadioGroup 
@@ -384,7 +408,7 @@ export default function NewOrderPage() {
             </CardContent>
             
             {unitCalculations && (
-              <div className="px-6 py-4 bg-muted/50 border-y space-y-2">
+              <div className="px-6 py-4 bg-muted/50 border-y space-y-2 animate-in fade-in slide-in-from-bottom-2 duration-300">
                 <div className="flex justify-between text-xs text-muted-foreground">
                   <span>Preço Tabela ({priceType === 'closed' ? 'Fechada' : 'Fracionada'}):</span>
                   <span>R$ {formatCurrency(unitCalculations.basePrice)}</span>
