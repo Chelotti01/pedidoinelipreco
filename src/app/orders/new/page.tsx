@@ -75,6 +75,7 @@ export default function NewOrderPage() {
   const [selectedCustomerId, setSelectedCustomerId] = useState<string>("none");
   const [selectedFactoryId, setSelectedFactoryId] = useState<string>("none");
   const [selectedProductId, setSelectedProductId] = useState<string>("none");
+  const [selectedBrand, setSelectedBrand] = useState<string>("all");
   const [productSearch, setProductSearch] = useState<string>("");
   const [lineFilter, setLineFilter] = useState<string>("none");
   const [quantity, setQuantity] = useState<number>(1);
@@ -120,14 +121,25 @@ export default function NewOrderPage() {
     return Array.from(new Set(lines)).sort();
   }, [selectedFactoryId, registeredProducts]);
 
+  const availableBrands = useMemo(() => {
+    if (selectedFactoryId === "none" || lineFilter === "none" || !registeredProducts) return [];
+    const brands = registeredProducts
+      .filter(p => p.factoryId === selectedFactoryId && p.line === lineFilter)
+      .map(p => p.brand)
+      .filter(Boolean);
+    return Array.from(new Set(brands)).sort();
+  }, [selectedFactoryId, lineFilter, registeredProducts]);
+
   const filteredProducts = useMemo(() => {
     if (selectedFactoryId === "none" || !registeredProducts || lineFilter === "none") return [];
     
     let filtered = registeredProducts.filter(p => 
-      p.factoryId === selectedFactoryId && p.catalogProductId
+      p.factoryId === selectedFactoryId && p.catalogProductId && p.line === lineFilter
     );
 
-    filtered = filtered.filter(p => p.line === lineFilter);
+    if (selectedBrand !== "all" && selectedBrand !== "none") {
+      filtered = filtered.filter(p => p.brand === selectedBrand);
+    }
 
     if (productSearch.trim()) {
       const term = productSearch.toLowerCase();
@@ -138,7 +150,7 @@ export default function NewOrderPage() {
     }
 
     return filtered;
-  }, [selectedFactoryId, registeredProducts, productSearch, lineFilter]);
+  }, [selectedFactoryId, registeredProducts, productSearch, lineFilter, selectedBrand]);
 
   const currentRegisteredProduct = useMemo(() => {
     return registeredProducts?.find(p => p.id === selectedProductId);
@@ -648,6 +660,7 @@ export default function NewOrderPage() {
                     <Select value={selectedFactoryId} onValueChange={(val) => {
                       setSelectedFactoryId(val);
                       setSelectedProductId("none");
+                      setSelectedBrand("all");
                       setProductSearch("");
                       setLineFilter("none");
                     }}>
@@ -669,7 +682,11 @@ export default function NewOrderPage() {
                         <Label className="text-xs">Linha (Obrigatório)</Label>
                         <Select 
                           value={lineFilter} 
-                          onValueChange={setLineFilter}
+                          onValueChange={(val) => {
+                            setLineFilter(val);
+                            setSelectedBrand("all");
+                            setSelectedProductId("none");
+                          }}
                           disabled={orderItems.length > 0}
                         >
                           <SelectTrigger className="h-9">
@@ -691,10 +708,25 @@ export default function NewOrderPage() {
                       {lineFilter !== "none" && (
                         <div className="space-y-4 animate-in fade-in slide-in-from-top-1 duration-300">
                           <div className="space-y-2">
+                            <Label className="text-xs">Marca</Label>
+                            <Select value={selectedBrand} onValueChange={setSelectedBrand}>
+                              <SelectTrigger className="h-9">
+                                <SelectValue placeholder="Todas as Marcas" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="all">Todas as Marcas</SelectItem>
+                                {availableBrands.map(brand => (
+                                  <SelectItem key={brand} value={brand}>{brand}</SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          </div>
+
+                          <div className="space-y-2">
                             <div className="relative mb-2">
                               <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" size={16} />
                               <Input 
-                                placeholder="Digite o código ou nome para filtrar..." 
+                                placeholder="Filtrar por código ou nome..." 
                                 className="pl-10 h-10 font-medium"
                                 value={productSearch}
                                 onChange={(e) => {
@@ -703,14 +735,14 @@ export default function NewOrderPage() {
                                 }}
                               />
                             </div>
-                            <Label className="text-[10px] text-muted-foreground uppercase font-bold px-1">Selecione o Produto</Label>
+                            <Label className="text-[10px] text-muted-foreground uppercase font-bold px-1">Produto</Label>
                             <Select 
                               value={selectedProductId} 
                               onValueChange={setSelectedProductId} 
                               disabled={filteredProducts.length === 0}
                             >
                               <SelectTrigger>
-                                <SelectValue placeholder={filteredProducts.length === 0 ? "Nenhum resultado" : "Escolha na lista filtrada..."} />
+                                <SelectValue placeholder={filteredProducts.length === 0 ? "Nenhum resultado" : "Selecione o produto..."} />
                               </SelectTrigger>
                               <SelectContent>
                                 <SelectItem value="none">Selecione o produto</SelectItem>
