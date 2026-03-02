@@ -23,7 +23,9 @@ import Link from 'next/link';
 import {
   AlertDialog,
   AlertDialogAction,
+  AlertDialogCancel,
   AlertDialogContent,
+  AlertDialogDescription,
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
@@ -80,10 +82,15 @@ export default function NewOrderPage() {
   const [useCatalogDiscount, setUseCatalogDiscount] = useState<boolean>(true);
   const [contractPercent, setContractPercent] = useState<number>(0);
   
+  // States for commercial rules popups
   const [showAraRulesDialog, setShowAraRulesDialog] = useState(false);
   const [showBvgRulesDialog, setShowBvgRulesDialog] = useState(false);
   const [showMrvRulesDialog, setShowMrvRulesDialog] = useState(false);
   const [showSjoRulesDialog, setShowSjoRulesDialog] = useState(false);
+
+  // States for PDF Export Contract
+  const [showExportContractDialog, setShowExportContractDialog] = useState(false);
+  const [exportContractPercent, setExportContractPercent] = useState<number>(0);
 
   const selectedFactory = useMemo(() => {
     return factories?.find(f => f.id === selectedFactoryId);
@@ -153,7 +160,7 @@ export default function NewOrderPage() {
     return isNaN(parsed) ? 0 : parsed / 100;
   };
 
-  const calculateItemPrices = (registeredItem: any, catalogItem: any) => {
+  const calculateItemPrices = (registeredItem: any, catalogItem: any, overridePercent?: number) => {
     if (!registeredItem || !catalogItem) return null;
 
     const basePrice = priceType === 'closed' 
@@ -163,7 +170,8 @@ export default function NewOrderPage() {
     const catalogDiscount = useCatalogDiscount ? (catalogItem.discountAmount || 0) : 0;
     const priceAfterCatalog = Math.max(0, basePrice - catalogDiscount);
     
-    const finalUnitPriceBeforeST = priceAfterCatalog * (1 + (contractPercent || 0) / 100);
+    const activePercent = overridePercent !== undefined ? overridePercent : (contractPercent || 0);
+    const finalUnitPriceBeforeST = priceAfterCatalog * (1 + activePercent / 100);
     
     const stRate = parseST(registeredItem.st);
     const stAmount = finalUnitPriceBeforeST * stRate;
@@ -288,7 +296,7 @@ export default function NewOrderPage() {
     const factoryName = selectedFactory?.name?.toUpperCase() || '';
     const selectedLine = orderItems[0]?.line?.toUpperCase() || '';
 
-    // Regras ARA
+    // ARA Rules
     if (factoryName.includes('ARA') && selectedLine.includes('SECA UHT')) {
       if (totalQty < 30) {
         toast({ 
@@ -324,7 +332,7 @@ export default function NewOrderPage() {
       }
     }
 
-    // Regras BVG
+    // BVG Rules
     if (factoryName.includes('BVG') && selectedLine.includes('REFRIGERADA')) {
       if (totalWeight < 70) {
         toast({ 
@@ -336,7 +344,7 @@ export default function NewOrderPage() {
       }
     }
 
-    // Regras SJO
+    // SJO Rules
     if (factoryName.includes('SJO') && selectedLine.includes('REFRIGERADA')) {
       if (totalWeight < 1500) {
         toast({ 
@@ -348,7 +356,7 @@ export default function NewOrderPage() {
       }
     }
 
-    // Regras MRV
+    // MRV Rules
     if (factoryName.includes('MRV') && selectedLine.includes('SECA')) {
       if (totalAmount < 1500) {
         toast({ 
@@ -416,11 +424,15 @@ export default function NewOrderPage() {
     if (!pdfRef.current || filteredProducts.length === 0) return;
     
     setIsExporting(true);
+    setShowExportContractDialog(false);
     toast({ title: "Gerando Tabela PDF", description: "Aguarde o processamento..." });
 
     try {
       const html2canvas = (await import('html2canvas')).default;
       const { jsPDF } = await import('jspdf');
+
+      // Wait a tick for the hidden table to potentially re-render with the contract percent
+      await new Promise(resolve => setTimeout(resolve, 100));
 
       const canvas = await html2canvas(pdfRef.current, { scale: 2, useCORS: true });
       const imgData = canvas.toDataURL('image/png');
@@ -529,6 +541,38 @@ export default function NewOrderPage() {
         </AlertDialogContent>
       </AlertDialog>
 
+      {/* Dialog for Export Contract Percentage */}
+      <AlertDialog open={showExportContractDialog} onOpenChange={setShowExportContractDialog}>
+        <AlertDialogContent className="max-w-md">
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center gap-2 text-primary">
+              <Tag className="text-primary" /> Adicionar Contrato na Tabela?
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              Informe a porcentagem de aditivo de contrato que será aplicada a todos os preços desta exportação PDF.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <div className="py-6 space-y-4">
+            <div className="space-y-2">
+              <Label className="text-sm font-bold">Porcentagem de Contrato (%)</Label>
+              <Input 
+                type="number" 
+                value={exportContractPercent} 
+                onChange={(e) => setExportContractPercent(Number(e.target.value))} 
+                placeholder="Ex: 5"
+                className="text-lg font-bold h-12"
+              />
+            </div>
+          </div>
+          <AlertDialogFooter className="gap-2">
+            <AlertDialogCancel className="h-12 flex-1">Cancelar</AlertDialogCancel>
+            <AlertDialogAction onClick={handleExportTablePDF} className="h-12 flex-1 gap-2 font-bold">
+              <FileDown size={18} /> Gerar PDF
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
       <div className="mb-8 flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div className="flex items-center gap-3">
           <Link href="/catalog" className="text-muted-foreground hover:text-primary transition-colors">
@@ -541,7 +585,7 @@ export default function NewOrderPage() {
         </div>
         <div className="flex gap-2">
           {selectedFactoryId !== "none" && lineFilter !== "none" && (
-            <Button variant="outline" size="sm" onClick={handleExportTablePDF} disabled={isExporting} className="gap-2 border-accent text-accent hover:bg-accent/5">
+            <Button variant="outline" size="sm" onClick={() => setShowExportContractDialog(true)} disabled={isExporting} className="gap-2 border-accent text-accent hover:bg-accent/5">
               {isExporting ? <Loader2 className="animate-spin" size={16} /> : <FileDown size={16} />}
               Exportar Tabela PDF
             </Button>
@@ -899,7 +943,7 @@ export default function NewOrderPage() {
         </div>
       </div>
 
-      {/* Tabela Oculta para Geração de PDF */}
+      {/* Hidden Table for PDF Generation */}
       <div style={{ position: 'absolute', left: '-9999px', top: '-9999px' }}>
         <div ref={pdfRef} className="bg-white p-10 w-[800px] text-slate-800">
           <div className="flex items-center justify-between border-b-2 border-primary pb-4 mb-6">
@@ -910,6 +954,7 @@ export default function NewOrderPage() {
             <div className="text-right text-xs">
               <p className="font-bold">{selectedFactory?.name}</p>
               <p className="text-muted-foreground uppercase">{lineFilter}</p>
+              {exportContractPercent > 0 && <p className="text-primary font-bold">ADITIVO CONTRATO: {exportContractPercent}%</p>}
               <p>{new Date().toLocaleDateString('pt-BR')}</p>
             </div>
           </div>
@@ -927,7 +972,7 @@ export default function NewOrderPage() {
             <tbody>
               {filteredProducts.map((p, idx) => {
                 const catalog = catalogProducts?.find(cp => cp.id === p.catalogProductId);
-                const prices = calculateItemPrices(p, catalog);
+                const prices = calculateItemPrices(p, catalog, exportContractPercent);
                 if (!prices) return null;
                 return (
                   <tr key={p.id} className={idx % 2 === 0 ? 'bg-white' : 'bg-slate-50'}>
