@@ -1,3 +1,4 @@
+
 'use server';
 
 /**
@@ -59,10 +60,10 @@ export async function intelligentlyProcessPriceSheet(
     let firstProdutoIndex = -1;
     let secondProdutoIndex = -1;
 
-    // Localiza os marcadores "Produto" na Coluna A
+    // Localiza os marcadores "Produto" na Coluna A (insensível a maiúsculas)
     for (let i = 0; i < rows.length; i++) {
-      const colAValue = String(rows[i][0] || '').trim();
-      if (colAValue === "Produto") {
+      const colAValue = String(rows[i][0] || '').trim().toLowerCase();
+      if (colAValue === "produto") {
         if (firstProdutoIndex === -1) {
           firstProdutoIndex = i;
         } else {

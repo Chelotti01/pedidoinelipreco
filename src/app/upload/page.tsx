@@ -76,7 +76,9 @@ export default function UploadPage() {
 
             for (const product of factoryData.products) {
               const safeProductName = sanitizeId(product.name);
-              const productId = `${factoryId}-${safeProductName}`;
+              const safeUnit = sanitizeId(product.unit);
+              // Incluindo a unidade no ID para evitar colisões entre produtos de mesmo nome (ex: 2.5kg vs 5kg)
+              const productId = `${factoryId}-${safeProductName}-${safeUnit}`;
               const productRef = doc(db, 'catalog_products', productId);
               
               allOps.push({ 
