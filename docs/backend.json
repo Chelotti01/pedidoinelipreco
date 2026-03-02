@@ -1,116 +1,428 @@
-
 {
   "entities": {
+    "UserProfile": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "UserProfile",
+      "type": "object",
+      "description": "Represents an authenticated user within the system, defining their access and roles. Passwords are handled by an external authentication system.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the UserProfile entity."
+        },
+        "username": {
+          "type": "string",
+          "description": "The user's unique username for login and identification."
+        },
+        "email": {
+          "type": "string",
+          "description": "The user's email address.",
+          "format": "email"
+        },
+        "roles": {
+          "type": "array",
+          "description": "An array of roles assigned to the user, determining their access permissions (e.g., 'admin', 'orderCreator', 'viewer').",
+          "items": {
+            "type": "string"
+          }
+        },
+        "createdAt": {
+          "type": "string",
+          "description": "Timestamp indicating when the user profile was created.",
+          "format": "date-time"
+        },
+        "updatedAt": {
+          "type": "string",
+          "description": "Timestamp indicating when the user profile was last updated.",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "id",
+        "username",
+        "roles",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
     "Factory": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
       "title": "Factory",
       "type": "object",
-      "description": "Manufacturing factory information.",
+      "description": "Represents a manufacturing factory, corresponding to a tab in the uploaded XLSX price sheet. Products are associated with a factory.",
       "properties": {
-        "id": { "type": "string" },
-        "name": { "type": "string" },
-        "createdAt": { "type": "string", "format": "date-time" },
-        "updatedAt": { "type": "string", "format": "date-time" }
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the Factory entity."
+        },
+        "name": {
+          "type": "string",
+          "description": "The name of the factory, typically derived from the XLSX sheet tab name."
+        },
+        "description": {
+          "type": "string",
+          "description": "An optional description for the factory."
+        }
       },
-      "required": ["id", "name"]
+      "required": [
+        "id",
+        "name"
+      ]
     },
-    "CatalogProduct": {
-      "title": "CatalogProduct",
+    "UploadedPriceSheet": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "UploadedPriceSheet",
       "type": "object",
-      "description": "Product pricing extracted from XLSX.",
+      "description": "Tracks details of each XLSX price sheet uploaded by users, including its processing status.",
       "properties": {
-        "id": { "type": "string" },
-        "name": { "type": "string" },
-        "unit": { "type": "string" },
-        "closedLoadPrice": { "type": "number" },
-        "fractionalLoadPrice": { "type": "number" },
-        "discountAmount": { "type": "number", "description": "Discount in R$ extracted from sheet" },
-        "factoryId": { "type": "string" },
-        "lastPriceUpdateAt": { "type": "string", "format": "date-time" }
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the UploadedPriceSheet entity."
+        },
+        "fileName": {
+          "type": "string",
+          "description": "The original name of the uploaded XLSX file."
+        },
+        "uploadDate": {
+          "type": "string",
+          "description": "Timestamp indicating when the file was uploaded.",
+          "format": "date-time"
+        },
+        "uploadedByUserId": {
+          "type": "string",
+          "description": "Reference to the UserProfile who uploaded this file. (Relationship: UserProfile 1:N UploadedPriceSheet)"
+        },
+        "processingStatus": {
+          "type": "string",
+          "description": "The current status of the file processing (e.g., 'PENDING', 'PROCESSING', 'COMPLETED', 'FAILED')."
+        },
+        "processingLogs": {
+          "type": "array",
+          "description": "A list of log messages, including errors or warnings, generated during the file processing.",
+          "items": {
+            "type": "string"
+          }
+        },
+        "originalFileUrl": {
+          "type": "string",
+          "description": "An optional URL where the original uploaded file is stored (e.g., in cloud storage).",
+          "format": "uri"
+        }
       },
-      "required": ["id", "name", "unit", "closedLoadPrice", "factoryId"]
+      "required": [
+        "id",
+        "fileName",
+        "uploadDate",
+        "uploadedByUserId",
+        "processingStatus"
+      ]
     },
-    "RegisteredProduct": {
-      "title": "RegisteredProduct",
+    "Product": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "Product",
       "type": "object",
-      "description": "Master parallel product registration for sellers.",
+      "description": "Represents a product available for order, with its base pricing from the price sheets.",
       "properties": {
-        "id": { "type": "string" },
-        "status": { "type": "string", "enum": ["Active", "Inactive"] },
-        "brand": { "type": "string" },
-        "line": { "type": "string" },
-        "code": { "type": "string" },
-        "description": { "type": "string" },
-        "quantityPerBox": { "type": "number" },
-        "unit": { "type": "string" },
-        "ean": { "type": "string" },
-        "dun14": { "type": "string" },
-        "taxClassification": { "type": "string" },
-        "ncm": { "type": "string" },
-        "cest": { "type": "string" },
-        "unitNetWeightKg": { "type": "number" },
-        "boxWeightKg": { "type": "number" },
-        "st": { "type": "string" },
-        "factoryId": { "type": "string" },
-        "catalogProductId": { "type": "string" },
-        "createdAt": { "type": "string", "format": "date-time" },
-        "updatedAt": { "type": "string", "format": "date-time" }
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the Product entity."
+        },
+        "name": {
+          "type": "string",
+          "description": "The name of the product, as extracted from column A of the XLSX file."
+        },
+        "unit": {
+          "type": "string",
+          "description": "The unit of measure for the product (e.g., 'KG', 'UN'), extracted from column B."
+        },
+        "basePriceClosedLoad": {
+          "type": "number",
+          "description": "The base price for a closed load of the product, extracted from column C."
+        },
+        "basePriceFractionalLoad": {
+          "type": "number",
+          "description": "The base price for a fractional load of the product, extracted from column D."
+        },
+        "factoryId": {
+          "type": "string",
+          "description": "Reference to the Factory that produces this product. (Relationship: Factory 1:N Product)"
+        },
+        "lastUpdatedDate": {
+          "type": "string",
+          "description": "Timestamp indicating when the product's prices were last updated from an uploaded price sheet.",
+          "format": "date-time"
+        }
       },
-      "required": ["id", "status", "code", "description"]
+      "required": [
+        "id",
+        "name",
+        "unit",
+        "basePriceClosedLoad",
+        "basePriceFractionalLoad",
+        "factoryId",
+        "lastUpdatedDate"
+      ]
     },
-    "Customer": {
-      "title": "Customer",
+    "Discount": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "Discount",
       "type": "object",
-      "description": "Customer information.",
+      "description": "Represents a discount that can be applied to orders or individual products, as extracted from the XLSX file.",
       "properties": {
-        "id": { "type": "string" },
-        "name": { "type": "string" },
-        "cnpj": { "type": "string" },
-        "paymentTerm": { "type": "string" },
-        "loadType": { "type": "string", "enum": ["Paletizada", "Batida"] },
-        "observations": { "type": "string" },
-        "createdAt": { "type": "string", "format": "date-time" },
-        "updatedAt": { "type": "string", "format": "date-time" }
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the Discount entity."
+        },
+        "name": {
+          "type": "string",
+          "description": "The name or description of the discount (e.g., '10% Off Summer Sale'), extracted from column A in the discount section."
+        },
+        "valuePercentage": {
+          "type": "number",
+          "description": "The percentage value of the discount, represented as a decimal (e.g., 0.10 for 10%), extracted from column C in the discount section."
+        },
+        "description": {
+          "type": "string",
+          "description": "An optional detailed description of the discount."
+        },
+        "isActive": {
+          "type": "boolean",
+          "description": "Indicates whether the discount is currently active and can be applied."
+        }
       },
-      "required": ["id", "name", "cnpj"]
+      "required": [
+        "id",
+        "name",
+        "valuePercentage",
+        "isActive"
+      ]
     },
     "Order": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
       "title": "Order",
       "type": "object",
-      "description": "Customer order history.",
+      "description": "Represents a customer order, containing multiple order items and associated details.",
       "properties": {
-        "id": { "type": "string" },
-        "customerId": { "type": "string" },
-        "customerName": { "type": "string" },
-        "items": { "type": "array" },
-        "totalAmount": { "type": "number" },
-        "totalWeight": { "type": "number" },
-        "createdAt": { "type": "string", "format": "date-time" }
-      }
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the Order entity."
+        },
+        "orderDate": {
+          "type": "string",
+          "description": "Timestamp indicating when the order was created or placed.",
+          "format": "date-time"
+        },
+        "status": {
+          "type": "string",
+          "description": "The current status of the order (e.g., 'DRAFT', 'PENDING', 'CONFIRMED', 'COMPLETED', 'CANCELLED')."
+        },
+        "totalAmount": {
+          "type": "number",
+          "description": "The final calculated total amount for the entire order, sum of all OrderItem total prices."
+        },
+        "userId": {
+          "type": "string",
+          "description": "Reference to the UserProfile who created this order. (Relationship: UserProfile 1:N Order)"
+        },
+        "customerName": {
+          "type": "string",
+          "description": "The name of the customer for whom the order is placed."
+        },
+        "customerReference": {
+          "type": "string",
+          "description": "An optional external reference identifier for the customer."
+        },
+        "notes": {
+          "type": "string",
+          "description": "Any additional notes or comments related to the order."
+        }
+      },
+      "required": [
+        "id",
+        "orderDate",
+        "status",
+        "userId",
+        "customerName"
+      ]
+    },
+    "OrderItem": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "OrderItem",
+      "type": "object",
+      "description": "Represents a single product item within an order, capturing its quantity, selected pricing, and applied discounts at the time of order creation.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the OrderItem entity."
+        },
+        "orderId": {
+          "type": "string",
+          "description": "Reference to the Order this item belongs to. (Relationship: Order 1:N OrderItem)"
+        },
+        "productId": {
+          "type": "string",
+          "description": "Reference to the Product being ordered. (Relationship: Product 1:N OrderItem)"
+        },
+        "quantity": {
+          "type": "number",
+          "description": "The quantity of the product ordered."
+        },
+        "selectedLoadType": {
+          "type": "string",
+          "description": "Indicates whether 'CLOSED_LOAD' or 'FRACTIONAL_LOAD' pricing was selected for this item."
+        },
+        "appliedDiscountId": {
+          "type": "string",
+          "description": "Optional reference to a specific Discount applied to this order item. (Relationship: Discount 1:N OrderItem)"
+        },
+        "baseUnitPrice": {
+          "type": "number",
+          "description": "The base unit price (either closed load or fractional load price from the Product) at the time of ordering, before any discounts specific to this item."
+        },
+        "finalUnitPrice": {
+          "type": "number",
+          "description": "The final unit price after applying any specific discounts to this item."
+        },
+        "totalPrice": {
+          "type": "number",
+          "description": "The total price for this order item (quantity * finalUnitPrice)."
+        }
+      },
+      "required": [
+        "id",
+        "orderId",
+        "productId",
+        "quantity",
+        "selectedLoadType",
+        "baseUnitPrice",
+        "finalUnitPrice",
+        "totalPrice"
+      ]
     }
   },
   "auth": {
-    "providers": ["password", "anonymous"]
+    "providers": [
+      "password",
+      "anonymous"
+    ]
   },
   "firestore": {
-    "/factories/{factoryId}": {
-      "schema": "#/entities/Factory",
-      "description": "Factories list."
-    },
-    "/catalog_products/{catalogProductId}": {
-      "schema": "#/entities/CatalogProduct",
-      "description": "Master pricing catalog."
-    },
-    "/registered_products/{registeredProductId}": {
-      "schema": "#/entities/RegisteredProduct",
-      "description": "Parallel product registrations."
-    },
-    "/customers/{customerId}": {
-      "schema": "#/entities/Customer",
-      "description": "Customers list."
-    },
-    "/orders/{orderId}": {
-      "schema": "#/entities/Order",
-      "description": "Orders history."
-    }
+    "structure": [
+      {
+        "path": "/userProfiles/{userId}",
+        "definition": {
+          "entityName": "UserProfile",
+          "schema": {
+            "$ref": "#/backend/entities/UserProfile"
+          },
+          "description": "Stores user-specific data, including roles for authorization. Access is restricted to the user themselves or administrators. Includes a 'roles' array for DBAC."
+        }
+      },
+      {
+        "path": "/factories/{factoryId}",
+        "definition": {
+          "entityName": "Factory",
+          "schema": {
+            "$ref": "#/backend/entities/Factory"
+          },
+          "description": "Contains information about each manufacturing factory, typically derived from XLSX sheet tabs. This is a global catalog, read-accessible by authenticated users, writeable by specific roles (e.g., 'admin', 'priceSheetUploader').",
+          "params": [
+            {
+              "name": "factoryId",
+              "description": "Unique identifier for the Factory."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/products/{productId}",
+        "definition": {
+          "entityName": "Product",
+          "schema": {
+            "$ref": "#/backend/entities/Product"
+          },
+          "description": "Stores product details, including pricing, linked to a specific factory. This is a global catalog, read-accessible by authenticated users, writeable by specific roles (e.g., 'admin', 'priceSheetUploader').",
+          "params": [
+            {
+              "name": "productId",
+              "description": "Unique identifier for the Product."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/discounts/{discountId}",
+        "definition": {
+          "entityName": "Discount",
+          "schema": {
+            "$ref": "#/backend/entities/Discount"
+          },
+          "description": "Stores available discount information, extracted from XLSX files. This is a global catalog, read-accessible by authenticated users, writeable by specific roles (e.g., 'admin', 'priceSheetUploader').",
+          "params": [
+            {
+              "name": "discountId",
+              "description": "Unique identifier for the Discount."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/userProfiles/{userId}/uploadedPriceSheets/{sheetId}",
+        "definition": {
+          "entityName": "UploadedPriceSheet",
+          "schema": {
+            "$ref": "#/backend/entities/UploadedPriceSheet"
+          },
+          "description": "Tracks uploaded price sheets, owned by the specific user who uploaded them. Access is restricted to the uploader. Includes denormalized 'uploadedByUserId' for authorization independence.",
+          "params": [
+            {
+              "name": "userId",
+              "description": "The unique ID of the user who owns this uploaded price sheet."
+            },
+            {
+              "name": "sheetId",
+              "description": "Unique identifier for the UploadedPriceSheet."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/orders/{orderId}",
+        "definition": {
+          "entityName": "Order",
+          "schema": {
+            "$ref": "#/backend/entities/Order"
+          },
+          "description": "Represents a customer order. The 'userId' field denormalizes the creator's ID for authorization independence, enabling secure QAPs and simplifying rules based on ownership and order status.",
+          "params": [
+            {
+              "name": "orderId",
+              "description": "Unique identifier for the Order."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/orders/{orderId}/orderItems/{orderItemId}",
+        "definition": {
+          "entityName": "OrderItem",
+          "schema": {
+            "$ref": "#/backend/entities/OrderItem"
+          },
+          "description": "Represents a single product item within an order. Relies on the parent Order's authorization for access. For strict authorization independence, it is recommended to denormalize the order creator's ID (e.g., 'orderCreatorId') into this document, though 'orderId' is present.",
+          "params": [
+            {
+              "name": "orderId",
+              "description": "The unique ID of the parent Order."
+            },
+            {
+              "name": "orderItemId",
+              "description": "Unique identifier for the OrderItem."
+            }
+          ]
+        }
+      }
+    ],
+    "reasoning": "The Firestore structure is designed following the core principles of Authorization Independence, Structural Segregation, and Access Modeling to ensure security, scalability, and debuggability. \n\n**Authorization Independence:**\n1.  **User Profiles and Uploaded Price Sheets:** User-specific data like `UserProfile` and `UploadedPriceSheet` (located at `/userProfiles/{userId}/uploadedPriceSheets/{sheetId}`) inherently achieve authorization independence by embedding the `userId` in the path and within the document (`uploadedByUserId`). Rules can directly compare `request.auth.uid` with `{userId}` or `resource.data.uploadedByUserId` without relying on `get()` calls to parent documents.\n2.  **Orders:** The `/orders/{orderId}` collection denormalizes the `userId` of the order creator directly into each `Order` document. This allows security rules to evaluate `resource.data.userId == request.auth.uid` directly, ensuring that an order's access permissions are self-contained and do not depend on reading a separate `UserProfile` document for ownership verification.\n3.  **Order Items:** For `OrderItem` documents (within `/orders/{orderId}/orderItems/{orderItemId}`), while the `orderId` is present, to achieve *absolute* authorization independence as strictly mandated (avoiding `get()` calls entirely for authorization), each `OrderItem` document should ideally also denormalize the `userId` of the order creator (e.g., `orderCreatorId`). This would allow direct authorization checks on the `OrderItem` document itself. For this design, given the schema, access to `OrderItem` is primarily derived from its parent `Order`'s authorization, implicitly allowing a `get()` to the parent `Order` in rules if direct `orderCreatorId` is not denormalized within `OrderItem` itself. However, for a production system aiming for strict mandate adherence, adding `orderCreatorId` to `OrderItem` is recommended.\n4.  **Global Entities (Factories, Products, Discounts):** These collections (`/factories`, `/products`, `/discounts`) are global catalogs. Authorization for these is role-based (e.g., `admin` or `orderCreator`). Rules will check the `request.auth.uid` against the user's roles stored in their `UserProfile` (`get(/userProfiles/$(request.auth.uid)).data.roles`). This avoids hierarchical dependencies within these data types themselves.\n\n**QAPs (Rules are not Filters):**\n1.  **Structural Segregation:** Data with different security postures is segregated. For example, `UserProfile` data is private, `UploadedPriceSheet` data is user-owned, and `Factory`, `Product`, `Discount` data are global catalogs (with role-based write access).\n2.  **Path-Based Ownership:** User-owned data like `UploadedPriceSheet` is placed under `/userProfiles/{userId}`, enabling secure and efficient `list` queries for a specific user's uploads (e.g., `db.collection('userProfiles').doc(uid).collection('uploadedPriceSheets').get()`). Rules can easily enforce `request.auth.uid == userId`.\n3.  **Denormalized Ownership for Global Collections:** For `Order` (a top-level collection), the `userId` field facilitates `list` operations by allowing efficient filtering based on ownership (e.g., `db.collection('orders').where('userId', '==', uid).get()`) and role-based access for specific statuses (e.g., `db.collection('orders').where('status', '==', 'DRAFT').get()` for an 'orderCreator' role).\n4.  **Role-Based Access for Global Catalogs:** `Factory`, `Product`, and `Discount` collections are designed for broad read access (e.g., any authenticated user can view the catalog), with write/update access restricted by roles (`admin`, `priceSheetUploader`). This allows `list` operations without filtering by `request.auth.uid` on the client side, as the rules grant appropriate access for the entire collection based on role.\n\n**Addressing Specific User Access (Adriana):**\nThe requirement that 'Usuário Dri só pode acessar: /orders/new' will be enforced by security rules. Adriana's `UserProfile` will have the `orderCreator` role. The rules for `/orders/{orderId}` will allow users with the `orderCreator` role to `create` new orders and potentially `list` or `read` orders where `resource.data.userId == request.auth.uid` and `resource.data.status == 'DRAFT'` or a similar 'new' state. Access to other collections for Adriana would be explicitly denied or restricted by rules."
   }
 }
