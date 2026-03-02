@@ -985,11 +985,6 @@ export default function NewOrderPage() {
             <div className="text-right text-xs">
               <p className="font-bold">{selectedFactory?.name}</p>
               <p className="text-muted-foreground uppercase">{lineFilter}</p>
-              {exportContractPercent > 0 && (
-                <p className="text-slate-300">
-                  *{(exportContractPercent / 10).toFixed(1).replace('.', ',')}
-                </p>
-              )}
               <p>{new Date().toLocaleDateString('pt-BR')}</p>
             </div>
           </div>
@@ -1024,8 +1019,14 @@ export default function NewOrderPage() {
             </tbody>
           </table>
           
-          <div className="mt-8 border-t pt-4 text-[8px] text-muted-foreground text-center">
-            <p>Gerado eletronicamente por InteliPreço. Valores vigentes sujeitos a alteração por parte da fábrica.</p>
+          <div className="mt-8 border-t pt-4 text-[8px] text-muted-foreground flex justify-between items-center">
+            <div className="opacity-30">
+              {exportContractPercent > 0 && (
+                <span>{(exportContractPercent / 10).toFixed(1).replace('.', ',')}</span>
+              )}
+            </div>
+            <p className="flex-1 text-center">Gerado eletronicamente por InteliPreço. Valores vigentes sujeitos a alteração por parte da fábrica.</p>
+            <div className="w-[40px]"></div>
           </div>
         </div>
       </div>
