@@ -36,6 +36,7 @@ export default function RegisteredProductsPage() {
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [brandFilter, setBrandFilter] = useState("all");
+  const [lineFilter, setLineFilter] = useState("all");
   const [linkFilter, setLinkFilter] = useState("all");
   const [isLoadedFromStorage, setIsLoadedFromStorage] = useState(false);
 
@@ -48,6 +49,7 @@ export default function RegisteredProductsPage() {
         setSearchTerm(parsed.searchTerm || "");
         setStatusFilter(parsed.statusFilter || "all");
         setBrandFilter(parsed.brandFilter || "all");
+        setLineFilter(parsed.lineFilter || "all");
         setLinkFilter(parsed.linkFilter || "all");
       } catch (e) {
         console.error("Erro ao carregar filtros", e);
@@ -59,10 +61,10 @@ export default function RegisteredProductsPage() {
   // Salvar filtros sempre que mudarem
   useEffect(() => {
     if (isLoadedFromStorage) {
-      const filters = { searchTerm, statusFilter, brandFilter, linkFilter };
+      const filters = { searchTerm, statusFilter, brandFilter, lineFilter, linkFilter };
       sessionStorage.setItem(STORAGE_KEY, JSON.stringify(filters));
     }
-  }, [searchTerm, statusFilter, brandFilter, linkFilter, isLoadedFromStorage]);
+  }, [searchTerm, statusFilter, brandFilter, lineFilter, linkFilter, isLoadedFromStorage]);
 
   const productsQuery = useMemoFirebase(() => {
     return query(collection(db, 'registered_products'), orderBy('createdAt', 'desc'));
@@ -75,6 +77,13 @@ export default function RegisteredProductsPage() {
     if (!products) return [];
     const brands = products.map(p => p.brand).filter(Boolean);
     return Array.from(new Set(brands)).sort();
+  }, [products]);
+
+  // Extrair linhas únicas para o filtro
+  const uniqueLines = useMemo(() => {
+    if (!products) return [];
+    const lines = products.map(p => p.line).filter(Boolean);
+    return Array.from(new Set(lines)).sort();
   }, [products]);
 
   const filteredProducts = useMemo(() => {
@@ -91,20 +100,22 @@ export default function RegisteredProductsPage() {
 
       const matchesStatus = statusFilter === "all" || p.status === statusFilter;
       const matchesBrand = brandFilter === "all" || p.brand === brandFilter;
+      const matchesLine = lineFilter === "all" || p.line === lineFilter;
       
       const isLinked = !!p.catalogProductId;
       const matchesLink = linkFilter === "all" || 
         (linkFilter === "linked" && isLinked) || 
         (linkFilter === "unlinked" && !isLinked);
 
-      return matchesSearch && matchesStatus && matchesBrand && matchesLink;
+      return matchesSearch && matchesStatus && matchesBrand && matchesLine && matchesLink;
     });
-  }, [products, searchTerm, statusFilter, brandFilter, linkFilter]);
+  }, [products, searchTerm, statusFilter, brandFilter, lineFilter, linkFilter]);
 
   const resetFilters = () => {
     setSearchTerm("");
     setStatusFilter("all");
     setBrandFilter("all");
+    setLineFilter("all");
     setLinkFilter("all");
     sessionStorage.removeItem(STORAGE_KEY);
   };
@@ -198,8 +209,8 @@ export default function RegisteredProductsPage() {
       {/* Barra de Filtros */}
       <Card className="mb-8 border-none shadow-sm bg-muted/30">
         <CardContent className="p-4 space-y-4">
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-            <div className="relative col-span-1 md:col-span-1">
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-5 gap-4">
+            <div className="relative col-span-1 sm:col-span-2 md:col-span-1">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" size={18} />
               <Input 
                 placeholder="Pesquisar..." 
@@ -222,7 +233,7 @@ export default function RegisteredProductsPage() {
 
             <Select value={linkFilter} onValueChange={setLinkFilter}>
               <SelectTrigger className="bg-white">
-                <SelectValue placeholder="Vínculo (Bolas)" />
+                <SelectValue placeholder="Vínculo" />
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">Todos os Vínculos</SelectItem>
@@ -239,6 +250,18 @@ export default function RegisteredProductsPage() {
                 <SelectItem value="all">Todas as Marcas</SelectItem>
                 {uniqueBrands.map(brand => (
                   <SelectItem key={brand} value={brand}>{brand}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+
+            <Select value={lineFilter} onValueChange={setLineFilter}>
+              <SelectTrigger className="bg-white">
+                <SelectValue placeholder="Linha" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Todas as Linhas</SelectItem>
+                {uniqueLines.map(line => (
+                  <SelectItem key={line} value={line}>{line}</SelectItem>
                 ))}
               </SelectContent>
             </Select>
