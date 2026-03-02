@@ -24,7 +24,6 @@ import {
   AlertDialog,
   AlertDialogAction,
   AlertDialogContent,
-  AlertDialogDescription,
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
@@ -181,7 +180,6 @@ export default function NewOrderPage() {
     };
   }, [currentCatalogProduct, currentRegisteredProduct, priceType, useCatalogDiscount, contractPercent]);
 
-  // Função para mudar o tipo de preço e recalcular o carrinho
   const handlePriceTypeChange = (newType: 'closed' | 'fractional') => {
     setPriceType(newType);
     
@@ -219,10 +217,6 @@ export default function NewOrderPage() {
     });
 
     setOrderItems(updatedItems);
-    toast({
-      title: "Preços atualizados",
-      description: `O carrinho foi recalculado para ${newType === 'closed' ? 'Carga Fechada' : 'Fracionado'}.`,
-    });
   };
 
   const handleAddProduct = () => {
@@ -284,7 +278,6 @@ export default function NewOrderPage() {
       return;
     }
 
-    // Validação de Regras Comerciais ARA / SECA UHT na somatória total
     const totalQty = orderItems.reduce((acc, item) => acc + item.quantity, 0);
     const isAraSecaUht = selectedFactory?.name?.toUpperCase().includes('ARA') && orderItems[0]?.line?.toUpperCase().includes('SECA UHT');
 
@@ -384,7 +377,7 @@ export default function NewOrderPage() {
               <AlertTriangle className="text-orange-500" /> Regras Comerciais ARA
             </AlertDialogTitle>
             <div className="space-y-4 py-2 text-foreground text-sm">
-              <p className="font-bold border-b pb-2">Para a linha SECA UHT, observe as condições obrigatórias:</p>
+              <div className="font-bold border-b pb-2">Para a linha SECA UHT, observe as condições obrigatórias:</div>
               <ul className="space-y-3 list-disc pl-4">
                 <li>O pedido mínimo é de <span className="font-black">30 caixas no total</span>.</li>
                 <li>De <span className="font-black">30 a 130 caixas (total)</span>: O pedido deve ser <span className="font-bold text-primary">Fracionado</span>.</li>
@@ -485,7 +478,6 @@ export default function NewOrderPage() {
 
                   {selectedFactoryId !== "none" && (
                     <div className="space-y-4 animate-in fade-in slide-in-from-top-2 duration-300">
-                      
                       <div className="grid grid-cols-2 gap-3">
                         <div className="space-y-2">
                           <Label className="text-xs">Marca</Label>
@@ -522,9 +514,6 @@ export default function NewOrderPage() {
                               ))}
                             </SelectContent>
                           </Select>
-                          {orderItems.length > 0 && (
-                            <p className="text-[10px] text-muted-foreground">Linha travada conforme itens no carrinho.</p>
-                          )}
                         </div>
                       </div>
 
@@ -569,62 +558,69 @@ export default function NewOrderPage() {
                     </div>
                   )}
 
-                  {selectedProductId !== "none" && !currentCatalogProduct && !isCatalogLoading && (
-                    <div className="p-3 bg-destructive/10 border border-destructive/20 rounded-lg flex items-start gap-2">
-                      <AlertTriangle size={16} className="text-destructive shrink-0 mt-0.5" />
-                      <div className="text-[10px] text-destructive leading-tight">
-                        <p className="font-bold">Vínculo Quebrado ou Inexistente</p>
-                        <p>O preço deste item não foi encontrado no catálogo.</p>
+                  {selectedProductId !== "none" && (
+                    <div className="space-y-4 animate-in fade-in duration-300">
+                      <div className="space-y-3">
+                        <Label className="text-xs font-bold uppercase text-muted-foreground tracking-wider">Configuração de Preço</Label>
+                        <RadioGroup 
+                          value={priceType} 
+                          onValueChange={(val: any) => handlePriceTypeChange(val)}
+                          className="grid grid-cols-2 gap-2"
+                        >
+                          <Label
+                            htmlFor="price-closed"
+                            className={`flex items-center justify-center gap-2 border-2 rounded-lg p-3 cursor-pointer transition-all ${priceType === 'closed' ? 'border-primary bg-primary/5 text-primary' : 'border-muted bg-transparent'}`}
+                          >
+                            <RadioGroupItem value="closed" id="price-closed" className="sr-only" />
+                            <span className="font-semibold text-xs">Carga Fechada</span>
+                          </Label>
+                          <Label
+                            htmlFor="price-fractional"
+                            className={`flex items-center justify-center gap-2 border-2 rounded-lg p-3 cursor-pointer transition-all ${priceType === 'fractional' ? 'border-primary bg-primary/5 text-primary' : 'border-muted bg-transparent'}`}
+                          >
+                            <RadioGroupItem value="fractional" id="price-fractional" className="sr-only" />
+                            <span className="font-semibold text-xs">Fracionado</span>
+                          </Label>
+                        </RadioGroup>
+                      </div>
+
+                      <div className="flex items-center justify-between p-3 bg-muted/30 rounded-lg border">
+                        <div className="space-y-0.5">
+                          <Label className="text-sm font-semibold">Aplicar Desconto Catálogo</Label>
+                          {currentCatalogProduct && (
+                            <p className="text-[10px] text-muted-foreground">Subtrair R$ {currentCatalogProduct.discountAmount?.toLocaleString('pt-BR')} do preço base</p>
+                          )}
+                        </div>
+                        <Switch 
+                          checked={useCatalogDiscount} 
+                          onCheckedChange={setUseCatalogDiscount} 
+                        />
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-4">
+                        <div className="space-y-2">
+                          <Label>Quantidade (Caixas)</Label>
+                          <Input 
+                            type="number" 
+                            min="1" 
+                            value={quantity} 
+                            onChange={(e) => setQuantity(Number(e.target.value))} 
+                            className="font-bold text-lg h-11"
+                          />
+                        </div>
+                        <div className="space-y-2">
+                          <Label>Contrato (%)</Label>
+                          <Input 
+                            type="number" 
+                            value={contractPercent} 
+                            onChange={(e) => setContractPercent(Number(e.target.value))} 
+                            placeholder="0"
+                            className="h-11 font-bold text-primary"
+                          />
+                        </div>
                       </div>
                     </div>
                   )}
-
-                  <div className="space-y-3">
-                    <Label className="text-xs font-bold uppercase text-muted-foreground tracking-wider">Configuração de Preço</Label>
-                    <RadioGroup 
-                      value={priceType} 
-                      onValueChange={(val: any) => handlePriceTypeChange(val)}
-                      className="grid grid-cols-2 gap-2"
-                    >
-                      <Label
-                        htmlFor="price-closed"
-                        className={`flex items-center justify-center gap-2 border-2 rounded-lg p-3 cursor-pointer transition-all ${priceType === 'closed' ? 'border-primary bg-primary/5 text-primary' : 'border-muted bg-transparent'}`}
-                      >
-                        <RadioGroupItem value="closed" id="price-closed" className="sr-only" />
-                        <span className="font-semibold text-xs">Carga Fechada</span>
-                      </Label>
-                      <Label
-                        htmlFor="price-fractional"
-                        className={`flex items-center justify-center gap-2 border-2 rounded-lg p-3 cursor-pointer transition-all ${priceType === 'fractional' ? 'border-primary bg-primary/5 text-primary' : 'border-muted bg-transparent'}`}
-                      >
-                        <RadioGroupItem value="fractional" id="price-fractional" className="sr-only" />
-                        <span className="font-semibold text-xs">Fracionado</span>
-                      </Label>
-                    </RadioGroup>
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="space-y-2">
-                      <Label>Quantidade (Caixas)</Label>
-                      <Input 
-                        type="number" 
-                        min="1" 
-                        value={quantity} 
-                        onChange={(e) => setQuantity(Number(e.target.value))} 
-                        className="font-bold text-lg h-11"
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label>Contrato (%)</Label>
-                      <Input 
-                        type="number" 
-                        value={contractPercent} 
-                        onChange={(e) => setContractPercent(Number(e.target.value))} 
-                        placeholder="0"
-                        className="h-11 font-bold text-primary"
-                      />
-                    </div>
-                  </div>
                 </>
               )}
             </CardContent>
@@ -632,9 +628,15 @@ export default function NewOrderPage() {
             {unitCalculations && (
               <div className="px-6 py-4 bg-muted/50 border-y space-y-2">
                 <div className="flex justify-between text-xs text-muted-foreground">
-                  <span>Preço Tabela:</span>
+                  <span>Preço Tabela ({priceType === 'closed' ? 'Fechada' : 'Frac'}):</span>
                   <span>R$ {formatCurrency(unitCalculations.basePrice)}</span>
                 </div>
+                {unitCalculations.catalogDiscount > 0 && useCatalogDiscount && (
+                  <div className="flex justify-between text-xs text-accent font-medium">
+                    <span>(-) Desconto Catálogo:</span>
+                    <span>- R$ {formatCurrency(unitCalculations.catalogDiscount)}</span>
+                  </div>
+                )}
                 <div className="flex justify-between text-xs text-primary font-medium">
                   <span>(+) Aditivo Contrato ({contractPercent}%):</span>
                   <span>+ R$ {formatCurrency(unitCalculations.finalUnitPriceBeforeST - unitCalculations.priceAfterCatalog)}</span>
