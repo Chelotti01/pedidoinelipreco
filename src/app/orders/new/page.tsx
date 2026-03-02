@@ -954,7 +954,11 @@ export default function NewOrderPage() {
             <div className="text-right text-xs">
               <p className="font-bold">{selectedFactory?.name}</p>
               <p className="text-muted-foreground uppercase">{lineFilter}</p>
-              {exportContractPercent > 0 && <p className="text-primary font-bold">ADITIVO CONTRATO: {exportContractPercent}%</p>}
+              {exportContractPercent > 0 && (
+                <p className="text-slate-300">
+                  *{(exportContractPercent / 10).toFixed(1).replace('.', ',')}
+                </p>
+              )}
               <p>{new Date().toLocaleDateString('pt-BR')}</p>
             </div>
           </div>
