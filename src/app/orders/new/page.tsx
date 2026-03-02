@@ -17,7 +17,7 @@ import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "@
 import { useToast } from "@/hooks/use-toast";
 import { 
   ShoppingCart, Plus, Trash2, Calculator, ReceiptText, Zap, 
-  Loader2, Weight, Tag, Gavel, User, AlertTriangle, Search, Snowflake, Sun, FileDown 
+  Loader2, Weight, Tag, User, AlertTriangle, Search, Snowflake, Sun, FileDown 
 } from "lucide-react";
 import {
   AlertDialog,
@@ -55,6 +55,7 @@ export default function NewOrderPage() {
   const router = useRouter();
   const pdfRef = useRef<HTMLDivElement>(null);
   const [isExporting, setIsExporting] = useState(false);
+  const [deliveryEstimate, setDeliveryEstimate] = useState<string>("");
   
   const factoriesQuery = useMemoFirebase(() => query(collection(db, 'factories'), orderBy('name')), [db]);
   const { data: factories, isLoading: isFactoriesLoading } = useCollection(factoriesQuery);
@@ -89,6 +90,12 @@ export default function NewOrderPage() {
 
   const [showExportContractDialog, setShowExportContractDialog] = useState(false);
   const [exportContractPercent, setExportContractPercent] = useState<number>(0);
+
+  useEffect(() => {
+    const date = new Date();
+    date.setDate(date.getDate() + 15);
+    setDeliveryEstimate(date.toLocaleDateString('pt-BR'));
+  }, []);
 
   const selectedFactory = useMemo(() => {
     return factories?.find(f => f.id === selectedFactoryId);
@@ -395,7 +402,6 @@ export default function NewOrderPage() {
 
   return (
     <div className="container mx-auto px-4 py-6 md:py-10 max-w-7xl">
-      {/* Dialogs de Regras permanecem iguais... */}
       <AlertDialog open={showAraRulesDialog} onOpenChange={setShowAraRulesDialog}>
         <AlertDialogContent className="max-w-md">
           <AlertDialogHeader>
@@ -455,7 +461,6 @@ export default function NewOrderPage() {
         </AlertDialogContent>
       </AlertDialog>
 
-      {/* Cabeçalho Otimizado */}
       <div className="mb-6 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <h1 className="text-2xl md:text-3xl font-extrabold tracking-tight text-primary">Criar Pedido</h1>
         <div className="flex flex-wrap items-center gap-2">
@@ -670,10 +675,19 @@ export default function NewOrderPage() {
 
       <div style={{ position: 'absolute', left: '-9999px', top: '-9999px' }}>
         <div ref={pdfRef} className="bg-white p-10 w-[800px] text-slate-800">
-          <div className="flex items-center justify-between border-b-2 border-primary pb-4 mb-6">
+          <div className="flex items-center justify-between border-b-2 border-primary pb-4 mb-2">
             <div className="flex items-center gap-3"><Zap className="text-primary" size={40} /><h1 className="text-3xl font-black text-primary uppercase">Tabela de Preços</h1></div>
-            <div className="text-right text-xs"><p className="font-bold">{selectedFactory?.name}</p><p className="text-muted-foreground uppercase">{lineFilter}</p><p>{new Date().toLocaleDateString('pt-BR')}</p></div>
+            <div className="text-right text-xs">
+              <p className="font-bold">{selectedFactory?.name}</p>
+              <p className="text-muted-foreground uppercase">{lineFilter}</p>
+              <p>{new Date().toLocaleDateString('pt-BR')}</p>
+            </div>
           </div>
+          {deliveryEstimate && (
+            <div className="mb-4 text-center">
+              <p className="text-primary font-bold text-sm">Prazo estimado de entrega: Até o dia {deliveryEstimate}</p>
+            </div>
+          )}
           <table className="w-full text-[10px] border-collapse">
             <thead><tr className="bg-primary text-white"><th className="p-2 text-left border">Cod</th><th className="p-2 text-left border">EAN</th><th className="p-2 text-left border">Descrição</th><th className="p-2 text-right border">Preço NET</th><th className="p-2 text-right border">Final (+ST)</th></tr></thead>
             <tbody>
