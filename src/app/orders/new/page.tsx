@@ -112,6 +112,8 @@ export default function NewOrderPage() {
       setShowBvgRulesDialog(true);
     } else if (factoryName.includes('MRV') && selectedLine.includes('SECA')) {
       setShowMrvRulesDialog(true);
+      // Define Fracionado como padrão para MRV SECA
+      setPriceType('fractional');
     } else if (factoryName.includes('SJO') && selectedLine.includes('REFRIGERADA')) {
       setShowSjoRulesDialog(true);
     }
