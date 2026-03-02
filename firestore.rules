@@ -2,151 +2,69 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    /**
-     * CORE PHILOSOPHY
-     * This ruleset implements a robust, role-based access control (RBAC) and ownership model. 
-     * It is designed for a prototyping environment where data schema flexibility is prioritized 
-     * while maintaining strict authorization boundaries. Access is primarily governed by 
-     * user roles (admin, orderCreator, viewer) and document ownership.
-     *
-     * DATA STRUCTURE
-     * - /userProfiles/{userId}: Private user data and role assignments.
-     * - /factories, /products, /discounts: Global catalogs with role-restricted writes.
-     * - /userProfiles/{userId}/uploadedPriceSheets: Private files owned by the uploader.
-     * - /orders: Top-level collection secured by a denormalized 'userId' field.
-     * - /orders/{orderId}/orderItems: Sub-collection dependent on parent order ownership.
-     *
-     * KEY SECURITY DECISIONS
-     * 1. Authorization Independence: Documents like 'Order' denormalize the owner's UID 
-     *    ('userId') to allow for single-document authorization checks without extra reads.
-     * 2. Role-Based Access: Critical system operations (e.g., managing products or 
-     *    modifying price sheets) require specific roles stored in the UserProfile.
-     * 3. Specific User Constraints: Users designated with restricted access (like 'orderCreator') 
-     *    are limited to creating orders and managing their own drafts, preventing 
-     *    access to administrative or global management functions.
-     */
-
-    // --- Helper Functions ---
+    // --- Funções Auxiliares ---
 
     function isSignedIn() {
       return request.auth != null;
     }
 
-    function isOwner(userId) {
-      return isSignedIn() && request.auth.uid == userId;
-    }
-
-    // Checks if the user has a specific role assigned in their profile
-    function hasRole(role) {
-      return isSignedIn() && get(/databases/$(database)/documents/userProfiles/$(request.auth.uid)).data.roles.hasAny([role]);
-    }
-
+    // Rodrigo (Admin) - Acesso Total
     function isAdmin() {
-      return hasRole('admin');
+      return isSignedIn() && (
+        request.auth.token.email == 'vendas.piracanjuba@gmail.com' || 
+        request.auth.token.email == 'rodrigo@inteli-preco.com'
+      );
     }
 
-    // Helper to check parent order ownership for sub-collections
-    function isParentOrderOwner(orderId) {
-      return get(/databases/$(database)/documents/orders/$(orderId)).data.userId == request.auth.uid;
+    // Adriana - Acesso Restrito a pedidos
+    function isDri() {
+      return isSignedIn() && request.auth.token.email == 'adriana@inteli-preco.com';
     }
 
-    // --- Collection Rules ---
+    // --- Regras por Coleção ---
 
-    /**
-     * @description Rules for user profiles. Users can manage their own profile; admins manage all.
-     * @path /userProfiles/{userId}
-     * @allow (get, list, create) if owner. (update) if admin.
-     * @deny (delete) always (profiles should be deactivated, not deleted).
-     * @principle Self-creation for root user document and ownership-based reads.
-     */
     match /userProfiles/{userId} {
-      allow get, list: if isOwner(userId) || isAdmin();
-      allow create: if isOwner(userId);
-      allow update: if isAdmin();
-      allow delete: if false;
-
-      /**
-       * @description Rules for price sheets uploaded by users. Restricted to the uploader.
-       * @path /userProfiles/{userId}/uploadedPriceSheets/{sheetId}
-       * @allow (all) if owner or admin.
-       * @deny (all) if user ID in path doesn't match authenticated UID.
-       * @principle Authorization independence via path-based ownership.
-       */
-      match /uploadedPriceSheets/{sheetId} {
-        allow get, list: if isOwner(userId) || isAdmin();
-        allow create: if isOwner(userId) && request.resource.data.uploadedByUserId == request.auth.uid;
-        allow update: if (isOwner(userId) || isAdmin()) && resource != null;
-        allow delete: if (isOwner(userId) || isAdmin()) && resource != null;
-      }
+      allow get: if isSignedIn();
+      allow create, update: if isAdmin();
     }
 
-    /**
-     * @description Global factory catalog. Public read for all users, admin-only writes.
-     * @path /factories/{factoryId}
-     * @allow (get, list) if signed in. (write) if admin.
-     * @deny (write) if user is not an admin.
-     * @principle Role-based write access for global metadata.
-     */
     match /factories/{factoryId} {
       allow get, list: if isSignedIn();
-      allow create, update, delete: if isAdmin();
+      allow write: if isAdmin();
     }
 
-    /**
-     * @description Global product catalog. Public read for all users, admin-only writes.
-     * @path /products/{productId}
-     * @allow (get, list) if signed in. (write) if admin.
-     * @deny (write) if user is not an admin.
-     * @principle Role-based write access for pricing and product data.
-     */
-    match /products/{productId} {
+    match /catalog_products/{productId} {
       allow get, list: if isSignedIn();
-      allow create, update, delete: if isAdmin();
+      allow write: if isAdmin();
     }
 
-    /**
-     * @description Global discount definitions.
-     * @path /discounts/{discountId}
-     * @allow (get, list) if signed in. (write) if admin.
-     * @deny (write) if user is not an admin.
-     * @principle Global catalog with restricted management.
-     */
+    match /registered_products/{productId} {
+      allow get, list: if isSignedIn();
+      allow write: if isAdmin();
+    }
+
+    match /customers/{customerId} {
+      allow get, list: if isSignedIn();
+      allow write: if isAdmin();
+    }
+
     match /discounts/{discountId} {
       allow get, list: if isSignedIn();
-      allow create, update, delete: if isAdmin();
+      allow write: if isAdmin();
     }
 
-    /**
-     * @description Customer orders. Users can create/view their own; Admins have full access.
-     * @path /orders/{orderId}
-     * @allow (create) if creator. (get, list, update) if owner or admin.
-     * @deny (update) if trying to change the 'userId' ownership field.
-     * @principle Ownership enforcement via denormalized userId field.
-     */
     match /orders/{orderId} {
-      // Dri (orderCreator) can create orders. isOwner logic handles the mapping.
-      allow create: if isSignedIn() && request.resource.data.userId == request.auth.uid;
+      // Adriana e Rodrigo podem criar pedidos
+      allow create: if isSignedIn();
       
-      // get and list are allowed if the user is the owner or an admin
-      allow get, list: if (isSignedIn() && resource.data.userId == request.auth.uid) || isAdmin();
+      // Rodrigo vê tudo. Adriana vê apenas os dela.
+      allow get, list: if isAdmin() || (isSignedIn() && resource.data.userId == request.auth.uid);
       
-      // Update/Delete require existence check and ownership
-      allow update: if (resource != null && (resource.data.userId == request.auth.uid || isAdmin())) 
-                    && request.resource.data.userId == resource.data.userId; // Immutable ownership
-      allow delete: if resource != null && (resource.data.userId == request.auth.uid || isAdmin());
+      // Apenas Rodrigo pode editar ou excluir
+      allow update, delete: if isAdmin();
 
-      /**
-       * @description Individual items within an order.
-       * @path /orders/{orderId}/orderItems/{orderItemId}
-       * @allow (all) if the user owns the parent order or is admin.
-       * @deny (all) if user does not own the parent order.
-       * @principle Relational integrity via parent document lookup.
-       */
       match /orderItems/{orderItemId} {
-        allow get, list: if isParentOrderOwner(orderId) || isAdmin();
-        allow create: if isParentOrderOwner(orderId) || isAdmin();
-        allow update: if (isParentOrderOwner(orderId) || isAdmin()) && resource != null;
-        allow delete: if (isParentOrderOwner(orderId) || isAdmin()) && resource != null;
+        allow read, write: if isAdmin() || (isSignedIn() && get(/databases/$(database)/documents/orders/$(orderId)).data.userId == request.auth.uid);
       }
     }
   }
