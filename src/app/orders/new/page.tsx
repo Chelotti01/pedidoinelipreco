@@ -1,3 +1,4 @@
+
 "use client"
 
 import { useState, useMemo, useEffect, useRef } from 'react';
@@ -15,10 +16,9 @@ import { Switch } from "@/components/ui/switch";
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "@/components/ui/table";
 import { useToast } from "@/hooks/use-toast";
 import { 
-  ShoppingCart, Plus, Trash2, Calculator, ReceiptText, ChevronLeft, Zap, ArrowRight, 
-  Loader2, Weight, Tag, Info, Gavel, User, AlertTriangle, Search, Snowflake, Sun, FileDown 
+  ShoppingCart, Plus, Trash2, Calculator, ReceiptText, Zap, 
+  Loader2, Weight, Tag, Gavel, User, AlertTriangle, Search, Snowflake, Sun, FileDown 
 } from "lucide-react";
-import Link from 'next/link';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -82,13 +82,11 @@ export default function NewOrderPage() {
   const [useCatalogDiscount, setUseCatalogDiscount] = useState<boolean>(true);
   const [contractPercent, setContractPercent] = useState<number>(0);
   
-  // States for commercial rules popups
   const [showAraRulesDialog, setShowAraRulesDialog] = useState(false);
   const [showBvgRulesDialog, setShowBvgRulesDialog] = useState(false);
   const [showMrvRulesDialog, setShowMrvRulesDialog] = useState(false);
   const [showSjoRulesDialog, setShowSjoRulesDialog] = useState(false);
 
-  // States for PDF Export Contract
   const [showExportContractDialog, setShowExportContractDialog] = useState(false);
   const [exportContractPercent, setExportContractPercent] = useState<number>(0);
 
@@ -251,7 +249,7 @@ export default function NewOrderPage() {
     if (orderItems.length > 0 && currentRegisteredProduct.line !== orderItems[0].line) {
       toast({ 
         title: "Mistura de Linhas Não Permitida", 
-        description: `Este pedido já contém itens da linha "${orderItems[0].line}". Para adicionar itens da linha "${currentRegisteredProduct.line}", finalize ou limpe o carrinho atual.`, 
+        description: `Este pedido já contém itens da linha "${orderItems[0].line}".`, 
         variant: "destructive" 
       });
       return;
@@ -284,8 +282,8 @@ export default function NewOrderPage() {
 
     setOrderItems([...orderItems, newItem]);
     toast({
-      title: "Produto adicionado",
-      description: `${currentRegisteredProduct.description} adicionado ao carrinho.`,
+      title: "Adicionado",
+      description: `${currentRegisteredProduct.description} no carrinho.`,
     });
 
     setSelectedProductId("none");
@@ -297,7 +295,7 @@ export default function NewOrderPage() {
   const handleFinalizeOrder = async () => {
     if (orderItems.length === 0) return;
     if (selectedCustomerId === "none") {
-      toast({ title: "Cliente obrigatório", description: "Por favor, selecione um cliente para o pedido.", variant: "destructive" });
+      toast({ title: "Cliente obrigatório", description: "Selecione um cliente.", variant: "destructive" });
       return;
     }
 
@@ -307,76 +305,34 @@ export default function NewOrderPage() {
     const factoryName = selectedFactory?.name?.toUpperCase() || '';
     const selectedLine = orderItems[0]?.line?.toUpperCase() || '';
 
-    // ARA Rules
     if (factoryName.includes('ARA') && selectedLine.includes('SECA UHT')) {
       if (totalQty < 30) {
-        toast({ 
-          title: "Pedido Inválido", 
-          description: `A somatória total dos produtos (${totalQty} cx) é inferior ao mínimo de 30 cxs exigido para esta linha.`, 
-          variant: "destructive" 
-        });
+        toast({ title: "Pedido Inválido", description: `Mínimo 30 cxs (Atual: ${totalQty}).`, variant: "destructive" });
         return;
       }
-
-      if (totalQty >= 30 && totalQty <= 130) {
-        const hasWrongPriceType = orderItems.some(item => item.priceType !== 'fractional');
-        if (hasWrongPriceType) {
-          toast({ 
-            title: "Ajuste de Preço Necessário", 
-            description: "Para pedidos entre 30 e 130 caixas, todos os itens devem estar como 'Fracionado'. Altere a configuração acima para atualizar o carrinho.", 
-            variant: "destructive" 
-          });
-          return;
-        }
+      if (totalQty >= 30 && totalQty <= 130 && orderItems.some(item => item.priceType !== 'fractional')) {
+        toast({ title: "Ajuste de Preço", description: "Use 'Fracionado' para este volume.", variant: "destructive" });
+        return;
       }
-
-      if (totalQty > 130) {
-        const hasWrongPriceType = orderItems.some(item => item.priceType !== 'closed');
-        if (hasWrongPriceType) {
-          toast({ 
-            title: "Ajuste de Preço Necessário", 
-            description: "Para pedidos acima de 130 caixas, todos os itens devem estar como 'Carga Fechada'. Altere a configuração acima para atualizar o carrinho.", 
-            variant: "destructive" 
-          });
-          return;
-        }
-      }
-    }
-
-    // BVG Rules
-    if (factoryName.includes('BVG') && selectedLine.includes('REFRIGERADA')) {
-      if (totalWeight < 70) {
-        toast({ 
-          title: "Peso Mínimo Insuficiente", 
-          description: `O peso total do pedido (${totalWeight.toFixed(2)} Kg) é inferior ao mínimo de 70 Kg exigido para esta linha da fábrica BVG.`, 
-          variant: "destructive" 
-        });
+      if (totalQty > 130 && orderItems.some(item => item.priceType !== 'closed')) {
+        toast({ title: "Ajuste de Preço", description: "Use 'Carga Fechada' para este volume.", variant: "destructive" });
         return;
       }
     }
 
-    // SJO Rules
-    if (factoryName.includes('SJO') && selectedLine.includes('REFRIGERADA')) {
-      if (totalWeight < 1500) {
-        toast({ 
-          title: "Peso Mínimo Insuficiente", 
-          description: `O peso total do pedido (${totalWeight.toFixed(2)} Kg) é inferior ao mínimo de 1.500 Kg exigido para esta linha da fábrica SJO.`, 
-          variant: "destructive" 
-        });
-        return;
-      }
+    if (factoryName.includes('BVG') && selectedLine.includes('REFRIGERADA') && totalWeight < 70) {
+      toast({ title: "Peso Mínimo", description: `Mínimo 70 Kg (Atual: ${totalWeight.toFixed(2)}).`, variant: "destructive" });
+      return;
     }
 
-    // MRV Rules
-    if (factoryName.includes('MRV') && selectedLine.includes('SECA')) {
-      if (totalAmount < 1500) {
-        toast({ 
-          title: "Pedido Mínimo Insuficiente", 
-          description: `O valor total do pedido (R$ ${totalAmount.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}) é inferior ao mínimo de R$ 1.500,00 exigido para esta linha da fábrica MRV.`, 
-          variant: "destructive" 
-        });
-        return;
-      }
+    if (factoryName.includes('SJO') && selectedLine.includes('REFRIGERADA') && totalWeight < 1500) {
+      toast({ title: "Peso Mínimo", description: `Mínimo 1.500 Kg (Atual: ${totalWeight.toFixed(2)}).`, variant: "destructive" });
+      return;
+    }
+
+    if (factoryName.includes('MRV') && selectedLine.includes('SECA') && totalAmount < 1500) {
+      toast({ title: "Pedido Mínimo", description: `Mínimo R$ 1.500,00.`, variant: "destructive" });
+      return;
     }
 
     setIsFinalizing(true);
@@ -391,17 +347,10 @@ export default function NewOrderPage() {
 
     try {
       await addDocumentNonBlocking(collection(db, 'orders'), orderData);
-      toast({
-        title: "Pedido Finalizado!",
-        description: "O pedido foi gravado no histórico com sucesso.",
-      });
+      toast({ title: "Finalizado!", description: "Pedido gravado com sucesso." });
       router.push('/orders/history');
     } catch (error) {
-      toast({
-        title: "Erro ao salvar pedido",
-        description: "Ocorreu um problema ao gravar no banco de dados.",
-        variant: "destructive"
-      });
+      toast({ title: "Erro", description: "Problema ao salvar pedido.", variant: "destructive" });
       setIsFinalizing(false);
     }
   };
@@ -409,253 +358,154 @@ export default function NewOrderPage() {
   const removeProduct = (index: number) => {
     const updatedItems = orderItems.filter((_, i) => i !== index);
     setOrderItems(updatedItems);
-    if (updatedItems.length === 0) {
-      setLineFilter("none");
-    }
+    if (updatedItems.length === 0) setLineFilter("none");
   };
 
-  const orderTotal = useMemo(() => {
-    return orderItems.reduce((acc, item) => acc + item.total, 0);
-  }, [orderItems]);
-
-  const orderTotalWeight = useMemo(() => {
-    return orderItems.reduce((acc, item) => acc + item.weight, 0);
-  }, [orderItems]);
+  const orderTotal = useMemo(() => orderItems.reduce((acc, item) => acc + item.total, 0), [orderItems]);
+  const orderTotalWeight = useMemo(() => orderItems.reduce((acc, item) => acc + item.weight, 0), [orderItems]);
 
   const isLoading = isFactoriesLoading || isRegisteredLoading || isCatalogLoading || isCustomersLoading;
 
-  const formatCurrency = (val: number) => {
-    return val.toLocaleString('pt-BR', { 
-      minimumFractionDigits: 2, 
-      maximumFractionDigits: 2 
-    });
-  };
+  const formatCurrency = (val: number) => val.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
   const handleExportTablePDF = async () => {
     if (!pdfRef.current || filteredProducts.length === 0) return;
-    
     setIsExporting(true);
     setShowExportContractDialog(false);
-    toast({ title: "Gerando Tabela PDF", description: "Aguarde o processamento..." });
-
+    toast({ title: "Exportando PDF", description: "Processando..." });
     try {
       const html2canvas = (await import('html2canvas')).default;
       const { jsPDF } = await import('jspdf');
-
-      // Wait a tick for the hidden table to potentially re-render with the contract percent
       await new Promise(resolve => setTimeout(resolve, 100));
-
       const canvas = await html2canvas(pdfRef.current, { scale: 2, useCORS: true });
       const imgData = canvas.toDataURL('image/png');
       const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
-      
       const imgProps = pdf.getImageProperties(imgData);
       const pdfWidth = pdf.internal.pageSize.getWidth();
       const pdfHeight = (imgProps.height * pdfWidth) / imgProps.width;
-
       pdf.addImage(imgData, 'PNG', 0, 0, pdfWidth, pdfHeight);
-      pdf.save(`tabela_precos_${selectedFactory?.name}_${lineFilter}.pdf`);
-      
-      toast({ title: "Sucesso", description: "Tabela exportada com sucesso!" });
+      pdf.save(`tabela_${selectedFactory?.name}_${lineFilter}.pdf`);
+      toast({ title: "Sucesso", description: "Tabela exportada!" });
     } catch (e) {
-      console.error(e);
-      toast({ title: "Erro na exportação", description: "Não foi possível gerar o PDF.", variant: "destructive" });
+      toast({ title: "Erro", description: "Falha na exportação.", variant: "destructive" });
     } finally {
       setIsExporting(false);
     }
   };
 
   return (
-    <div className="container mx-auto px-4 py-8 md:py-12">
-      {/* Dialog ARA */}
+    <div className="container mx-auto px-4 py-6 md:py-10 max-w-7xl">
+      {/* Dialogs de Regras permanecem iguais... */}
       <AlertDialog open={showAraRulesDialog} onOpenChange={setShowAraRulesDialog}>
         <AlertDialogContent className="max-w-md">
           <AlertDialogHeader>
             <AlertDialogTitle className="flex items-center gap-2 text-primary">
-              <AlertTriangle className="text-orange-500" /> Regras Comerciais ARA
+              <AlertTriangle className="text-orange-500" /> Regras ARA
             </AlertDialogTitle>
             <div className="space-y-4 py-2 text-foreground text-sm">
-              <div className="font-bold border-b pb-2 text-sm">Para a linha SECA UHT, observe as condições obrigatórias:</div>
               <ul className="space-y-3 list-disc pl-4">
-                <li>O pedido mínimo é de <span className="font-black">30 caixas no total</span>.</li>
-                <li>De <span className="font-black">30 a 130 caixas (total)</span>: O pedido deve ser <span className="font-bold text-primary">Fracionado</span>.</li>
-                <li>Acima de <span className="font-black">130 caixas (total)</span>: O pedido deve ser <span className="font-bold text-primary">Carga Fechada</span>.</li>
+                <li>Mínimo: 30 caixas.</li>
+                <li>30 a 130 cxs: Fracionado.</li>
+                <li>Acima 130 cxs: Carga Fechada.</li>
               </ul>
             </div>
           </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogAction className="w-full">Entendido, prosseguir</AlertDialogAction>
-          </AlertDialogFooter>
+          <AlertDialogFooter><AlertDialogAction className="w-full">OK</AlertDialogAction></AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
 
-      {/* Dialog BVG */}
       <AlertDialog open={showBvgRulesDialog} onOpenChange={setShowBvgRulesDialog}>
         <AlertDialogContent className="max-w-md">
           <AlertDialogHeader>
-            <AlertDialogTitle className="flex items-center gap-2 text-primary">
-              <AlertTriangle className="text-orange-500" /> Regras Comerciais BVG
-            </AlertDialogTitle>
-            <div className="space-y-4 py-2 text-foreground text-sm">
-              <div className="font-bold border-b pb-2 text-sm">Para a linha REFRIGERADA, observe as condições obrigatórias:</div>
-              <ul className="space-y-3 list-disc pl-4">
-                <li>O pedido mínimo é de <span className="font-black text-lg">70 KG</span> no total.</li>
-                <li>Verifique o peso das caixas no carrinho antes de finalizar.</li>
-              </ul>
-            </div>
+            <AlertDialogTitle className="flex items-center gap-2 text-primary"><AlertTriangle className="text-orange-500" /> Regras BVG</AlertDialogTitle>
+            <div className="py-2 text-sm">Mínimo: 70 KG.</div>
           </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogAction className="w-full">Entendido, prosseguir</AlertDialogAction>
-          </AlertDialogFooter>
+          <AlertDialogFooter><AlertDialogAction className="w-full">OK</AlertDialogAction></AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
 
-      {/* Dialog SJO */}
       <AlertDialog open={showSjoRulesDialog} onOpenChange={setShowSjoRulesDialog}>
         <AlertDialogContent className="max-w-md">
           <AlertDialogHeader>
-            <AlertDialogTitle className="flex items-center gap-2 text-primary">
-              <AlertTriangle className="text-orange-500" /> Regras Comerciais SJO
-            </AlertDialogTitle>
-            <div className="space-y-4 py-2 text-foreground text-sm">
-              <div className="font-bold border-b pb-2 text-sm">Para a linha REFRIGERADA, observe as condições obrigatórias:</div>
-              <ul className="space-y-3 list-disc pl-4">
-                <li>O pedido mínimo é de <span className="font-black text-lg">1.500 KG</span> no total.</li>
-                <li>Verifique o peso total no carrinho antes de finalizar o pedido.</li>
-              </ul>
-            </div>
+            <AlertDialogTitle className="flex items-center gap-2 text-primary"><AlertTriangle className="text-orange-500" /> Regras SJO</AlertDialogTitle>
+            <div className="py-2 text-sm">Mínimo: 1.500 KG.</div>
           </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogAction className="w-full">Entendido, prosseguir</AlertDialogAction>
-          </AlertDialogFooter>
+          <AlertDialogFooter><AlertDialogAction className="w-full">OK</AlertDialogAction></AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
 
-      {/* Dialog MRV */}
       <AlertDialog open={showMrvRulesDialog} onOpenChange={setShowMrvRulesDialog}>
         <AlertDialogContent className="max-w-md">
           <AlertDialogHeader>
-            <AlertDialogTitle className="flex items-center gap-2 text-primary">
-              <AlertTriangle className="text-orange-500" /> Regras Comerciais MRV
-            </AlertDialogTitle>
-            <div className="space-y-4 py-2 text-foreground text-sm">
-              <div className="font-bold border-b pb-2 text-sm">Para a linha SECA, observe as condições obrigatórias:</div>
-              <ul className="space-y-3 list-disc pl-4">
-                <li>O pedido mínimo é de <span className="font-black text-lg">R$ 1.500,00</span> no total.</li>
-                <li>A finalização do pedido será bloqueada se o valor for inferior ao mínimo.</li>
-              </ul>
-            </div>
+            <AlertDialogTitle className="flex items-center gap-2 text-primary"><AlertTriangle className="text-orange-500" /> Regras MRV</AlertDialogTitle>
+            <div className="py-2 text-sm">Mínimo: R$ 1.500,00.</div>
           </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogAction className="w-full">Entendido, prosseguir</AlertDialogAction>
-          </AlertDialogFooter>
+          <AlertDialogFooter><AlertDialogAction className="w-full">OK</AlertDialogAction></AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
 
-      {/* Dialog for Export Contract Percentage */}
       <AlertDialog open={showExportContractDialog} onOpenChange={setShowExportContractDialog}>
         <AlertDialogContent className="max-w-md">
           <AlertDialogHeader>
-            <AlertDialogTitle className="flex items-center gap-2 text-primary">
-              <Tag className="text-primary" /> Adicionar Contrato na Tabela?
-            </AlertDialogTitle>
-            <AlertDialogDescription>
-              Informe a porcentagem de aditivo de contrato que será aplicada a todos os preços desta exportação PDF.
-            </AlertDialogDescription>
+            <AlertDialogTitle className="flex items-center gap-2 text-primary"><Tag className="text-primary" /> Aditivo Contrato na Tabela?</AlertDialogTitle>
+            <AlertDialogDescription>Informe a porcentagem de aditivo para a exportação PDF.</AlertDialogDescription>
           </AlertDialogHeader>
-          <div className="py-6 space-y-4">
-            <div className="space-y-2">
-              <Label className="text-sm font-bold">Porcentagem de Contrato (%)</Label>
-              <Input 
-                type="number" 
-                value={exportContractPercent} 
-                onChange={(e) => setExportContractPercent(Number(e.target.value))} 
-                placeholder="Ex: 5"
-                className="text-lg font-bold h-12"
-              />
-            </div>
-          </div>
-          <AlertDialogFooter className="gap-2">
-            <AlertDialogCancel className="h-12 flex-1">Cancelar</AlertDialogCancel>
-            <AlertDialogAction onClick={handleExportTablePDF} className="h-12 flex-1 gap-2 font-bold">
-              <FileDown size={18} /> Gerar PDF
-            </AlertDialogAction>
-          </AlertDialogFooter>
+          <div className="py-4"><Input type="number" value={exportContractPercent} onChange={(e) => setExportContractPercent(Number(e.target.value))} placeholder="Ex: 5" className="text-lg font-bold h-12"/></div>
+          <AlertDialogFooter className="gap-2"><AlertDialogCancel className="h-12 flex-1">Voltar</AlertDialogCancel><AlertDialogAction onClick={handleExportTablePDF} className="h-12 flex-1 gap-2 font-bold"><FileDown size={18} /> Gerar PDF</AlertDialogAction></AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
 
-      <div className="mb-8 flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <div className="flex items-center gap-3">
-          <Link href="/catalog" className="text-muted-foreground hover:text-primary transition-colors">
-            <ChevronLeft size={28} />
-          </Link>
-          <div>
-            <h1 className="text-2xl md:text-3xl font-bold tracking-tight">Criar Novo Pedido</h1>
-            <p className="text-sm text-muted-foreground">Monte seu carrinho com preços dinâmicos e impostos (ST).</p>
-          </div>
-        </div>
-        <div className="flex gap-2">
+      {/* Cabeçalho Otimizado */}
+      <div className="mb-6 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <h1 className="text-2xl md:text-3xl font-extrabold tracking-tight text-primary">Criar Pedido</h1>
+        <div className="flex flex-wrap items-center gap-2">
           {selectedFactoryId !== "none" && lineFilter !== "none" && (
-            <Button variant="outline" size="sm" onClick={() => setShowExportContractDialog(true)} disabled={isExporting} className="gap-2 border-accent text-accent hover:bg-accent/5">
+            <Button variant="outline" size="sm" onClick={() => setShowExportContractDialog(true)} disabled={isExporting} className="gap-2 border-accent text-accent hover:bg-accent/5 h-10 px-4">
               {isExporting ? <Loader2 className="animate-spin" size={16} /> : <FileDown size={16} />}
-              Exportar Tabela PDF
+              Tabela PDF
             </Button>
           )}
-          <Link href="/orders/history">
-            <Button variant="outline" size="sm">Histórico de Pedidos</Button>
-          </Link>
-          <div className="bg-primary/10 text-primary px-4 py-2 rounded-lg font-bold flex items-center gap-2 self-start md:self-auto">
+          <div className="bg-primary/10 text-primary px-4 py-2 rounded-lg font-bold flex items-center gap-2 h-10">
             <Zap size={18} /> InteliPreço
           </div>
         </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <div className="lg:col-span-1 space-y-6">
-          <Card className="shadow-lg border-none">
-             <CardHeader className="bg-accent/5">
-                <CardTitle className="text-lg flex items-center gap-2">
-                  <User size={18} className="text-accent" /> Seleção do Cliente
-                </CardTitle>
+          <Card className="shadow-md border-none">
+             <CardHeader className="bg-accent/5 py-4 px-5">
+                <CardTitle className="text-base flex items-center gap-2"><User size={18} className="text-accent" /> Cliente</CardTitle>
              </CardHeader>
-             <CardContent className="pt-6">
+             <CardContent className="pt-4 px-5">
                 <Select value={selectedCustomerId} onValueChange={setSelectedCustomerId}>
-                  <SelectTrigger>
+                  <SelectTrigger className="h-11">
                     <SelectValue placeholder="Selecione o cliente" />
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="none">Escolha um cliente...</SelectItem>
-                    {customers?.map(c => (
-                      <SelectItem key={c.id} value={c.id}>{c.name} ({c.cnpj})</SelectItem>
-                    ))}
+                    {customers?.map(c => (<SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>))}
                   </SelectContent>
                 </Select>
                 {selectedCustomer && (
-                  <div className="mt-3 p-3 bg-muted rounded-md text-[10px] space-y-1">
-                    <p><strong>CNPJ:</strong> {selectedCustomer.cnpj}</p>
-                    <p><strong>Prazo:</strong> {selectedCustomer.paymentTerm}</p>
-                    <p><strong>Tipo Carga:</strong> {selectedCustomer.loadType}</p>
+                  <div className="mt-2 p-2 bg-muted rounded text-[10px] space-y-1">
+                    <p><strong>CNPJ:</strong> {selectedCustomer.cnpj} | <strong>Prazo:</strong> {selectedCustomer.paymentTerm}</p>
                   </div>
                 )}
              </CardContent>
           </Card>
 
-          <Card className="shadow-lg border-none overflow-hidden">
-            <CardHeader className="bg-primary/5">
-              <CardTitle className="text-lg flex items-center gap-2">
-                <Plus size={18} className="text-primary" /> Adicionar Item
-              </CardTitle>
+          <Card className="shadow-md border-none">
+            <CardHeader className="bg-primary/5 py-4 px-5">
+              <CardTitle className="text-base flex items-center gap-2"><Plus size={18} className="text-primary" /> Item</CardTitle>
             </CardHeader>
-            <CardContent className="pt-6 space-y-5">
+            <CardContent className="pt-4 px-5 space-y-4">
               {isLoading ? (
-                <div className="flex flex-col items-center justify-center py-8 gap-2">
-                  <Loader2 className="animate-spin text-primary" />
-                  <span className="text-xs text-muted-foreground">Sincronizando banco de dados...</span>
-                </div>
+                <div className="flex flex-col items-center justify-center py-6 gap-2"><Loader2 className="animate-spin text-primary" /><span className="text-xs text-muted-foreground">Sincronizando...</span></div>
               ) : (
                 <>
-                  <div className="space-y-2">
-                    <Label>Selecione a Fábrica</Label>
+                  <div className="space-y-1.5">
+                    <Label className="text-xs font-bold uppercase">Fábrica</Label>
                     <Select value={selectedFactoryId} onValueChange={(val) => {
                       setSelectedFactoryId(val);
                       setSelectedProductId("none");
@@ -663,34 +513,20 @@ export default function NewOrderPage() {
                       setProductSearch("");
                       setLineFilter("none");
                     }}>
-                      <SelectTrigger>
-                        <SelectValue placeholder="Escolha a fábrica" />
-                      </SelectTrigger>
+                      <SelectTrigger className="h-11"><SelectValue placeholder="Selecione" /></SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="none">Selecione uma fábrica</SelectItem>
-                        {factories?.map(f => (
-                          <SelectItem key={f.id} value={f.id}>{f.name}</SelectItem>
-                        ))}
+                        <SelectItem value="none">Selecione...</SelectItem>
+                        {factories?.map(f => (<SelectItem key={f.id} value={f.id}>{f.name}</SelectItem>))}
                       </SelectContent>
                     </Select>
                   </div>
 
                   {selectedFactoryId !== "none" && (
-                    <div className="space-y-4 animate-in fade-in slide-in-from-top-2 duration-300">
-                      <div className="space-y-2">
-                        <Label className="text-xs">Linha (Obrigatório)</Label>
-                        <Select 
-                          value={lineFilter} 
-                          onValueChange={(val) => {
-                            setLineFilter(val);
-                            setSelectedBrand("all");
-                            setSelectedProductId("none");
-                          }}
-                          disabled={orderItems.length > 0}
-                        >
-                          <SelectTrigger className="h-9">
-                            <SelectValue placeholder="Selecione a Linha" />
-                          </SelectTrigger>
+                    <div className="space-y-4 animate-in fade-in duration-300">
+                      <div className="space-y-1.5">
+                        <Label className="text-xs font-bold uppercase">Linha</Label>
+                        <Select value={lineFilter} onValueChange={(val) => { setLineFilter(val); setSelectedBrand("all"); setSelectedProductId("none"); }} disabled={orderItems.length > 0}>
+                          <SelectTrigger className="h-11"><SelectValue placeholder="Selecione" /></SelectTrigger>
                           <SelectContent>
                             {availableLines.map(line => (
                               <SelectItem key={line} value={line}>
@@ -705,49 +541,29 @@ export default function NewOrderPage() {
                       </div>
 
                       {lineFilter !== "none" && (
-                        <div className="space-y-4 animate-in fade-in slide-in-from-top-1 duration-300">
-                          <div className="space-y-2">
-                            <Label className="text-xs">Marca</Label>
+                        <div className="space-y-4 animate-in fade-in duration-300">
+                          <div className="space-y-1.5">
+                            <Label className="text-xs font-bold uppercase">Marca</Label>
                             <Select value={selectedBrand} onValueChange={setSelectedBrand}>
-                              <SelectTrigger className="h-9">
-                                <SelectValue placeholder="Todas as Marcas" />
-                              </SelectTrigger>
+                              <SelectTrigger className="h-11"><SelectValue placeholder="Todas" /></SelectTrigger>
                               <SelectContent>
-                                <SelectItem value="all">Todas as Marcas</SelectItem>
-                                {availableBrands.map(brand => (
-                                  <SelectItem key={brand} value={brand}>{brand}</SelectItem>
-                                ))}
+                                <SelectItem value="all">Todas</SelectItem>
+                                {availableBrands.map(brand => (<SelectItem key={brand} value={brand}>{brand}</SelectItem>))}
                               </SelectContent>
                             </Select>
                           </div>
 
                           <div className="space-y-2">
+                            <Label className="text-xs font-bold uppercase">Produto</Label>
                             <div className="relative mb-2">
                               <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" size={16} />
-                              <Input 
-                                placeholder="Filtrar por código ou nome..." 
-                                className="pl-10 h-10 font-medium"
-                                value={productSearch}
-                                onChange={(e) => {
-                                  setProductSearch(e.target.value);
-                                  setSelectedProductId("none");
-                                }}
-                              />
+                              <Input placeholder="Filtrar por nome/código..." className="pl-10 h-11" value={productSearch} onChange={(e) => { setProductSearch(e.target.value); setSelectedProductId("none"); }} />
                             </div>
-                            <Label className="text-[10px] text-muted-foreground uppercase font-bold px-1">Produto</Label>
-                            <Select 
-                              value={selectedProductId} 
-                              onValueChange={setSelectedProductId} 
-                              disabled={filteredProducts.length === 0}
-                            >
-                              <SelectTrigger>
-                                <SelectValue placeholder={filteredProducts.length === 0 ? "Nenhum resultado" : "Selecione o produto..."} />
-                              </SelectTrigger>
+                            <Select value={selectedProductId} onValueChange={setSelectedProductId} disabled={filteredProducts.length === 0}>
+                              <SelectTrigger className="h-11"><SelectValue placeholder="Escolha o produto" /></SelectTrigger>
                               <SelectContent>
-                                <SelectItem value="none">Selecione o produto</SelectItem>
-                                {filteredProducts.map(p => (
-                                  <SelectItem key={p.id} value={p.id}>{p.code} - {p.description}</SelectItem>
-                                ))}
+                                <SelectItem value="none">Selecione...</SelectItem>
+                                {filteredProducts.map(p => (<SelectItem key={p.id} value={p.id}>{p.code} - {p.description}</SelectItem>))}
                               </SelectContent>
                             </Select>
                           </div>
@@ -758,64 +574,28 @@ export default function NewOrderPage() {
 
                   {selectedProductId !== "none" && (
                     <div className="space-y-4 animate-in fade-in duration-300">
-                      <div className="space-y-3">
-                        <Label className="text-xs font-bold uppercase text-muted-foreground tracking-wider">Configuração de Preço</Label>
-                        <RadioGroup 
-                          value={priceType} 
-                          onValueChange={(val: any) => handlePriceTypeChange(val)}
-                          className="grid grid-cols-2 gap-2"
-                        >
-                          <Label
-                            htmlFor="price-closed"
-                            className={`flex items-center justify-center gap-2 border-2 rounded-lg p-3 cursor-pointer transition-all ${priceType === 'closed' ? 'border-primary bg-primary/5 text-primary' : 'border-muted bg-transparent'}`}
-                          >
+                      <div className="space-y-2">
+                        <Label className="text-xs font-bold uppercase">Preço</Label>
+                        <RadioGroup value={priceType} onValueChange={(val: any) => handlePriceTypeChange(val)} className="grid grid-cols-2 gap-2">
+                          <Label htmlFor="price-closed" className={`flex items-center justify-center gap-2 border-2 rounded-lg p-3 cursor-pointer transition-all ${priceType === 'closed' ? 'border-primary bg-primary/5 text-primary' : 'border-muted'}`}>
                             <RadioGroupItem value="closed" id="price-closed" className="sr-only" />
-                            <span className="font-semibold text-xs">Carga Fechada</span>
+                            <span className="font-semibold text-xs text-center">Fechada</span>
                           </Label>
-                          <Label
-                            htmlFor="price-fractional"
-                            className={`flex items-center justify-center gap-2 border-2 rounded-lg p-3 cursor-pointer transition-all ${priceType === 'fractional' ? 'border-primary bg-primary/5 text-primary' : 'border-muted bg-transparent'}`}
-                          >
+                          <Label htmlFor="price-fractional" className={`flex items-center justify-center gap-2 border-2 rounded-lg p-3 cursor-pointer transition-all ${priceType === 'fractional' ? 'border-primary bg-primary/5 text-primary' : 'border-muted'}`}>
                             <RadioGroupItem value="fractional" id="price-fractional" className="sr-only" />
-                            <span className="font-semibold text-xs">Fracionado</span>
+                            <span className="font-semibold text-xs text-center">Fracionado</span>
                           </Label>
                         </RadioGroup>
                       </div>
 
                       <div className="flex items-center justify-between p-3 bg-muted/30 rounded-lg border">
-                        <div className="space-y-0.5">
-                          <Label className="text-sm font-semibold">Aplicar Desconto Catálogo</Label>
-                          {currentCatalogProduct && (
-                            <p className="text-[10px] text-muted-foreground">Subtrair R$ {currentCatalogProduct.discountAmount?.toLocaleString('pt-BR')} do preço base</p>
-                          )}
-                        </div>
-                        <Switch 
-                          checked={useCatalogDiscount} 
-                          onCheckedChange={setUseCatalogDiscount} 
-                        />
+                        <Label className="text-sm font-semibold">Desconto Catálogo</Label>
+                        <Switch checked={useCatalogDiscount} onCheckedChange={setUseCatalogDiscount} />
                       </div>
 
                       <div className="grid grid-cols-2 gap-4">
-                        <div className="space-y-2">
-                          <Label>Quantidade (Caixas)</Label>
-                          <Input 
-                            type="number" 
-                            min="1" 
-                            value={quantity} 
-                            onChange={(e) => setQuantity(Number(e.target.value))} 
-                            className="font-bold text-lg h-11"
-                          />
-                        </div>
-                        <div className="space-y-2">
-                          <Label>Contrato (%)</Label>
-                          <Input 
-                            type="number" 
-                            value={contractPercent} 
-                            onChange={(e) => setContractPercent(Number(e.target.value))} 
-                            placeholder="0"
-                            className="h-11 font-bold text-primary"
-                          />
-                        </div>
+                        <div className="space-y-1.5"><Label className="text-xs">Qtd (Cxs)</Label><Input type="number" min="1" value={quantity} onChange={(e) => setQuantity(Number(e.target.value))} className="font-bold text-lg h-11"/></div>
+                        <div className="space-y-1.5"><Label className="text-xs">Contrato (%)</Label><Input type="number" value={contractPercent} onChange={(e) => setContractPercent(Number(e.target.value))} className="h-11 font-bold text-primary"/></div>
                       </div>
                     </div>
                   )}
@@ -824,110 +604,44 @@ export default function NewOrderPage() {
             </CardContent>
             
             {unitCalculations && (
-              <div className="px-6 py-4 bg-muted/50 border-y space-y-2">
-                <div className="flex justify-between text-xs text-muted-foreground">
-                  <span>Preço Tabela ({priceType === 'closed' ? 'Fechada' : 'Frac'}):</span>
-                  <span>R$ {formatCurrency(unitCalculations.basePrice)}</span>
-                </div>
+              <div className="px-5 py-4 bg-muted/50 border-y space-y-1.5">
+                <div className="flex justify-between text-[11px] text-muted-foreground"><span>Base:</span><span>R$ {formatCurrency(unitCalculations.basePrice)}</span></div>
                 {unitCalculations.catalogDiscount > 0 && useCatalogDiscount && (
-                  <div className="flex justify-between text-xs text-accent font-medium">
-                    <span>(-) Desconto Catálogo:</span>
-                    <span>- R$ {formatCurrency(unitCalculations.catalogDiscount)}</span>
-                  </div>
+                  <div className="flex justify-between text-[11px] text-accent font-medium"><span>(-) Desc. Catálogo:</span><span>- R$ {formatCurrency(unitCalculations.catalogDiscount)}</span></div>
                 )}
-                <div className="flex justify-between text-xs text-accent font-bold">
-                  <span>Preço Líquido (NET):</span>
-                  <span>R$ {formatCurrency(unitCalculations.priceAfterCatalog)}</span>
-                </div>
-                <div className="flex justify-between text-xs text-primary font-medium">
-                  <span>(+) Aditivo Contrato ({contractPercent}%):</span>
-                  <span>+ R$ {formatCurrency(unitCalculations.finalUnitPriceBeforeST - unitCalculations.priceAfterCatalog)}</span>
-                </div>
-                <div className="flex justify-between text-xs text-destructive font-medium">
-                  <span className="flex items-center gap-1"><Gavel size={12} /> (+) Imposto ST ({ (unitCalculations.stRate * 100).toFixed(0) }%):</span>
-                  <span>+ R$ {formatCurrency(unitCalculations.stAmount)}</span>
-                </div>
-                <div className="pt-2 border-t flex justify-between items-center">
-                  <div className="flex flex-col">
-                    <span className="text-sm font-bold">Unitário Final:</span>
-                  </div>
-                  <span className="text-xl font-extrabold text-primary">R$ {formatCurrency(unitCalculations.finalUnitPriceWithST)}</span>
-                </div>
+                <div className="flex justify-between text-xs text-accent font-bold"><span>Preço Líquido (NET):</span><span>R$ {formatCurrency(unitCalculations.priceAfterCatalog)}</span></div>
+                <div className="flex justify-between text-[11px] text-primary"><span>(+) Contrato:</span><span>+ R$ {formatCurrency(unitCalculations.finalUnitPriceBeforeST - unitCalculations.priceAfterCatalog)}</span></div>
+                <div className="flex justify-between text-[11px] text-destructive"><span>(+) ST ({ (unitCalculations.stRate * 100).toFixed(0) }%):</span><span>+ R$ {formatCurrency(unitCalculations.stAmount)}</span></div>
+                <div className="pt-2 border-t flex justify-between items-center"><span className="text-sm font-bold">Unitário Final:</span><span className="text-xl font-black text-primary">R$ {formatCurrency(unitCalculations.finalUnitPriceWithST)}</span></div>
               </div>
             )}
 
-            <CardFooter className="pt-4">
-              <Button 
-                className="w-full gap-2 h-14 text-lg font-bold shadow-lg" 
-                onClick={handleAddProduct}
-                disabled={selectedProductId === "none" || isLoading || !currentCatalogProduct}
-              >
-                <Plus size={20} /> Adicionar ao Pedido
-              </Button>
+            <CardFooter className="pt-4 px-5">
+              <Button className="w-full gap-2 h-14 text-lg font-bold shadow-lg" onClick={handleAddProduct} disabled={selectedProductId === "none" || isLoading || !currentCatalogProduct}><Plus size={20} /> Adicionar</Button>
             </CardFooter>
           </Card>
         </div>
 
         <div className="lg:col-span-2 space-y-6">
-          <Card className="shadow-xl border-none flex flex-col min-h-[500px]">
-            <CardHeader className="bg-primary text-white rounded-t-lg flex flex-row items-center justify-between">
-              <div>
-                <CardTitle className="text-xl flex items-center gap-2">
-                  <ShoppingCart size={22} /> Resumo do Carrinho
-                </CardTitle>
-                <CardDescription className="text-white/80">
-                  {selectedCustomer ? `Pedido para: ${selectedCustomer.name}` : 'Selecione um cliente para finalizar'}
-                </CardDescription>
-              </div>
-              <Badge variant="outline" className="text-white border-white/40 px-3 py-1 font-bold">
-                {orderItems.length} Itens
-              </Badge>
+          <Card className="shadow-lg border-none flex flex-col min-h-[400px]">
+            <CardHeader className="bg-primary text-white rounded-t-lg py-4 px-5 flex flex-row items-center justify-between">
+              <CardTitle className="text-lg flex items-center gap-2"><ShoppingCart size={20} /> Carrinho</CardTitle>
+              <Badge variant="outline" className="text-white border-white/40 px-3 py-1 font-bold">{orderItems.length} Itens</Badge>
             </CardHeader>
             <CardContent className="flex-1 p-0">
               {orderItems.length === 0 ? (
-                <div className="flex flex-col items-center justify-center py-32 text-muted-foreground gap-4">
-                  <div className="w-20 h-20 bg-muted rounded-full flex items-center justify-center opacity-20">
-                    <Calculator size={48} />
-                  </div>
-                  <p className="font-medium">Carrinho vazio.</p>
-                </div>
+                <div className="flex flex-col items-center justify-center py-20 text-muted-foreground gap-4 opacity-30"><Calculator size={48} /><p className="font-medium">Vazio.</p></div>
               ) : (
                 <div className="overflow-x-auto">
                   <Table>
-                    <TableHeader>
-                      <TableRow className="bg-muted/30">
-                        <TableHead className="w-[300px]">Produto</TableHead>
-                        <TableHead className="text-center">Qtd</TableHead>
-                        <TableHead className="text-right">Unitário Final</TableHead>
-                        <TableHead className="text-right">Total</TableHead>
-                        <TableHead></TableHead>
-                      </TableRow>
-                    </TableHeader>
+                    <TableHeader><TableRow className="bg-muted/30"><TableHead className="text-xs">Item</TableHead><TableHead className="text-center text-xs">Qtd</TableHead><TableHead className="text-right text-xs">Total</TableHead><TableHead></TableHead></TableRow></TableHeader>
                     <TableBody>
                       {orderItems.map((item, idx) => (
                         <TableRow key={`${item.productId}-${idx}`}>
-                          <TableCell>
-                            <div className="font-bold text-sm">{item.name}</div>
-                            <div className="flex items-center gap-2 mt-1">
-                              <Badge variant="secondary" className="text-[10px] py-0">{item.factoryName}</Badge>
-                              <span className="text-[10px] text-muted-foreground">{item.priceType === 'closed' ? 'Carga Fechada' : 'Fracionado'}</span>
-                              <Badge variant="outline" className="text-[9px] py-0 border-primary text-primary">{item.line}</Badge>
-                            </div>
-                          </TableCell>
-                          <TableCell className="text-center font-medium text-xs">
-                            {item.quantity} cx
-                          </TableCell>
-                          <TableCell className="text-right text-xs">
-                            R$ {formatCurrency(item.unitPriceFinal)}
-                          </TableCell>
-                          <TableCell className="text-right font-bold text-primary">
-                            R$ {formatCurrency(item.total)}
-                          </TableCell>
-                          <TableCell className="text-right">
-                            <Button variant="ghost" size="icon" onClick={() => removeProduct(idx)} className="text-destructive h-8 w-8 hover:bg-destructive/10">
-                              <Trash2 size={16} />
-                            </Button>
-                          </TableCell>
+                          <TableCell className="py-3"><div className="font-bold text-xs uppercase">{item.name}</div><div className="text-[9px] text-muted-foreground mt-0.5">{item.priceType === 'closed' ? 'FECHADA' : 'FRAC'} | {item.line}</div></TableCell>
+                          <TableCell className="text-center font-bold text-xs">{item.quantity} cx</TableCell>
+                          <TableCell className="text-right font-black text-primary text-xs">R$ {formatCurrency(item.total)}</TableCell>
+                          <TableCell className="text-right pr-2"><Button variant="ghost" size="icon" onClick={() => removeProduct(idx)} className="text-destructive h-8 w-8"><Trash2 size={16} /></Button></TableCell>
                         </TableRow>
                       ))}
                     </TableBody>
@@ -936,37 +650,17 @@ export default function NewOrderPage() {
               )}
             </CardContent>
             {orderItems.length > 0 && (
-              <CardFooter className="bg-primary/5 p-8 flex flex-col border-t gap-6">
-                <div className="w-full flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-                  <div className="space-y-1">
-                    <p className="text-xs text-muted-foreground uppercase font-bold tracking-widest">Valor Total Líquido</p>
-                    <p className="text-4xl font-black text-primary">R$ {formatCurrency(orderTotal)}</p>
-                  </div>
-                  <div className="flex flex-col gap-2">
-                    <div className="flex items-center gap-3 bg-white px-5 py-3 rounded-2xl border shadow-sm">
-                      <Weight size={20} className="text-primary" />
-                      <div>
-                        <p className="text-[10px] text-muted-foreground uppercase font-bold">Peso Total</p>
-                        <p className="text-lg font-extrabold text-foreground">{orderTotalWeight.toFixed(2)} Kg</p>
-                      </div>
-                    </div>
+              <CardFooter className="bg-primary/5 p-6 flex flex-col border-t gap-5">
+                <div className="w-full flex justify-between items-center">
+                  <div className="space-y-0.5"><p className="text-[10px] text-muted-foreground uppercase font-black">Total</p><p className="text-3xl font-black text-primary">R$ {formatCurrency(orderTotal)}</p></div>
+                  <div className="flex items-center gap-3 bg-white px-4 py-2 rounded-xl border shadow-sm">
+                    <Weight size={18} className="text-primary" />
+                    <div><p className="text-[9px] text-muted-foreground uppercase font-bold">Peso</p><p className="text-base font-black">{orderTotalWeight.toFixed(2)} Kg</p></div>
                   </div>
                 </div>
-                <div className="grid grid-cols-2 gap-4 w-full">
-                  <Button variant="outline" className="h-14 border-primary text-primary font-bold" onClick={() => {
-                    setOrderItems([]);
-                    setLineFilter("none");
-                  }} disabled={isFinalizing}>
-                    Limpar
-                  </Button>
-                  <Button 
-                    className="h-14 bg-accent hover:bg-accent/90 text-white shadow-xl gap-2 text-lg font-bold"
-                    onClick={handleFinalizeOrder}
-                    disabled={isFinalizing || selectedCustomerId === "none"}
-                  >
-                    {isFinalizing ? <Loader2 className="animate-spin" /> : <ReceiptText size={20} />}
-                    Finalizar Pedido
-                  </Button>
+                <div className="grid grid-cols-2 gap-3 w-full">
+                  <Button variant="outline" className="h-14 border-primary text-primary font-bold" onClick={() => { setOrderItems([]); setLineFilter("none"); }} disabled={isFinalizing}>Limpar</Button>
+                  <Button className="h-14 bg-accent hover:bg-accent/90 text-white shadow-lg gap-2 text-lg font-bold" onClick={handleFinalizeOrder} disabled={isFinalizing || selectedCustomerId === "none"}>{isFinalizing ? <Loader2 className="animate-spin" /> : <ReceiptText size={20} />}Finalizar</Button>
                 </div>
               </CardFooter>
             )}
@@ -974,59 +668,26 @@ export default function NewOrderPage() {
         </div>
       </div>
 
-      {/* Hidden Table for PDF Generation */}
       <div style={{ position: 'absolute', left: '-9999px', top: '-9999px' }}>
         <div ref={pdfRef} className="bg-white p-10 w-[800px] text-slate-800">
           <div className="flex items-center justify-between border-b-2 border-primary pb-4 mb-6">
-            <div className="flex items-center gap-3">
-              <Zap className="text-primary" size={40} />
-              <h1 className="text-3xl font-black text-primary uppercase">Tabela de Preços</h1>
-            </div>
-            <div className="text-right text-xs">
-              <p className="font-bold">{selectedFactory?.name}</p>
-              <p className="text-muted-foreground uppercase">{lineFilter}</p>
-              <p>{new Date().toLocaleDateString('pt-BR')}</p>
-            </div>
+            <div className="flex items-center gap-3"><Zap className="text-primary" size={40} /><h1 className="text-3xl font-black text-primary uppercase">Tabela de Preços</h1></div>
+            <div className="text-right text-xs"><p className="font-bold">{selectedFactory?.name}</p><p className="text-muted-foreground uppercase">{lineFilter}</p><p>{new Date().toLocaleDateString('pt-BR')}</p></div>
           </div>
-          
           <table className="w-full text-[10px] border-collapse">
-            <thead>
-              <tr className="bg-primary text-white">
-                <th className="p-2 text-left border">Cod</th>
-                <th className="p-2 text-left border">EAN</th>
-                <th className="p-2 text-left border">Descrição</th>
-                <th className="p-2 text-right border">Preço NET</th>
-                <th className="p-2 text-right border">Final (+ST)</th>
-              </tr>
-            </thead>
+            <thead><tr className="bg-primary text-white"><th className="p-2 text-left border">Cod</th><th className="p-2 text-left border">EAN</th><th className="p-2 text-left border">Descrição</th><th className="p-2 text-right border">Preço NET</th><th className="p-2 text-right border">Final (+ST)</th></tr></thead>
             <tbody>
-              {[...filteredProducts]
-                .sort((a, b) => (a.code || "").localeCompare(b.code || "", undefined, { numeric: true, sensitivity: 'base' }))
-                .map((p, idx) => {
+              {[...filteredProducts].sort((a, b) => (a.code || "").localeCompare(b.code || "", undefined, { numeric: true, sensitivity: 'base' })).map((p) => {
                   const catalog = catalogProducts?.find(cp => cp.id === p.catalogProductId);
                   const prices = calculateItemPrices(p, catalog, exportContractPercent);
                   if (!prices) return null;
-                  return (
-                    <tr key={p.id} className={idx % 2 === 0 ? 'bg-white' : 'bg-slate-50'}>
-                      <td className="p-2 border font-bold">{p.code}</td>
-                      <td className="p-2 border">{p.ean}</td>
-                      <td className="p-2 border uppercase">{p.description}</td>
-                      <td className="p-2 border text-right">R$ {formatCurrency(prices.finalUnitPriceBeforeST)}</td>
-                      <td className="p-2 border text-right font-bold text-primary">R$ {formatCurrency(prices.finalUnitPriceWithST)}</td>
-                    </tr>
-                  );
+                  return (<tr key={p.id} className="border-b"><td className="p-2 border font-bold">{p.code}</td><td className="p-2 border">{p.ean}</td><td className="p-2 border uppercase">{p.description}</td><td className="p-2 border text-right">R$ {formatCurrency(prices.finalUnitPriceBeforeST)}</td><td className="p-2 border text-right font-bold text-primary">R$ {formatCurrency(prices.finalUnitPriceWithST)}</td></tr>);
               })}
             </tbody>
           </table>
-          
           <div className="mt-8 border-t pt-4 text-[8px] text-muted-foreground flex justify-between items-center">
-            <div className="opacity-30">
-              {exportContractPercent > 0 && (
-                <span>{(exportContractPercent / 10).toFixed(1).replace('.', ',')}</span>
-              )}
-            </div>
-            <p className="flex-1 text-center">Gerado eletronicamente por InteliPreço. Valores vigentes sujeitos a alteração por parte da fábrica.</p>
-            <div className="w-[40px]"></div>
+            <div className="opacity-30">{exportContractPercent > 0 && (<span>{(exportContractPercent / 10).toFixed(1).replace('.', ',')}</span>)}</div>
+            <p className="flex-1 text-center">Gerado eletronicamente por InteliPreço.</p>
           </div>
         </div>
       </div>
