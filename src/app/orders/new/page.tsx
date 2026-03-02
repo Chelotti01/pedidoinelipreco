@@ -15,7 +15,7 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Switch } from "@/components/ui/switch";
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "@/components/ui/table";
 import { useToast } from "@/hooks/use-toast";
-import { ShoppingCart, Plus, Trash2, Calculator, ReceiptText, ChevronLeft, Zap, ArrowRight, Loader2, Weight, Tag, Info, Gavel, User, AlertTriangle, Search, Filter } from "lucide-react";
+import { ShoppingCart, Plus, Trash2, Calculator, ReceiptText, ChevronLeft, Zap, ArrowRight, Loader2, Weight, Tag, Info, Gavel, User, AlertTriangle, Search, Filter, Snowflake, Sun } from "lucide-react";
 import Link from 'next/link';
 
 export type OrderItem = {
@@ -60,10 +60,31 @@ export default function NewOrderPage() {
   const [selectedFactoryId, setSelectedFactoryId] = useState<string>("none");
   const [selectedProductId, setSelectedProductId] = useState<string>("none");
   const [productSearch, setProductSearch] = useState<string>("");
+  const [brandFilter, setBrandFilter] = useState<string>("all");
+  const [lineFilter, setLineFilter] = useState<string>("all");
   const [quantity, setQuantity] = useState<number>(1);
   const [priceType, setPriceType] = useState<'closed' | 'fractional'>('closed');
   const [useCatalogDiscount, setUseCatalogDiscount] = useState<boolean>(true);
   const [contractPercent, setContractPercent] = useState<number>(0);
+
+  // Extrair marcas e linhas únicas da fábrica selecionada
+  const availableBrands = useMemo(() => {
+    if (selectedFactoryId === "none" || !registeredProducts) return [];
+    const brands = registeredProducts
+      .filter(p => p.factoryId === selectedFactoryId)
+      .map(p => p.brand)
+      .filter(Boolean);
+    return Array.from(new Set(brands)).sort();
+  }, [selectedFactoryId, registeredProducts]);
+
+  const availableLines = useMemo(() => {
+    if (selectedFactoryId === "none" || !registeredProducts) return [];
+    const lines = registeredProducts
+      .filter(p => p.factoryId === selectedFactoryId)
+      .map(p => p.line)
+      .filter(Boolean);
+    return Array.from(new Set(lines)).sort();
+  }, [selectedFactoryId, registeredProducts]);
 
   const filteredProducts = useMemo(() => {
     if (selectedFactoryId === "none" || !registeredProducts) return [];
@@ -71,6 +92,14 @@ export default function NewOrderPage() {
     let filtered = registeredProducts.filter(p => 
       p.factoryId === selectedFactoryId && p.catalogProductId
     );
+
+    if (brandFilter !== "all") {
+      filtered = filtered.filter(p => p.brand === brandFilter);
+    }
+
+    if (lineFilter !== "all") {
+      filtered = filtered.filter(p => p.line === lineFilter);
+    }
 
     if (productSearch.trim()) {
       const term = productSearch.toLowerCase();
@@ -81,7 +110,7 @@ export default function NewOrderPage() {
     }
 
     return filtered;
-  }, [selectedFactoryId, registeredProducts, productSearch]);
+  }, [selectedFactoryId, registeredProducts, productSearch, brandFilter, lineFilter]);
 
   const currentRegisteredProduct = useMemo(() => {
     return registeredProducts?.find(p => p.id === selectedProductId);
@@ -310,6 +339,8 @@ export default function NewOrderPage() {
                       setSelectedFactoryId(val);
                       setSelectedProductId("none");
                       setProductSearch("");
+                      setBrandFilter("all");
+                      setLineFilter("all");
                     }}>
                       <SelectTrigger>
                         <SelectValue placeholder="Escolha a fábrica" />
@@ -325,17 +356,55 @@ export default function NewOrderPage() {
 
                   {selectedFactoryId !== "none" && (
                     <div className="space-y-4 animate-in fade-in slide-in-from-top-2 duration-300">
+                      
+                      {/* Filtros de Marca e Linha */}
+                      <div className="grid grid-cols-2 gap-3">
+                        <div className="space-y-2">
+                          <Label className="text-xs">Marca</Label>
+                          <Select value={brandFilter} onValueChange={setBrandFilter}>
+                            <SelectTrigger className="h-9">
+                              <SelectValue placeholder="Todas" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="all">Todas as Marcas</SelectItem>
+                              {availableBrands.map(brand => (
+                                <SelectItem key={brand} value={brand}>{brand}</SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        <div className="space-y-2">
+                          <Label className="text-xs">Linha</Label>
+                          <Select value={lineFilter} onValueChange={setLineFilter}>
+                            <SelectTrigger className="h-9">
+                              <SelectValue placeholder="Todas" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="all">Todas as Linhas</SelectItem>
+                              {availableLines.map(line => (
+                                <SelectItem key={line} value={line}>
+                                  <div className="flex items-center gap-2">
+                                    {line.toLowerCase().includes('refrigerada') ? <Snowflake size={12} className="text-blue-500" /> : <Sun size={12} className="text-orange-500" />}
+                                    {line}
+                                  </div>
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                      </div>
+
                       <div className="space-y-2">
-                        <Label className="flex items-center gap-2"><Filter size={14}/> Buscar Produto (Digite para filtrar)</Label>
+                        <Label className="flex items-center gap-2 text-xs"><Search size={14}/> Buscar (Código ou Nome)</Label>
                         <div className="relative">
                           <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" size={16} />
                           <Input 
-                            placeholder="Digite o código ou nome..." 
-                            className="pl-10"
+                            placeholder="Digite para filtrar..." 
+                            className="pl-10 h-9"
                             value={productSearch}
                             onChange={(e) => {
                               setProductSearch(e.target.value);
-                              setSelectedProductId("none"); // Reseta a seleção ao pesquisar
+                              setSelectedProductId("none");
                             }}
                           />
                         </div>
@@ -349,7 +418,7 @@ export default function NewOrderPage() {
                           disabled={filteredProducts.length === 0}
                         >
                           <SelectTrigger>
-                            <SelectValue placeholder={filteredProducts.length === 0 ? (productSearch ? "Nenhum resultado" : "Nenhum item amarrado") : "Selecione o produto"} />
+                            <SelectValue placeholder={filteredProducts.length === 0 ? "Nenhum resultado" : "Selecione o produto"} />
                           </SelectTrigger>
                           <SelectContent>
                             <SelectItem value="none">Selecione o produto</SelectItem>
@@ -358,7 +427,7 @@ export default function NewOrderPage() {
                             ))}
                           </SelectContent>
                         </Select>
-                        {productSearch && filteredProducts.length > 0 && (
+                        {filteredProducts.length > 0 && (
                           <p className="text-[10px] text-muted-foreground italic">Mostrando {filteredProducts.length} itens filtrados.</p>
                         )}
                       </div>
