@@ -391,7 +391,7 @@ export default function NewOrderPage() {
     if (!pdfRef.current || filteredProducts.length === 0) return;
     setIsExporting(true);
     setShowExportContractDialog(false);
-    toast({ title: "Exportando PDF", description: "Processando múltiplas páginas com margens de segurança..." });
+    toast({ title: "Exportando PDF", description: "Gerando tabelas com margens de segurança..." });
     
     try {
       const html2canvas = (await import('html2canvas')).default;
@@ -411,9 +411,8 @@ export default function NewOrderPage() {
       
       const pdfWidth = 210;
       const pdfHeight = 297;
-      const marginTop = 14.5;
-      const marginBottom = 14.5;
-      const usableHeight = pdfHeight - marginTop - marginBottom; // 268mm
+      const margin = 14.5; // 1.45 cm
+      const usableHeight = pdfHeight - (2 * margin); // 268 mm
       
       const imgWidth = pdfWidth;
       const imgHeight = (canvas.height * imgWidth) / canvas.width;
@@ -421,21 +420,40 @@ export default function NewOrderPage() {
       let heightLeft = imgHeight;
       let pageNum = 0;
 
-      // Adiciona primeira página
-      pdf.addImage(imgData, 'PNG', 0, marginTop, imgWidth, imgHeight);
-      heightLeft -= usableHeight;
-
-      // Adiciona páginas subsequentes se necessário
       while (heightLeft > 0) {
-        pageNum++;
-        pdf.addPage();
-        // Reposiciona a imagem para o início da próxima fatia útil
-        pdf.addImage(imgData, 'PNG', 0, marginTop - (pageNum * usableHeight), imgWidth, imgHeight);
+        if (pageNum > 0) pdf.addPage();
+        
+        // 1. Draw the content slice
+        const yOffset = margin - (pageNum * usableHeight);
+        pdf.addImage(imgData, 'PNG', 0, yOffset, imgWidth, imgHeight);
+        
+        // 2. Clear margins (Draw white rectangles to act as "guards" and prevent text cut-off artifacts)
+        pdf.setFillColor(255, 255, 255);
+        pdf.rect(0, 0, pdfWidth, margin, 'F'); // Top margin
+        pdf.rect(0, pdfHeight - margin, pdfWidth, margin, 'F'); // Bottom margin
+        
+        // 3. Add Header on every page
+        pdf.setFontSize(10);
+        pdf.setTextColor(40, 40, 40);
+        pdf.text(`Fábrica: ${selectedFactory?.name || ''}`, margin, margin - 5);
+        pdf.text(`Linha: ${lineFilter}`, pdfWidth / 2, margin - 5, { align: 'center' });
+        pdf.text(`${new Date().toLocaleDateString('pt-BR')}`, pdfWidth - margin, margin - 5, { align: 'right' });
+        
+        // 4. Add Footer on every page
+        pdf.setFontSize(8);
+        pdf.setTextColor(150, 150, 150);
+        if (exportContractPercent > 0) {
+          pdf.text(`${(exportContractPercent / 10).toFixed(1).replace('.', ',')}`, margin, pdfHeight - margin + 5);
+        }
+        pdf.text(`Página ${pageNum + 1}`, pdfWidth / 2, pdfHeight - margin + 5, { align: 'center' });
+        pdf.text("InteliPreço - Sistema Inteligente", pdfWidth - margin, pdfHeight - margin + 5, { align: 'right' });
+
         heightLeft -= usableHeight;
+        pageNum++;
       }
 
       pdf.save(`tabela_${selectedFactory?.name}_${lineFilter}.pdf`);
-      toast({ title: "Sucesso", description: "Tabela exportada com margens de 1.45cm!" });
+      toast({ title: "Sucesso", description: "Tabela exportada com cabeçalho e rodapé em todas as páginas!" });
     } catch (e) {
       console.error(e);
       toast({ title: "Erro", description: "Falha na exportação do PDF.", variant: "destructive" });
