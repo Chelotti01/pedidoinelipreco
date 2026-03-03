@@ -697,7 +697,7 @@ export default function NewOrderPage() {
                             <Checkbox 
                               id={`zap-${p.id}`} 
                               checked={zapSelectedIds.includes(p.id)} 
-                              onCheckedChange={() => handleToggleZapItem(p.id)}
+                              onValueChange={() => handleToggleZapItem(p.id)}
                             />
                             <label htmlFor={`zap-${p.id}`} className="text-xs font-bold uppercase cursor-pointer truncate">
                               {p.code} - {p.description}
@@ -744,11 +744,11 @@ export default function NewOrderPage() {
           <AlertDialogFooter className="gap-2">
             <AlertDialogCancel className="h-12 flex-1">Cancelar</AlertDialogCancel>
             {!zapGeneratedText ? (
-              <AlertDialogAction onClick={handleGenerateZapMessage} className="h-12 flex-1 gap-2 font-bold bg-green-600 hover:bg-green-700">
+              <Button onClick={handleGenerateZapMessage} className="h-12 flex-1 gap-2 font-bold bg-green-600 hover:bg-green-700 text-white rounded-md">
                 <MessageCircle size={18} /> Gerar Texto
-              </AlertDialogAction>
+              </Button>
             ) : (
-              <Button onClick={handleCopyZapText} className="h-12 flex-1 gap-2 font-bold bg-blue-600 hover:bg-blue-700">
+              <Button onClick={handleCopyZapText} className="h-12 flex-1 gap-2 font-bold bg-blue-600 hover:bg-blue-700 text-white rounded-md">
                 <ClipboardCopy size={18} /> Copiar Texto
               </Button>
             )}
