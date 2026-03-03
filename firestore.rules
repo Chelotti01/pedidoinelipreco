@@ -9,11 +9,12 @@ service cloud.firestore {
       return request.auth != null;
     }
 
-    // Rodrigo (Admin) - Acesso Total
+    // Rodrigo (Admin) e Demo - Acesso Total
     function isAdmin() {
       return isSignedIn() && (
         request.auth.token.email == 'vendas.piracanjuba@gmail.com' || 
-        request.auth.token.email == 'rodrigo@inteli-preco.com'
+        request.auth.token.email == 'rodrigo@inteli-preco.com' ||
+        request.auth.token.email == 'demo@inteli-preco.com'
       );
     }
 
@@ -50,13 +51,13 @@ service cloud.firestore {
     }
 
     match /orders/{orderId} {
-      // Adriana e Rodrigo podem criar pedidos
+      // Adriana, Rodrigo e Demo podem criar pedidos
       allow create: if isSignedIn();
       
-      // Rodrigo vê tudo. Adriana vê apenas os dela.
+      // Rodrigo e Demo veem tudo. Adriana vê apenas os dela.
       allow get, list: if isAdmin() || (isSignedIn() && resource.data.userId == request.auth.uid);
       
-      // Apenas Rodrigo pode editar ou excluir
+      // Apenas Rodrigo e Demo podem editar ou excluir
       allow update, delete: if isAdmin();
 
       match /orderItems/{orderItemId} {

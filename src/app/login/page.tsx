@@ -35,6 +35,7 @@ export default function LoginPage() {
       const lowerEmail = email.toLowerCase().trim();
       if (lowerEmail === 'rodrigo') targetEmail = 'vendas.piracanjuba@gmail.com';
       if (lowerEmail === 'adriana') targetEmail = 'adriana@inteli-preco.com';
+      if (lowerEmail === 'demo') targetEmail = 'demo@inteli-preco.com';
 
       await signInWithEmailAndPassword(auth, targetEmail, password);
       
@@ -75,7 +76,7 @@ export default function LoginPage() {
                 id="email" 
                 value={email} 
                 onChange={(e) => setEmail(e.target.value)}
-                placeholder="Digite seu usuário"
+                placeholder="Ex: rodrigo, adriana ou demo"
                 className="h-12"
                 required
               />
