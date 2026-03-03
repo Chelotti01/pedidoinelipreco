@@ -354,7 +354,7 @@ export default function NewOrderPage() {
 
     if (factoryName.includes('ARA') && selectedLine.includes('SECA UHT')) {
       if (totalQty < 30) {
-        toast({ title: "Pedido Inválido", description: `Mínimo 30 cxs (Atual: ${totalQty}).`, variant: "destructive" });
+        toast({ title: "Pedido Inválido", description: `Mínimo 30 caixas (Atual: ${totalQty}).`, variant: "destructive" });
         return;
       }
       if (totalQty >= 30 && totalQty <= 130 && orderItems.some(item => item.priceType !== 'fractional')) {
@@ -430,7 +430,7 @@ export default function NewOrderPage() {
     if (!pdfRef.current || filteredProducts.length === 0) return;
     setIsExporting(true);
     setShowExportContractDialog(false);
-    toast({ title: "Exportando PDF", description: "Gerando tabelas com margens de segurança..." });
+    toast({ title: "Exportando PDF", description: "Processando múltiplas páginas se necessário..." });
     
     try {
       const html2canvas = (await import('html2canvas')).default;
@@ -451,7 +451,7 @@ export default function NewOrderPage() {
       const pdfWidth = 210;
       const pdfHeight = 297;
       const margin = 14.5; // 1.45 cm
-      const usableHeight = pdfHeight - (2 * margin); // 268 mm
+      const usableHeight = pdfHeight - (2 * margin);
       
       const imgWidth = pdfWidth;
       const imgHeight = (canvas.height * imgWidth) / canvas.width;
@@ -465,20 +465,23 @@ export default function NewOrderPage() {
         const yOffset = margin - (pageNum * usableHeight);
         pdf.addImage(imgData, 'PNG', 0, yOffset, imgWidth, imgHeight);
         
+        // Máscaras de margem
         pdf.setFillColor(255, 255, 255);
         pdf.rect(0, 0, pdfWidth, margin, 'F');
         pdf.rect(0, pdfHeight - margin, pdfWidth, margin, 'F');
         
+        // Cabeçalho repetido
         pdf.setFontSize(10);
         pdf.setTextColor(40, 40, 40);
         pdf.text(`Fábrica: ${selectedFactory?.name || ''}`, margin, margin - 5);
         pdf.text(`Linha: ${lineFilter}`, pdfWidth / 2, margin - 5, { align: 'center' });
         pdf.text(`${new Date().toLocaleDateString('pt-BR')}`, pdfWidth - margin, margin - 5, { align: 'right' });
         
+        // Rodapé repetido
         pdf.setFontSize(8);
         pdf.setTextColor(150, 150, 150);
         if (exportContractPercent > 0) {
-          pdf.text(`${(exportContractPercent / 10).toFixed(1).replace('.', ',')}`, margin, pdfHeight - margin + 5);
+          pdf.text(`Contrato: ${exportContractPercent}%`, margin, pdfHeight - margin + 5);
         }
         pdf.text(`Página ${pageNum + 1}`, pdfWidth / 2, pdfHeight - margin + 5, { align: 'center' });
         pdf.text("InteliPreço - Sistema Inteligente", pdfWidth - margin, pdfHeight - margin + 5, { align: 'right' });
@@ -488,7 +491,7 @@ export default function NewOrderPage() {
       }
 
       pdf.save(`tabela_${selectedFactory?.name}_${lineFilter}.pdf`);
-      toast({ title: "Sucesso", description: "Tabela exportada com sucesso!" });
+      toast({ title: "Sucesso", description: "Tabela exportada com todas as páginas!" });
     } catch (e) {
       console.error(e);
       toast({ title: "Erro", description: "Falha na exportação do PDF.", variant: "destructive" });
@@ -781,10 +784,20 @@ export default function NewOrderPage() {
                       <TableBody>
                         {orderItems.map((item, idx) => (
                           <TableRow key={`${item.productId}-${idx}`}>
-                            <TableCell className="py-3"><div className="font-bold text-xs uppercase">{item.name}</div><div className="text-[9px] text-muted-foreground mt-0.5">{item.priceType === 'closed' ? 'FECHADA' : 'FRAC'} | {item.line}</div></TableCell>
+                            <TableCell className="py-3">
+                              <div className="font-bold text-xs uppercase">{item.name}</div>
+                              <div className="text-[9px] text-muted-foreground mt-0.5">{item.priceType === 'closed' ? 'FECHADA' : 'FRAC'} | {item.line}</div>
+                            </TableCell>
                             <TableCell className="text-center font-bold text-xs">{item.quantity} cx</TableCell>
-                            <TableCell className="text-right font-black text-primary text-xs">R$ {formatCurrency(item.total)}</TableCell>
-                            <TableCell className="text-right pr-2"><Button variant="ghost" size="icon" onClick={() => removeProduct(idx)} className="text-destructive h-8 w-8"><Trash2 size={16} /></Button></TableCell>
+                            <TableCell className="text-right py-3">
+                              <div className="font-black text-primary text-xs">R$ {formatCurrency(item.total)}</div>
+                              <div className="text-[9px] text-muted-foreground mt-0.5 font-medium">Unit: R$ {formatCurrency(item.unitPriceFinal)}</div>
+                            </TableCell>
+                            <TableCell className="text-right pr-2">
+                              <Button variant="ghost" size="icon" onClick={() => removeProduct(idx)} className="text-destructive h-8 w-8">
+                                <Trash2 size={16} />
+                              </Button>
+                            </TableCell>
                           </TableRow>
                         ))}
                       </TableBody>
