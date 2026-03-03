@@ -697,7 +697,7 @@ export default function NewOrderPage() {
                             <Checkbox 
                               id={`zap-${p.id}`} 
                               checked={zapSelectedIds.includes(p.id)} 
-                              onValueChange={() => handleToggleZapItem(p.id)}
+                              onCheckedChange={() => handleToggleZapItem(p.id)}
                             />
                             <label htmlFor={`zap-${p.id}`} className="text-xs font-bold uppercase cursor-pointer truncate">
                               {p.code} - {p.description}
