@@ -9,9 +9,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
-import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
-import { Save, ChevronLeft, Search, Factory, Tag } from "lucide-react";
+import { Save, ChevronLeft, Search, Tag, DollarSign } from "lucide-react";
 import Link from 'next/link';
 
 export default function NewRegisteredProductPage() {
@@ -36,7 +35,8 @@ export default function NewRegisteredProductPage() {
     boxWeightKg: '',
     st: '',
     factoryId: '',
-    catalogProductId: ''
+    catalogProductId: '',
+    customSurchargeR$: '0'
   });
 
   // Fetch factories and products for binding
@@ -63,6 +63,7 @@ export default function NewRegisteredProductPage() {
       quantityPerBox: Number(formData.quantityPerBox),
       unitNetWeightKg: Number(formData.unitNetWeightKg),
       boxWeightKg: Number(formData.boxWeightKg),
+      customSurchargeR$: Number(formData.customSurchargeR$) || 0,
       createdAt: serverTimestamp(),
       updatedAt: serverTimestamp()
     });
@@ -119,6 +120,27 @@ export default function NewRegisteredProductPage() {
                     <Label>Linha</Label>
                     <Input required value={formData.line} onChange={(e) => setFormData({...formData, line: e.target.value})} />
                   </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card className="shadow-lg border-primary/20 bg-primary/5">
+              <CardHeader>
+                <CardTitle className="text-lg flex items-center gap-2">
+                  <DollarSign size={18} className="text-primary" /> Aditivo de Margem (Oculto)
+                </CardTitle>
+                <CardDescription>Valor em Reais somado ao preço unitário sem sinalização externa.</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="space-y-2">
+                  <Label>Aditivo Unitário (R$)</Label>
+                  <Input 
+                    type="number" 
+                    step="0.01" 
+                    value={formData.customSurchargeR$} 
+                    onChange={(e) => setFormData({...formData, customSurchargeR$: e.target.value})} 
+                    className="h-12 text-lg font-bold text-primary"
+                  />
                 </div>
               </CardContent>
             </Card>
@@ -195,7 +217,7 @@ export default function NewRegisteredProductPage() {
 
                 {formData.catalogProductId && (
                   <div className="p-3 bg-muted rounded-md text-xs space-y-1">
-                    <p className="font-bold text-primary flex items-center gap-1"><Search size={12}/> Item vinculado com sucesso</p>
+                    <p className="font-bold text-primary flex items-center gap-1"><Search size={12} /> Item vinculado com sucesso</p>
                     <p>O preço deste cadastro mudará automaticamente quando uma nova planilha da fábrica for enviada.</p>
                   </div>
                 )}

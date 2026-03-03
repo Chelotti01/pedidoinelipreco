@@ -1,4 +1,3 @@
-
 "use client"
 
 import { useState, useMemo, useEffect } from 'react';
@@ -11,7 +10,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
-import { Save, ChevronLeft, Search, Tag, Loader2, AlertCircle, Copy } from "lucide-react";
+import { Save, ChevronLeft, Search, Tag, Loader2, AlertCircle, Copy, DollarSign } from "lucide-react";
 import Link from 'next/link';
 
 export default function EditRegisteredProductPage() {
@@ -42,7 +41,8 @@ export default function EditRegisteredProductPage() {
     boxWeightKg: '',
     st: '',
     factoryId: '',
-    catalogProductId: ''
+    catalogProductId: '',
+    customSurchargeR$: '0'
   });
 
   const [hasPopulated, setHasPopulated] = useState(false);
@@ -67,7 +67,8 @@ export default function EditRegisteredProductPage() {
         boxWeightKg: product.boxWeightKg !== undefined ? String(product.boxWeightKg) : '',
         st: product.st || '',
         factoryId: product.factoryId || '',
-        catalogProductId: product.catalogProductId || ''
+        catalogProductId: product.catalogProductId || '',
+        customSurchargeR$: product.customSurchargeR$ !== undefined ? String(product.customSurchargeR$) : '0'
       });
       setHasPopulated(true);
     }
@@ -101,6 +102,7 @@ export default function EditRegisteredProductPage() {
       quantityPerBox: Number(formData.quantityPerBox) || 0,
       unitNetWeightKg: Number(formData.unitNetWeightKg) || 0,
       boxWeightKg: Number(formData.boxWeightKg) || 0,
+      customSurchargeR$: Number(formData.customSurchargeR$) || 0,
       updatedAt: serverTimestamp()
     });
 
@@ -117,6 +119,7 @@ export default function EditRegisteredProductPage() {
       quantityPerBox: Number(formData.quantityPerBox) || 0,
       unitNetWeightKg: Number(formData.unitNetWeightKg) || 0,
       boxWeightKg: Number(formData.boxWeightKg) || 0,
+      customSurchargeR$: Number(formData.customSurchargeR$) || 0,
       createdAt: serverTimestamp(),
       updatedAt: serverTimestamp()
     });
@@ -201,6 +204,27 @@ export default function EditRegisteredProductPage() {
                     <Label>Linha</Label>
                     <Input value={formData.line} onChange={(e) => setFormData({...formData, line: e.target.value})} />
                   </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card className="shadow-lg border-primary/20 bg-primary/5">
+              <CardHeader>
+                <CardTitle className="text-lg flex items-center gap-2">
+                  <DollarSign size={18} className="text-primary" /> Aditivo de Margem (Oculto)
+                </CardTitle>
+                <CardDescription>Valor em Reais somado ao preço unitário sem sinalização externa.</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="space-y-2">
+                  <Label>Aditivo Unitário (R$)</Label>
+                  <Input 
+                    type="number" 
+                    step="0.01" 
+                    value={formData.customSurchargeR$} 
+                    onChange={(e) => setFormData({...formData, customSurchargeR$: e.target.value})} 
+                    className="h-12 text-lg font-bold text-primary"
+                  />
                 </div>
               </CardContent>
             </Card>

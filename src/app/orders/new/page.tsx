@@ -249,7 +249,11 @@ export default function NewOrderPage() {
     const priceAfterCatalog = Math.max(0, basePrice - catalogDiscount);
     
     const activePercent = overridePercent !== undefined ? overridePercent : (contractPercent || 0);
-    const finalUnitPriceBeforeST = priceAfterCatalog * (1 + activePercent / 100);
+    const customSurcharge = registeredItem.customSurchargeR$ || 0;
+    
+    // O aditivo personalizado é somado ao preço NET antes do contrato e da ST
+    const baseWithSurcharge = priceAfterCatalog + customSurcharge;
+    const finalUnitPriceBeforeST = baseWithSurcharge * (1 + activePercent / 100);
     
     const stRate = parseST(registeredItem.st);
     const stAmount = finalUnitPriceBeforeST * stRate;
@@ -287,8 +291,10 @@ export default function NewOrderPage() {
       
       const catalogDiscount = useCatalogDiscount ? (catalogItem.discountAmount || 0) : 0;
       const priceAfterCatalog = Math.max(0, basePrice - catalogDiscount);
+      const customSurcharge = registeredItem.customSurchargeR$ || 0;
       
-      const finalUnitPriceBeforeST = priceAfterCatalog * (1 + (item.appliedContract || 0) / 100);
+      const baseWithSurcharge = priceAfterCatalog + customSurcharge;
+      const finalUnitPriceBeforeST = baseWithSurcharge * (1 + (item.appliedContract || 0) / 100);
       
       const stRate = parseST(registeredItem.st);
       const stAmount = finalUnitPriceBeforeST * stRate;
@@ -957,7 +963,7 @@ export default function NewOrderPage() {
                   <div className="flex justify-between text-[11px] text-accent font-medium"><span>(-) Desc. Catálogo:</span><span>- R$ {formatCurrency(unitCalculations.catalogDiscount)}</span></div>
                 )}
                 <div className="flex justify-between text-xs text-accent font-bold"><span>Preço Líquido (NET):</span><span>R$ {formatCurrency(unitCalculations.priceAfterCatalog)}</span></div>
-                <div className="flex justify-between text-[11px] text-primary"><span>(+) Contrato:</span><span>+ R$ {formatCurrency(unitCalculations.finalUnitPriceBeforeST - unitCalculations.priceAfterCatalog)}</span></div>
+                <div className="flex justify-between text-[11px] text-primary"><span>(+) Contrato:</span><span>+ R$ {formatCurrency(unitCalculations.finalUnitPriceBeforeST - (unitCalculations.priceAfterCatalog + (currentRegisteredProduct?.customSurchargeR$ || 0)))}</span></div>
                 <div className="flex justify-between text-[11px] text-destructive"><span>(+) ST ({ (unitCalculations.stRate * 100).toFixed(0) }%):</span><span>+ R$ {formatCurrency(unitCalculations.stAmount)}</span></div>
                 <div className="pt-2 border-t flex justify-between items-center"><span className="text-sm font-bold">Unitário Final:</span><span className="text-xl font-black text-primary">R$ {formatCurrency(unitCalculations.finalUnitPriceWithST)}</span></div>
               </div>
