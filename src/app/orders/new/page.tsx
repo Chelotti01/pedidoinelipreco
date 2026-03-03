@@ -391,7 +391,7 @@ export default function NewOrderPage() {
     if (!pdfRef.current || filteredProducts.length === 0) return;
     setIsExporting(true);
     setShowExportContractDialog(false);
-    toast({ title: "Exportando PDF", description: "Processando múltiplas páginas se necessário..." });
+    toast({ title: "Exportando PDF", description: "Processando múltiplas páginas com margens de segurança..." });
     
     try {
       const html2canvas = (await import('html2canvas')).default;
@@ -411,26 +411,31 @@ export default function NewOrderPage() {
       
       const pdfWidth = 210;
       const pdfHeight = 297;
+      const marginTop = 14.5;
+      const marginBottom = 14.5;
+      const usableHeight = pdfHeight - marginTop - marginBottom; // 268mm
+      
       const imgWidth = pdfWidth;
       const imgHeight = (canvas.height * imgWidth) / canvas.width;
       
       let heightLeft = imgHeight;
-      let position = 0;
+      let pageNum = 0;
 
-      // Adiciona a primeira página
-      pdf.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight);
-      heightLeft -= pdfHeight;
+      // Adiciona primeira página
+      pdf.addImage(imgData, 'PNG', 0, marginTop, imgWidth, imgHeight);
+      heightLeft -= usableHeight;
 
       // Adiciona páginas subsequentes se necessário
-      while (heightLeft >= 0) {
-        position = heightLeft - imgHeight;
+      while (heightLeft > 0) {
+        pageNum++;
         pdf.addPage();
-        pdf.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight);
-        heightLeft -= pdfHeight;
+        // Reposiciona a imagem para o início da próxima fatia útil
+        pdf.addImage(imgData, 'PNG', 0, marginTop - (pageNum * usableHeight), imgWidth, imgHeight);
+        heightLeft -= usableHeight;
       }
 
       pdf.save(`tabela_${selectedFactory?.name}_${lineFilter}.pdf`);
-      toast({ title: "Sucesso", description: "Tabela exportada com todas as páginas!" });
+      toast({ title: "Sucesso", description: "Tabela exportada com margens de 1.45cm!" });
     } catch (e) {
       console.error(e);
       toast({ title: "Erro", description: "Falha na exportação do PDF.", variant: "destructive" });
