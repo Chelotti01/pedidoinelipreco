@@ -17,7 +17,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
 import { 
   ShoppingCart, Plus, Trash2, Calculator, ReceiptText, Zap, 
-  Loader2, Weight, Tag, User, AlertTriangle, Search, Snowflake, Sun, FileDown, LogOut, MessageSquare
+  Loader2, Weight, Tag, User, AlertTriangle, Search, Snowflake, Sun, FileDown, LogOut, MessageSquare, Settings2
 } from "lucide-react";
 import {
   AlertDialog,
@@ -81,6 +81,7 @@ export default function NewOrderPage() {
   const [productSearch, setProductSearch] = useState<string>("");
   const [lineFilter, setLineFilter] = useState<string>("none");
   const [categoryFilter, setCategoryFilter] = useState<string>("none");
+  const [isCustomMode, setIsCustomMode] = useState(false);
   const [quantity, setQuantity] = useState<number>(1);
   const [priceType, setPriceType] = useState<'closed' | 'fractional'>('closed');
   const [useCatalogDiscount, setUseCatalogDiscount] = useState<boolean>(true);
@@ -154,6 +155,15 @@ export default function NewOrderPage() {
       setShowSjoRulesDialog(true);
     }
   }, [selectedFactoryId, lineFilter, selectedFactory]);
+
+  const availableLines = useMemo(() => {
+    if (selectedFactoryId === "none" || !registeredProducts) return [];
+    const lines = registeredProducts
+      .filter(p => p.factoryId === selectedFactoryId)
+      .map(p => p.line)
+      .filter(Boolean);
+    return Array.from(new Set(lines)).sort();
+  }, [selectedFactoryId, registeredProducts]);
 
   const availableBrands = useMemo(() => {
     if (selectedFactoryId === "none" || lineFilter === "none" || !registeredProducts) return [];
@@ -452,23 +462,19 @@ export default function NewOrderPage() {
       while (heightLeft > 0) {
         if (pageNum > 0) pdf.addPage();
         
-        // 1. Draw the content slice
         const yOffset = margin - (pageNum * usableHeight);
         pdf.addImage(imgData, 'PNG', 0, yOffset, imgWidth, imgHeight);
         
-        // 2. Clear margins (Draw white rectangles to act as "guards" and prevent text cut-off artifacts)
         pdf.setFillColor(255, 255, 255);
-        pdf.rect(0, 0, pdfWidth, margin, 'F'); // Top margin
-        pdf.rect(0, pdfHeight - margin, pdfWidth, margin, 'F'); // Bottom margin
+        pdf.rect(0, 0, pdfWidth, margin, 'F');
+        pdf.rect(0, pdfHeight - margin, pdfWidth, margin, 'F');
         
-        // 3. Add Header on every page
         pdf.setFontSize(10);
         pdf.setTextColor(40, 40, 40);
         pdf.text(`Fábrica: ${selectedFactory?.name || ''}`, margin, margin - 5);
         pdf.text(`Linha: ${lineFilter}`, pdfWidth / 2, margin - 5, { align: 'center' });
         pdf.text(`${new Date().toLocaleDateString('pt-BR')}`, pdfWidth - margin, margin - 5, { align: 'right' });
         
-        // 4. Add Footer on every page
         pdf.setFontSize(8);
         pdf.setTextColor(150, 150, 150);
         if (exportContractPercent > 0) {
@@ -482,7 +488,7 @@ export default function NewOrderPage() {
       }
 
       pdf.save(`tabela_${selectedFactory?.name}_${lineFilter}.pdf`);
-      toast({ title: "Sucesso", description: "Tabela exportada com cabeçalho e rodapé em todas as páginas!" });
+      toast({ title: "Sucesso", description: "Tabela exportada com sucesso!" });
     } catch (e) {
       console.error(e);
       toast({ title: "Erro", description: "Falha na exportação do PDF.", variant: "destructive" });
@@ -596,29 +602,89 @@ export default function NewOrderPage() {
 
           <Card className="shadow-md border-none">
             <CardHeader className="bg-primary/5 py-4 px-5">
-              <CardTitle className="text-base flex items-center gap-2"><Plus size={18} className="text-primary" /> Item</CardTitle>
+              <CardTitle className="text-base flex items-center justify-between gap-2">
+                <div className="flex items-center gap-2">
+                  <Plus size={18} className="text-primary" /> Item
+                </div>
+                <Button 
+                  variant="link" 
+                  size="sm" 
+                  className="h-auto p-0 text-[10px] font-bold text-primary flex items-center gap-1"
+                  onClick={() => {
+                    setIsCustomMode(!isCustomMode);
+                    setCategoryFilter("none");
+                    setSelectedFactoryId("none");
+                    setLineFilter("none");
+                  }}
+                  disabled={orderItems.length > 0}
+                >
+                  <Settings2 size={12} />
+                  {isCustomMode ? "Modo Simples" : "Personalizar"}
+                </Button>
+              </CardTitle>
             </CardHeader>
             <CardContent className="pt-4 px-5 space-y-4">
               {isLoading ? (
                 <div className="flex flex-col items-center justify-center py-6 gap-2"><Loader2 className="animate-spin text-primary" /><span className="text-xs text-muted-foreground">Sincronizando...</span></div>
               ) : (
                 <>
-                  <div className="space-y-1.5">
-                    <Label className="text-xs font-bold uppercase">Tipo de Pedido</Label>
-                    <Select value={categoryFilter} onValueChange={handleCategoryChange} disabled={orderItems.length > 0}>
-                      <SelectTrigger className="h-11">
-                        <SelectValue placeholder="Selecione o tipo..." />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="none">Selecione...</SelectItem>
-                        <SelectItem value="leite">Leite (ARA - SECA UHT)</SelectItem>
-                        <SelectItem value="mix">Mix (MRV - SECA)</SelectItem>
-                        <SelectItem value="refrigerados">Refrigerados (BVG - REFRIGERADA)</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
+                  {!isCustomMode ? (
+                    <div className="space-y-1.5 animate-in slide-in-from-left-2 duration-300">
+                      <Label className="text-xs font-bold uppercase">Tipo de Pedido</Label>
+                      <Select value={categoryFilter} onValueChange={handleCategoryChange} disabled={orderItems.length > 0}>
+                        <SelectTrigger className="h-11">
+                          <SelectValue placeholder="Selecione o tipo..." />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="none">Selecione...</SelectItem>
+                          <SelectItem value="leite">Leite (ARA - SECA UHT)</SelectItem>
+                          <SelectItem value="mix">Mix (MRV - SECA)</SelectItem>
+                          <SelectItem value="refrigerados">Refrigerados (BVG - REFRIGERADA)</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  ) : (
+                    <div className="space-y-4 animate-in slide-in-from-right-2 duration-300">
+                      <div className="space-y-1.5">
+                        <Label className="text-xs font-bold uppercase">Fábrica</Label>
+                        <Select value={selectedFactoryId} onValueChange={(val) => {
+                          setSelectedFactoryId(val);
+                          setSelectedProductId("none");
+                          setSelectedBrand("all");
+                          setProductSearch("");
+                          setLineFilter("none");
+                        }} disabled={orderItems.length > 0}>
+                          <SelectTrigger className="h-11"><SelectValue placeholder="Escolha a Fábrica" /></SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="none">Selecione...</SelectItem>
+                            {factories?.map(f => (<SelectItem key={f.id} value={f.id}>{f.name}</SelectItem>))}
+                          </SelectContent>
+                        </Select>
+                      </div>
 
-                  {selectedFactoryId !== "none" && (
+                      {selectedFactoryId !== "none" && (
+                        <div className="space-y-1.5 animate-in fade-in duration-300">
+                          <Label className="text-xs font-bold uppercase">Linha</Label>
+                          <Select value={lineFilter} onValueChange={(val) => { setLineFilter(val); setSelectedBrand("all"); setSelectedProductId("none"); }} disabled={orderItems.length > 0}>
+                            <SelectTrigger className="h-11"><SelectValue placeholder="Selecione a Linha" /></SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="none">Escolha a Linha...</SelectItem>
+                              {availableLines.map(line => (
+                                <SelectItem key={line} value={line}>
+                                  <div className="flex items-center gap-2">
+                                    {line.toLowerCase().includes('refrigerada') ? <Snowflake size={12} className="text-blue-500" /> : <Sun size={12} className="text-orange-500" />}
+                                    {line}
+                                  </div>
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {selectedFactoryId !== "none" && lineFilter !== "none" && (
                     <div className="space-y-4 animate-in fade-in duration-300">
                       <div className="space-y-1.5">
                         <Label className="text-xs font-bold uppercase">Marca</Label>
