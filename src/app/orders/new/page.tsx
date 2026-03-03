@@ -105,6 +105,7 @@ export default function NewOrderPage() {
   const [zapSelectedIds, setZapSelectedIds] = useState<string[]>([]);
   const [zapPriceTypes, setZapPriceTypes] = useState<Record<string, 'closed' | 'fractional'>>({});
   const [zapContractPercent, setZapContractPercent] = useState<number>(0);
+  const [zapSearchTerm, setZapSearchTerm] = useState("");
 
   useEffect(() => {
     const date = new Date();
@@ -205,6 +206,16 @@ export default function NewOrderPage() {
 
     return filtered;
   }, [selectedFactoryId, registeredProducts, productSearch, lineFilter, selectedBrand]);
+
+  const zapFilteredProducts = useMemo(() => {
+    if (!filteredProducts) return [];
+    if (!zapSearchTerm.trim()) return filteredProducts;
+    const term = zapSearchTerm.toLowerCase();
+    return filteredProducts.filter(p => 
+      p.code?.toLowerCase().includes(term) || 
+      p.description?.toLowerCase().includes(term)
+    );
+  }, [filteredProducts, zapSearchTerm]);
 
   const currentRegisteredProduct = useMemo(() => {
     return registeredProducts?.find(p => p.id === selectedProductId);
@@ -548,7 +559,7 @@ export default function NewOrderPage() {
     message += `*Data:* ${new Date().toLocaleDateString('pt-BR')}\n\n`;
 
     zapSelectedIds.forEach(id => {
-      const p = filteredProducts.find(item => item.id === id);
+      const p = registeredProducts?.find(item => item.id === id);
       const catalog = catalogProducts?.find(cp => cp.id === p?.catalogProductId);
       if (!p || !catalog) return;
 
@@ -641,51 +652,65 @@ export default function NewOrderPage() {
           </AlertDialogHeader>
           
           <div className="space-y-4 py-4">
-            <div className="flex items-center gap-4 p-3 bg-muted rounded-lg border">
-              <div className="flex-1">
+            <div className="flex flex-col sm:flex-row sm:items-end gap-4 p-3 bg-muted rounded-lg border">
+              <div className="flex-1 space-y-1.5">
                 <Label className="text-xs font-bold uppercase">Aditivo Contrato (%)</Label>
-                <Input type="number" value={zapContractPercent} onChange={(e) => setZapContractPercent(Number(e.target.value))} className="h-10 mt-1 font-bold" />
+                <Input type="number" value={zapContractPercent} onChange={(e) => setZapContractPercent(Number(e.target.value))} className="h-10 font-bold" />
               </div>
-              <div className="flex gap-2 items-end">
-                <Button variant="outline" size="sm" onClick={() => setZapSelectedIds(filteredProducts.map(p => p.id))}>Selecionar Todos</Button>
-                <Button variant="ghost" size="sm" onClick={() => setZapSelectedIds([])}>Limpar</Button>
+              <div className="flex gap-2">
+                <Button variant="outline" size="sm" onClick={() => setZapSelectedIds(filteredProducts.map(p => p.id))}>Todos</Button>
+                <Button variant="ghost" size="sm" onClick={() => { setZapSelectedIds([]); setZapSearchTerm(""); }}>Limpar</Button>
               </div>
+            </div>
+
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" size={16} />
+              <Input 
+                placeholder="Filtrar itens..." 
+                className="pl-10 h-10" 
+                value={zapSearchTerm} 
+                onChange={(e) => setZapSearchTerm(e.target.value)} 
+              />
             </div>
 
             <ScrollArea className="h-[40vh] border rounded-md p-4">
               <div className="space-y-3">
-                {filteredProducts.map(p => (
-                  <div key={p.id} className="flex items-center justify-between border-b pb-2 last:border-0">
-                    <div className="flex items-center gap-3 flex-1 min-w-0">
-                      <Checkbox 
-                        id={`zap-${p.id}`} 
-                        checked={zapSelectedIds.includes(p.id)} 
-                        onCheckedChange={() => handleToggleZapItem(p.id)}
-                      />
-                      <label htmlFor={`zap-${p.id}`} className="text-xs font-bold uppercase cursor-pointer truncate">
-                        {p.code} - {p.description}
-                      </label>
+                {zapFilteredProducts.length === 0 ? (
+                  <div className="text-center py-10 text-muted-foreground text-sm">Nenhum item encontrado.</div>
+                ) : (
+                  zapFilteredProducts.map(p => (
+                    <div key={p.id} className="flex items-center justify-between border-b pb-2 last:border-0">
+                      <div className="flex items-center gap-3 flex-1 min-w-0">
+                        <Checkbox 
+                          id={`zap-${p.id}`} 
+                          checked={zapSelectedIds.includes(p.id)} 
+                          onCheckedChange={() => handleToggleZapItem(p.id)}
+                        />
+                        <label htmlFor={`zap-${p.id}`} className="text-xs font-bold uppercase cursor-pointer truncate">
+                          {p.code} - {p.description}
+                        </label>
+                      </div>
+                      <div className="flex items-center gap-2 shrink-0 ml-4">
+                        <Button 
+                          variant={zapPriceTypes[p.id] === 'closed' || !zapPriceTypes[p.id] ? 'default' : 'outline'} 
+                          size="sm" 
+                          className="h-7 text-[10px] px-2"
+                          onClick={() => handleSetZapPriceType(p.id, 'closed')}
+                        >
+                          Fechada
+                        </Button>
+                        <Button 
+                          variant={zapPriceTypes[p.id] === 'fractional' ? 'default' : 'outline'} 
+                          size="sm" 
+                          className="h-7 text-[10px] px-2"
+                          onClick={() => handleSetZapPriceType(p.id, 'fractional')}
+                        >
+                          Frac
+                        </Button>
+                      </div>
                     </div>
-                    <div className="flex items-center gap-2 shrink-0 ml-4">
-                      <Button 
-                        variant={zapPriceTypes[p.id] === 'closed' || !zapPriceTypes[p.id] ? 'default' : 'outline'} 
-                        size="sm" 
-                        className="h-7 text-[10px] px-2"
-                        onClick={() => handleSetZapPriceType(p.id, 'closed')}
-                      >
-                        Fechada
-                      </Button>
-                      <Button 
-                        variant={zapPriceTypes[p.id] === 'fractional' ? 'default' : 'outline'} 
-                        size="sm" 
-                        className="h-7 text-[10px] px-2"
-                        onClick={() => handleSetZapPriceType(p.id, 'fractional')}
-                      >
-                        Frac
-                      </Button>
-                    </div>
-                  </div>
-                ))}
+                  ))
+                )}
               </div>
             </ScrollArea>
           </div>
