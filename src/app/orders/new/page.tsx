@@ -96,8 +96,11 @@ export default function NewOrderPage() {
   const [showMrvRulesDialog, setShowMrvRulesDialog] = useState(false);
   const [showSjoRulesDialog, setShowSjoRulesDialog] = useState(false);
 
-  const [showExportContractDialog, setShowExportContractDialog] = useState(false);
+  // States para exportação PDF
+  const [showExportConfigDialog, setShowExportConfigDialog] = useState(false);
   const [exportContractPercent, setExportContractPercent] = useState<number>(0);
+  const [exportPriceType, setExportPriceType] = useState<'closed' | 'fractional'>('closed');
+  const [exportBrand, setExportBrand] = useState<string>("all");
 
   // States para o compartilhamento de WhatsApp
   const [showZapDialog, setShowZapDialog] = useState(false);
@@ -206,6 +209,20 @@ export default function NewOrderPage() {
 
     return filtered;
   }, [selectedFactoryId, registeredProducts, productSearch, lineFilter, selectedBrand]);
+
+  const pdfFilteredProducts = useMemo(() => {
+    if (selectedFactoryId === "none" || !registeredProducts || lineFilter === "none") return [];
+    
+    let filtered = registeredProducts.filter(p => 
+      p.factoryId === selectedFactoryId && p.catalogProductId && p.line === lineFilter
+    );
+
+    if (exportBrand !== "all") {
+      filtered = filtered.filter(p => p.brand === exportBrand);
+    }
+
+    return filtered;
+  }, [selectedFactoryId, registeredProducts, lineFilter, exportBrand]);
 
   const zapFilteredProducts = useMemo(() => {
     if (!filteredProducts) return [];
@@ -470,9 +487,9 @@ export default function NewOrderPage() {
   const formatCurrency = (val: number) => val.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
   const handleExportTablePDF = async () => {
-    if (!pdfRef.current || filteredProducts.length === 0) return;
+    if (!pdfRef.current || pdfFilteredProducts.length === 0) return;
     setIsExporting(true);
-    setShowExportContractDialog(false);
+    setShowExportConfigDialog(false);
     toast({ title: "Exportando PDF", description: "Processando múltiplas páginas se necessário..." });
     
     try {
@@ -641,14 +658,64 @@ export default function NewOrderPage() {
         </AlertDialogContent>
       </AlertDialog>
 
-      <AlertDialog open={showExportContractDialog} onOpenChange={setShowExportContractDialog}>
+      {/* Dialog de Configuração do PDF */}
+      <AlertDialog open={showExportConfigDialog} onOpenChange={setShowExportConfigDialog}>
         <AlertDialogContent className="max-w-md">
           <AlertDialogHeader>
-            <AlertDialogTitle className="flex items-center gap-2 text-primary"><Tag className="text-primary" /> Aditivo Contrato na Tabela?</AlertDialogTitle>
-            <AlertDialogDescription>Informe a porcentagem de aditivo para a exportação PDF.</AlertDialogDescription>
+            <AlertDialogTitle className="flex items-center gap-2 text-primary">
+              <FileDown className="text-primary" /> Configurar Tabela PDF
+            </AlertDialogTitle>
+            <AlertDialogDescription>Filtre os itens e defina os parâmetros de preço para o documento.</AlertDialogDescription>
           </AlertDialogHeader>
-          <div className="py-4"><Input type="number" value={exportContractPercent} onChange={(e) => setExportContractPercent(Number(e.target.value))} onFocus={(e) => e.target.select()} placeholder="Ex: 5" className="text-lg font-bold h-12"/></div>
-          <AlertDialogFooter className="gap-2"><AlertDialogCancel className="h-12 flex-1">Voltar</AlertDialogCancel><AlertDialogAction onClick={handleExportTablePDF} className="h-12 flex-1 gap-2 font-bold"><FileDown size={18} /> Gerar PDF</AlertDialogAction></AlertDialogFooter>
+          
+          <div className="space-y-4 py-4">
+            <div className="space-y-1.5">
+              <Label className="text-xs font-bold uppercase">Marca</Label>
+              <Select value={exportBrand} onValueChange={setExportBrand}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Todas" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Todas as Marcas</SelectItem>
+                  {availableBrands.map(brand => (
+                    <SelectItem key={brand} value={brand}>{brand}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-1.5">
+              <Label className="text-xs font-bold uppercase">Tipo de Carga (Preço)</Label>
+              <RadioGroup value={exportPriceType} onValueChange={(val: any) => setExportPriceType(val)} className="grid grid-cols-2 gap-2">
+                <Label htmlFor="pdf-price-closed" className={`flex items-center justify-center gap-2 border-2 rounded-lg p-3 cursor-pointer transition-all ${exportPriceType === 'closed' ? 'border-primary bg-primary/5 text-primary' : 'border-muted'}`}>
+                  <RadioGroupItem value="closed" id="pdf-price-closed" className="sr-only" />
+                  <span className="font-semibold text-xs text-center">Carga Fechada</span>
+                </Label>
+                <Label htmlFor="pdf-price-fractional" className={`flex items-center justify-center gap-2 border-2 rounded-lg p-3 cursor-pointer transition-all ${exportPriceType === 'fractional' ? 'border-primary bg-primary/5 text-primary' : 'border-muted'}`}>
+                  <RadioGroupItem value="fractional" id="pdf-price-fractional" className="sr-only" />
+                  <span className="font-semibold text-xs text-center">Fracionado</span>
+                </Label>
+              </RadioGroup>
+            </div>
+
+            <div className="space-y-1.5">
+              <Label className="text-xs font-bold uppercase">Aditivo Contrato (%)</Label>
+              <Input 
+                type="number" 
+                value={exportContractPercent} 
+                onChange={(e) => setExportContractPercent(Number(e.target.value))} 
+                onFocus={(e) => e.target.select()} 
+                className="text-lg font-bold h-12"
+              />
+            </div>
+          </div>
+
+          <AlertDialogFooter className="gap-2">
+            <AlertDialogCancel className="h-12 flex-1">Cancelar</AlertDialogCancel>
+            <AlertDialogAction onClick={handleExportTablePDF} className="h-12 flex-1 gap-2 font-bold bg-primary hover:bg-primary/90 text-white rounded-md">
+              <FileDown size={18} /> Gerar PDF
+            </AlertDialogAction>
+          </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
 
@@ -772,7 +839,7 @@ export default function NewOrderPage() {
               <Button variant="outline" size="sm" onClick={() => setShowZapDialog(true)} className="gap-2 border-green-500 text-green-600 hover:bg-green-50 h-10 px-4">
                 <MessageCircle size={16} /> Compartilhar Zap
               </Button>
-              <Button variant="outline" size="sm" onClick={() => setShowExportContractDialog(true)} disabled={isExporting} className="gap-2 border-accent text-accent hover:bg-accent/5 h-10 px-4">
+              <Button variant="outline" size="sm" onClick={() => setShowExportConfigDialog(true)} disabled={isExporting} className="gap-2 border-accent text-accent hover:bg-accent/5 h-10 px-4">
                 {isExporting ? <Loader2 className="animate-spin" size={16} /> : <FileDown size={16} />}
                 Tabela PDF
               </Button>
@@ -1094,9 +1161,9 @@ export default function NewOrderPage() {
           <table className="w-full text-[10px] border-collapse">
             <thead><tr className="bg-primary text-white"><th className="p-2 text-left border">Cod</th><th className="p-2 text-left border">EAN</th><th className="p-2 text-left border">Descrição</th><th className="p-2 text-right border">Preço NET</th><th className="p-2 text-right border">Final (+ST)</th></tr></thead>
             <tbody>
-              {[...filteredProducts].sort((a, b) => (a.code || "").localeCompare(b.code || "", undefined, { numeric: true, sensitivity: 'base' })).map((p) => {
+              {[...pdfFilteredProducts].sort((a, b) => (a.code || "").localeCompare(b.code || "", undefined, { numeric: true, sensitivity: 'base' })).map((p) => {
                   const catalog = catalogProducts?.find(cp => cp.id === p.catalogProductId);
-                  const prices = calculateItemPrices(p, catalog, exportContractPercent);
+                  const prices = calculateItemPrices(p, catalog, exportContractPercent, exportPriceType);
                   if (!prices) return null;
                   return (<tr key={p.id} className="border-b"><td className="p-2 border font-bold">{p.code}</td><td className="p-2 border">{p.ean}</td><td className="p-2 border uppercase">{p.description}</td><td className="p-2 border text-right">R$ {formatCurrency(prices.finalUnitPriceBeforeST)}</td><td className="p-2 border text-right font-bold text-primary">R$ {formatCurrency(prices.finalUnitPriceWithST)}</td></tr>);
               })}
