@@ -17,7 +17,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
 import { 
   ShoppingCart, Plus, Trash2, Calculator, ReceiptText, Zap, 
-  Loader2, Weight, Tag, User, AlertTriangle, Search, Snowflake, Sun, FileDown, LogOut, MessageSquare, Settings2
+  Loader2, Weight, Tag, User, AlertTriangle, Search, Snowflake, Sun, FileDown, LogOut, MessageSquare, Settings2, Minus
 } from "lucide-react";
 import {
   AlertDialog,
@@ -47,6 +47,8 @@ export type OrderItem = {
   total: number;
   weight: number;
   line: string;
+  quantityPerBox: number;
+  unitWeight: number; // Peso de uma caixa
 };
 
 export default function NewOrderPage() {
@@ -324,7 +326,9 @@ export default function NewOrderPage() {
       stRate: stRate * 100,
       total,
       weight,
-      line: currentRegisteredProduct.line || ''
+      line: currentRegisteredProduct.line || '',
+      quantityPerBox: qtyPerBox,
+      unitWeight: currentRegisteredProduct.boxWeightKg || 0
     };
 
     setOrderItems([...orderItems, newItem]);
@@ -337,6 +341,19 @@ export default function NewOrderPage() {
     setProductSearch("");
     setQuantity(1);
     setContractPercent(0);
+  };
+
+  const updateItemQuantity = (index: number, newQuantity: number) => {
+    if (newQuantity < 1) return;
+    
+    const updatedItems = [...orderItems];
+    const item = updatedItems[index];
+    
+    item.quantity = newQuantity;
+    item.total = item.unitPriceFinal * item.quantityPerBox * newQuantity;
+    item.weight = item.unitWeight * newQuantity;
+    
+    setOrderItems(updatedItems);
   };
 
   const handleFinalizeOrder = async () => {
@@ -788,7 +805,33 @@ export default function NewOrderPage() {
                               <div className="font-bold text-xs uppercase">{item.name}</div>
                               <div className="text-[9px] text-muted-foreground mt-0.5">{item.priceType === 'closed' ? 'FECHADA' : 'FRAC'} | {item.line}</div>
                             </TableCell>
-                            <TableCell className="text-center font-bold text-xs">{item.quantity} cx</TableCell>
+                            <TableCell className="text-center">
+                              <div className="flex items-center justify-center gap-2">
+                                <Button 
+                                  variant="outline" 
+                                  size="icon" 
+                                  className="h-7 w-7 rounded-full"
+                                  onClick={() => updateItemQuantity(idx, item.quantity - 1)}
+                                  disabled={item.quantity <= 1}
+                                >
+                                  <Minus size={12} />
+                                </Button>
+                                <Input 
+                                  type="number" 
+                                  className="h-8 w-12 text-center p-0 font-bold text-xs" 
+                                  value={item.quantity}
+                                  onChange={(e) => updateItemQuantity(idx, Number(e.target.value))}
+                                />
+                                <Button 
+                                  variant="outline" 
+                                  size="icon" 
+                                  className="h-7 w-7 rounded-full"
+                                  onClick={() => updateItemQuantity(idx, item.quantity + 1)}
+                                >
+                                  <Plus size={12} />
+                                </Button>
+                              </div>
+                            </TableCell>
                             <TableCell className="text-right py-3">
                               <div className="font-black text-primary text-xs">R$ {formatCurrency(item.total)}</div>
                               <div className="text-[9px] text-muted-foreground mt-0.5 font-medium">Unit: R$ {formatCurrency(item.unitPriceFinal)}</div>
