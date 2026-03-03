@@ -391,22 +391,49 @@ export default function NewOrderPage() {
     if (!pdfRef.current || filteredProducts.length === 0) return;
     setIsExporting(true);
     setShowExportContractDialog(false);
-    toast({ title: "Exportando PDF", description: "Processando..." });
+    toast({ title: "Exportando PDF", description: "Processando múltiplas páginas se necessário..." });
+    
     try {
       const html2canvas = (await import('html2canvas')).default;
       const { jsPDF } = await import('jspdf');
+      
       await new Promise(resolve => setTimeout(resolve, 100));
-      const canvas = await html2canvas(pdfRef.current, { scale: 2, useCORS: true });
+      
+      const canvas = await html2canvas(pdfRef.current, { 
+        scale: 2, 
+        useCORS: true,
+        logging: false,
+        windowWidth: 800
+      });
+
       const imgData = canvas.toDataURL('image/png');
-      const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
-      const imgProps = pdf.getImageProperties(imgData);
-      const pdfWidth = pdf.internal.pageSize.getWidth();
-      const pdfHeight = (imgProps.height * pdfWidth) / imgProps.width;
-      pdf.addImage(imgData, 'PNG', 0, 0, pdfWidth, pdfHeight);
+      const pdf = new jsPDF('p', 'mm', 'a4');
+      
+      const pdfWidth = 210;
+      const pdfHeight = 297;
+      const imgWidth = pdfWidth;
+      const imgHeight = (canvas.height * imgWidth) / canvas.width;
+      
+      let heightLeft = imgHeight;
+      let position = 0;
+
+      // Adiciona a primeira página
+      pdf.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight);
+      heightLeft -= pdfHeight;
+
+      // Adiciona páginas subsequentes se necessário
+      while (heightLeft >= 0) {
+        position = heightLeft - imgHeight;
+        pdf.addPage();
+        pdf.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight);
+        heightLeft -= pdfHeight;
+      }
+
       pdf.save(`tabela_${selectedFactory?.name}_${lineFilter}.pdf`);
-      toast({ title: "Sucesso", description: "Tabela exportada!" });
+      toast({ title: "Sucesso", description: "Tabela exportada com todas as páginas!" });
     } catch (e) {
-      toast({ title: "Erro", description: "Falha na exportação.", variant: "destructive" });
+      console.error(e);
+      toast({ title: "Erro", description: "Falha na exportação do PDF.", variant: "destructive" });
     } finally {
       setIsExporting(false);
     }
@@ -703,7 +730,7 @@ export default function NewOrderPage() {
       </div>
 
       <div style={{ position: 'absolute', left: '-9999px', top: '-9999px' }}>
-        <div ref={pdfRef} className="bg-white p-10 w-[800px] text-slate-800">
+        <div ref={pdfRef} className="bg-white p-10 w-[800px] text-slate-800" style={{ height: 'auto', minHeight: '100%' }}>
           <div className="flex items-center justify-between border-b-2 border-primary pb-4 mb-2">
             <div className="flex items-center gap-3"><Zap className="text-primary" size={40} /><h1 className="text-3xl font-black text-primary uppercase">Tabela de Preços</h1></div>
             <div className="text-right text-xs">
