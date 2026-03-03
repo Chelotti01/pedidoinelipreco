@@ -19,7 +19,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { useToast } from "@/hooks/use-toast";
 import { 
   ShoppingCart, Plus, Trash2, Calculator, ReceiptText, Zap, 
-  Loader2, Weight, Tag, User, AlertTriangle, Search, Snowflake, Sun, FileDown, LogOut, MessageSquare, Settings2, Minus, MessageCircle
+  Loader2, Weight, Tag, User, AlertTriangle, Search, Snowflake, Sun, FileDown, LogOut, MessageSquare, Settings2, Minus, MessageCircle, ClipboardCopy, Check, ArrowLeft
 } from "lucide-react";
 import {
   AlertDialog,
@@ -30,7 +30,6 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
-  AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 
 export type OrderItem = {
@@ -106,6 +105,7 @@ export default function NewOrderPage() {
   const [zapPriceTypes, setZapPriceTypes] = useState<Record<string, 'closed' | 'fractional'>>({});
   const [zapContractPercent, setZapContractPercent] = useState<number>(0);
   const [zapSearchTerm, setZapSearchTerm] = useState("");
+  const [zapGeneratedText, setZapGeneratedText] = useState("");
 
   useEffect(() => {
     const date = new Date();
@@ -487,7 +487,7 @@ export default function NewOrderPage() {
       
       const pdfWidth = 210;
       const pdfHeight = 297;
-      const margin = 14.5;
+      const margin = 14.5; // 1.45 cm
       const usableHeight = pdfHeight - (2 * margin);
       
       const imgWidth = pdfWidth;
@@ -502,16 +502,19 @@ export default function NewOrderPage() {
         const yOffset = margin - (pageNum * usableHeight);
         pdf.addImage(imgData, 'PNG', 0, yOffset, imgWidth, imgHeight);
         
+        // Máscara de proteção para cabeçalho e rodapé (retângulos brancos)
         pdf.setFillColor(255, 255, 255);
         pdf.rect(0, 0, pdfWidth, margin, 'F');
         pdf.rect(0, pdfHeight - margin, pdfWidth, margin, 'F');
         
+        // Conteúdo do Cabeçalho Repetido
         pdf.setFontSize(10);
         pdf.setTextColor(40, 40, 40);
         pdf.text(`Fábrica: ${selectedFactory?.name || ''}`, margin, margin - 5);
         pdf.text(`Linha: ${lineFilter}`, pdfWidth / 2, margin - 5, { align: 'center' });
         pdf.text(`${new Date().toLocaleDateString('pt-BR')}`, pdfWidth - margin, margin - 5, { align: 'right' });
         
+        // Conteúdo do Rodapé Repetido
         pdf.setFontSize(8);
         pdf.setTextColor(150, 150, 150);
         if (exportContractPercent > 0) {
@@ -568,14 +571,16 @@ export default function NewOrderPage() {
       if (!prices) return;
 
       message += `• *${p.description}*\n`;
-      message += `  Preço: R$ ${formatCurrency(prices.finalUnitPriceWithST)}\n\n`;
+      message += `  Preço: R$ ${formatCurrency(prices!.finalUnitPriceWithST)}\n\n`;
     });
 
     message += `_Gerado por InteliPreço_`;
+    setZapGeneratedText(message);
+  };
 
-    const encodedText = encodeURIComponent(message);
-    window.open(`https://wa.me/?text=${encodedText}`, '_blank');
-    setShowZapDialog(false);
+  const handleCopyZapText = () => {
+    navigator.clipboard.writeText(zapGeneratedText);
+    toast({ title: "Copiado!", description: "O texto está na sua área de transferência." });
   };
 
   return (
@@ -640,86 +645,113 @@ export default function NewOrderPage() {
       </AlertDialog>
 
       {/* Dialog do WhatsApp */}
-      <AlertDialog open={showZapDialog} onOpenChange={setShowZapDialog}>
+      <AlertDialog open={showZapDialog} onOpenChange={(open) => {
+        setShowZapDialog(open);
+        if (!open) {
+          setZapGeneratedText("");
+          setZapSearchTerm("");
+        }
+      }}>
         <AlertDialogContent className="max-w-2xl">
           <AlertDialogHeader>
             <AlertDialogTitle className="flex items-center gap-2 text-primary">
-              <MessageCircle className="text-green-500" /> Selecionar Itens para Zap
+              <MessageCircle className="text-green-500" /> {zapGeneratedText ? "Texto Gerado" : "Selecionar Itens para Zap"}
             </AlertDialogTitle>
             <AlertDialogDescription>
-              Selecione os produtos e o tipo de carga para gerar a mensagem.
+              {zapGeneratedText ? "Copie o texto abaixo para colar no seu aplicativo de mensagens." : "Selecione os produtos e o tipo de carga para gerar a mensagem."}
             </AlertDialogDescription>
           </AlertDialogHeader>
           
           <div className="space-y-4 py-4">
-            <div className="flex flex-col sm:flex-row sm:items-end gap-4 p-3 bg-muted rounded-lg border">
-              <div className="flex-1 space-y-1.5">
-                <Label className="text-xs font-bold uppercase">Aditivo Contrato (%)</Label>
-                <Input type="number" value={zapContractPercent} onChange={(e) => setZapContractPercent(Number(e.target.value))} className="h-10 font-bold" />
-              </div>
-              <div className="flex gap-2">
-                <Button variant="outline" size="sm" onClick={() => setZapSelectedIds(filteredProducts.map(p => p.id))}>Todos</Button>
-                <Button variant="ghost" size="sm" onClick={() => { setZapSelectedIds([]); setZapSearchTerm(""); }}>Limpar</Button>
-              </div>
-            </div>
+            {!zapGeneratedText ? (
+              <>
+                <div className="flex flex-col sm:flex-row sm:items-end gap-4 p-3 bg-muted rounded-lg border">
+                  <div className="flex-1 space-y-1.5">
+                    <Label className="text-xs font-bold uppercase">Aditivo Contrato (%)</Label>
+                    <Input type="number" value={zapContractPercent} onChange={(e) => setZapContractPercent(Number(e.target.value))} className="h-10 font-bold" />
+                  </div>
+                  <div className="flex gap-2">
+                    <Button variant="outline" size="sm" onClick={() => setZapSelectedIds(filteredProducts.map(p => p.id))}>Todos</Button>
+                    <Button variant="ghost" size="sm" onClick={() => { setZapSelectedIds([]); setZapSearchTerm(""); }}>Limpar</Button>
+                  </div>
+                </div>
 
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" size={16} />
-              <Input 
-                placeholder="Filtrar itens..." 
-                className="pl-10 h-10" 
-                value={zapSearchTerm} 
-                onChange={(e) => setZapSearchTerm(e.target.value)} 
-              />
-            </div>
+                <div className="relative">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" size={16} />
+                  <Input 
+                    placeholder="Filtrar itens..." 
+                    className="pl-10 h-10" 
+                    value={zapSearchTerm} 
+                    onChange={(e) => setZapSearchTerm(e.target.value)} 
+                  />
+                </div>
 
-            <ScrollArea className="h-[40vh] border rounded-md p-4">
-              <div className="space-y-3">
-                {zapFilteredProducts.length === 0 ? (
-                  <div className="text-center py-10 text-muted-foreground text-sm">Nenhum item encontrado.</div>
-                ) : (
-                  zapFilteredProducts.map(p => (
-                    <div key={p.id} className="flex items-center justify-between border-b pb-2 last:border-0">
-                      <div className="flex items-center gap-3 flex-1 min-w-0">
-                        <Checkbox 
-                          id={`zap-${p.id}`} 
-                          checked={zapSelectedIds.includes(p.id)} 
-                          onCheckedChange={() => handleToggleZapItem(p.id)}
-                        />
-                        <label htmlFor={`zap-${p.id}`} className="text-xs font-bold uppercase cursor-pointer truncate">
-                          {p.code} - {p.description}
-                        </label>
-                      </div>
-                      <div className="flex items-center gap-2 shrink-0 ml-4">
-                        <Button 
-                          variant={zapPriceTypes[p.id] === 'closed' || !zapPriceTypes[p.id] ? 'default' : 'outline'} 
-                          size="sm" 
-                          className="h-7 text-[10px] px-2"
-                          onClick={() => handleSetZapPriceType(p.id, 'closed')}
-                        >
-                          Fechada
-                        </Button>
-                        <Button 
-                          variant={zapPriceTypes[p.id] === 'fractional' ? 'default' : 'outline'} 
-                          size="sm" 
-                          className="h-7 text-[10px] px-2"
-                          onClick={() => handleSetZapPriceType(p.id, 'fractional')}
-                        >
-                          Frac
-                        </Button>
-                      </div>
-                    </div>
-                  ))
-                )}
+                <ScrollArea className="h-[40vh] border rounded-md p-4">
+                  <div className="space-y-3">
+                    {zapFilteredProducts.length === 0 ? (
+                      <div className="text-center py-10 text-muted-foreground text-sm">Nenhum item encontrado.</div>
+                    ) : (
+                      zapFilteredProducts.map(p => (
+                        <div key={p.id} className="flex items-center justify-between border-b pb-2 last:border-0">
+                          <div className="flex items-center gap-3 flex-1 min-w-0">
+                            <Checkbox 
+                              id={`zap-${p.id}`} 
+                              checked={zapSelectedIds.includes(p.id)} 
+                              onCheckedChange={() => handleToggleZapItem(p.id)}
+                            />
+                            <label htmlFor={`zap-${p.id}`} className="text-xs font-bold uppercase cursor-pointer truncate">
+                              {p.code} - {p.description}
+                            </label>
+                          </div>
+                          <div className="flex items-center gap-2 shrink-0 ml-4">
+                            <Button 
+                              variant={zapPriceTypes[p.id] === 'closed' || !zapPriceTypes[p.id] ? 'default' : 'outline'} 
+                              size="sm" 
+                              className="h-7 text-[10px] px-2"
+                              onClick={() => handleSetZapPriceType(p.id, 'closed')}
+                            >
+                              Fechada
+                            </Button>
+                            <Button 
+                              variant={zapPriceTypes[p.id] === 'fractional' ? 'default' : 'outline'} 
+                              size="sm" 
+                              className="h-7 text-[10px] px-2"
+                              onClick={() => handleSetZapPriceType(p.id, 'fractional')}
+                            >
+                              Frac
+                            </Button>
+                          </div>
+                        </div>
+                      ))
+                    )}
+                  </div>
+                </ScrollArea>
+              </>
+            ) : (
+              <div className="space-y-4 animate-in fade-in duration-300">
+                <Textarea 
+                  value={zapGeneratedText} 
+                  readOnly 
+                  className="min-h-[40vh] font-mono text-xs bg-slate-50 leading-relaxed"
+                />
+                <Button variant="outline" className="w-full gap-2 text-primary border-primary" onClick={() => setZapGeneratedText("")}>
+                  <ArrowLeft size={16} /> Voltar para Seleção
+                </Button>
               </div>
-            </ScrollArea>
+            )}
           </div>
 
           <AlertDialogFooter className="gap-2">
             <AlertDialogCancel className="h-12 flex-1">Cancelar</AlertDialogCancel>
-            <AlertDialogAction onClick={handleGenerateZapMessage} className="h-12 flex-1 gap-2 font-bold bg-green-600 hover:bg-green-700">
-              <MessageCircle size={18} /> Gerar Mensagem WhatsApp
-            </AlertDialogAction>
+            {!zapGeneratedText ? (
+              <AlertDialogAction onClick={handleGenerateZapMessage} className="h-12 flex-1 gap-2 font-bold bg-green-600 hover:bg-green-700">
+                <MessageCircle size={18} /> Gerar Texto
+              </AlertDialogAction>
+            ) : (
+              <Button onClick={handleCopyZapText} className="h-12 flex-1 gap-2 font-bold bg-blue-600 hover:bg-blue-700">
+                <ClipboardCopy size={18} /> Copiar Texto
+              </Button>
+            )}
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
