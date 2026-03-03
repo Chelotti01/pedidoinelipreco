@@ -14,10 +14,12 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Switch } from "@/components/ui/switch";
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "@/components/ui/table";
 import { Textarea } from "@/components/ui/textarea";
+import { Checkbox } from "@/components/ui/checkbox";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import { useToast } from "@/hooks/use-toast";
 import { 
   ShoppingCart, Plus, Trash2, Calculator, ReceiptText, Zap, 
-  Loader2, Weight, Tag, User, AlertTriangle, Search, Snowflake, Sun, FileDown, LogOut, MessageSquare, Settings2, Minus
+  Loader2, Weight, Tag, User, AlertTriangle, Search, Snowflake, Sun, FileDown, LogOut, MessageSquare, Settings2, Minus, MessageCircle
 } from "lucide-react";
 import {
   AlertDialog,
@@ -28,6 +30,7 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
+  AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 
 export type OrderItem = {
@@ -48,7 +51,7 @@ export type OrderItem = {
   weight: number;
   line: string;
   quantityPerBox: number;
-  unitWeight: number; // Peso de uma caixa
+  unitWeight: number;
 };
 
 export default function NewOrderPage() {
@@ -97,6 +100,12 @@ export default function NewOrderPage() {
   const [showExportContractDialog, setShowExportContractDialog] = useState(false);
   const [exportContractPercent, setExportContractPercent] = useState<number>(0);
 
+  // States para o compartilhamento de WhatsApp
+  const [showZapDialog, setShowZapDialog] = useState(false);
+  const [zapSelectedIds, setZapSelectedIds] = useState<string[]>([]);
+  const [zapPriceTypes, setZapPriceTypes] = useState<Record<string, 'closed' | 'fractional'>>({});
+  const [zapContractPercent, setZapContractPercent] = useState<number>(0);
+
   useEffect(() => {
     const date = new Date();
     date.setDate(date.getDate() + 15);
@@ -107,7 +116,6 @@ export default function NewOrderPage() {
     return factories?.find(f => f.id === selectedFactoryId);
   }, [selectedFactoryId, factories]);
 
-  // Simplificação de categorias
   const handleCategoryChange = (val: string) => {
     setCategoryFilter(val);
     setSelectedProductId("none");
@@ -218,10 +226,11 @@ export default function NewOrderPage() {
     return isNaN(parsed) ? 0 : parsed / 100;
   };
 
-  const calculateItemPrices = (registeredItem: any, catalogItem: any, overridePercent?: number) => {
+  const calculateItemPrices = (registeredItem: any, catalogItem: any, overridePercent?: number, overridePriceType?: 'closed' | 'fractional') => {
     if (!registeredItem || !catalogItem) return null;
 
-    const basePrice = priceType === 'closed' 
+    const activePriceType = overridePriceType || priceType;
+    const basePrice = activePriceType === 'closed' 
       ? (catalogItem.closedLoadPrice || 0) 
       : (catalogItem.fractionalLoadPrice || 0);
     
@@ -344,7 +353,6 @@ export default function NewOrderPage() {
   };
 
   const updateItemQuantity = (index: number, newQuantity: number) => {
-    // Permitir 0 temporariamente para que o usuário possa apagar e redigitar
     if (newQuantity < 0) return;
     
     const updatedItems = [...orderItems];
@@ -468,7 +476,7 @@ export default function NewOrderPage() {
       
       const pdfWidth = 210;
       const pdfHeight = 297;
-      const margin = 14.5; // 1.45 cm
+      const margin = 14.5;
       const usableHeight = pdfHeight - (2 * margin);
       
       const imgWidth = pdfWidth;
@@ -483,19 +491,16 @@ export default function NewOrderPage() {
         const yOffset = margin - (pageNum * usableHeight);
         pdf.addImage(imgData, 'PNG', 0, yOffset, imgWidth, imgHeight);
         
-        // Máscaras de margem
         pdf.setFillColor(255, 255, 255);
         pdf.rect(0, 0, pdfWidth, margin, 'F');
         pdf.rect(0, pdfHeight - margin, pdfWidth, margin, 'F');
         
-        // Cabeçalho repetido
         pdf.setFontSize(10);
         pdf.setTextColor(40, 40, 40);
         pdf.text(`Fábrica: ${selectedFactory?.name || ''}`, margin, margin - 5);
         pdf.text(`Linha: ${lineFilter}`, pdfWidth / 2, margin - 5, { align: 'center' });
         pdf.text(`${new Date().toLocaleDateString('pt-BR')}`, pdfWidth - margin, margin - 5, { align: 'right' });
         
-        // Rodapé repetido
         pdf.setFontSize(8);
         pdf.setTextColor(150, 150, 150);
         if (exportContractPercent > 0) {
@@ -516,6 +521,50 @@ export default function NewOrderPage() {
     } finally {
       setIsExporting(false);
     }
+  };
+
+  // Funções para WhatsApp
+  const handleToggleZapItem = (productId: string) => {
+    setZapSelectedIds(prev => 
+      prev.includes(productId) ? prev.filter(id => id !== productId) : [...prev, productId]
+    );
+    if (!zapPriceTypes[productId]) {
+      setZapPriceTypes(prev => ({ ...prev, [productId]: 'closed' }));
+    }
+  };
+
+  const handleSetZapPriceType = (productId: string, type: 'closed' | 'fractional') => {
+    setZapPriceTypes(prev => ({ ...prev, [productId]: type }));
+  };
+
+  const handleGenerateZapMessage = () => {
+    if (zapSelectedIds.length === 0) {
+      toast({ title: "Seleção vazia", description: "Selecione pelo menos um item.", variant: "destructive" });
+      return;
+    }
+
+    let message = `*Tabela de Preços - ${selectedFactory?.name}*\n`;
+    message += `*Linha:* ${lineFilter}\n`;
+    message += `*Data:* ${new Date().toLocaleDateString('pt-BR')}\n\n`;
+
+    zapSelectedIds.forEach(id => {
+      const p = filteredProducts.find(item => item.id === id);
+      const catalog = catalogProducts?.find(cp => cp.id === p?.catalogProductId);
+      if (!p || !catalog) return;
+
+      const type = zapPriceTypes[id] || 'closed';
+      const prices = calculateItemPrices(p, catalog, zapContractPercent, type);
+      if (!prices) return;
+
+      message += `• *${p.description}*\n`;
+      message += `  Preço: R$ ${formatCurrency(prices.finalUnitPriceWithST)}\n\n`;
+    });
+
+    message += `_Gerado por InteliPreço_`;
+
+    const encodedText = encodeURIComponent(message);
+    window.open(`https://wa.me/?text=${encodedText}`, '_blank');
+    setShowZapDialog(false);
   };
 
   return (
@@ -579,14 +628,90 @@ export default function NewOrderPage() {
         </AlertDialogContent>
       </AlertDialog>
 
+      {/* Dialog do WhatsApp */}
+      <AlertDialog open={showZapDialog} onOpenChange={setShowZapDialog}>
+        <AlertDialogContent className="max-w-2xl">
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center gap-2 text-primary">
+              <MessageCircle className="text-green-500" /> Selecionar Itens para Zap
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              Selecione os produtos e o tipo de carga para gerar a mensagem.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          
+          <div className="space-y-4 py-4">
+            <div className="flex items-center gap-4 p-3 bg-muted rounded-lg border">
+              <div className="flex-1">
+                <Label className="text-xs font-bold uppercase">Aditivo Contrato (%)</Label>
+                <Input type="number" value={zapContractPercent} onChange={(e) => setZapContractPercent(Number(e.target.value))} className="h-10 mt-1 font-bold" />
+              </div>
+              <div className="flex gap-2 items-end">
+                <Button variant="outline" size="sm" onClick={() => setZapSelectedIds(filteredProducts.map(p => p.id))}>Selecionar Todos</Button>
+                <Button variant="ghost" size="sm" onClick={() => setZapSelectedIds([])}>Limpar</Button>
+              </div>
+            </div>
+
+            <ScrollArea className="h-[40vh] border rounded-md p-4">
+              <div className="space-y-3">
+                {filteredProducts.map(p => (
+                  <div key={p.id} className="flex items-center justify-between border-b pb-2 last:border-0">
+                    <div className="flex items-center gap-3 flex-1 min-w-0">
+                      <Checkbox 
+                        id={`zap-${p.id}`} 
+                        checked={zapSelectedIds.includes(p.id)} 
+                        onCheckedChange={() => handleToggleZapItem(p.id)}
+                      />
+                      <label htmlFor={`zap-${p.id}`} className="text-xs font-bold uppercase cursor-pointer truncate">
+                        {p.code} - {p.description}
+                      </label>
+                    </div>
+                    <div className="flex items-center gap-2 shrink-0 ml-4">
+                      <Button 
+                        variant={zapPriceTypes[p.id] === 'closed' || !zapPriceTypes[p.id] ? 'default' : 'outline'} 
+                        size="sm" 
+                        className="h-7 text-[10px] px-2"
+                        onClick={() => handleSetZapPriceType(p.id, 'closed')}
+                      >
+                        Fechada
+                      </Button>
+                      <Button 
+                        variant={zapPriceTypes[p.id] === 'fractional' ? 'default' : 'outline'} 
+                        size="sm" 
+                        className="h-7 text-[10px] px-2"
+                        onClick={() => handleSetZapPriceType(p.id, 'fractional')}
+                      >
+                        Frac
+                      </Button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </ScrollArea>
+          </div>
+
+          <AlertDialogFooter className="gap-2">
+            <AlertDialogCancel className="h-12 flex-1">Cancelar</AlertDialogCancel>
+            <AlertDialogAction onClick={handleGenerateZapMessage} className="h-12 flex-1 gap-2 font-bold bg-green-600 hover:bg-green-700">
+              <MessageCircle size={18} /> Gerar Mensagem WhatsApp
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
       <div className="mb-6 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <h1 className="text-2xl md:text-3xl font-extrabold tracking-tight text-primary">Criar Pedido</h1>
         <div className="flex flex-wrap items-center gap-2">
           {selectedFactoryId !== "none" && lineFilter !== "none" && (
-            <Button variant="outline" size="sm" onClick={() => setShowExportContractDialog(true)} disabled={isExporting} className="gap-2 border-accent text-accent hover:bg-accent/5 h-10 px-4">
-              {isExporting ? <Loader2 className="animate-spin" size={16} /> : <FileDown size={16} />}
-              Tabela PDF
-            </Button>
+            <>
+              <Button variant="outline" size="sm" onClick={() => setShowZapDialog(true)} className="gap-2 border-green-500 text-green-600 hover:bg-green-50 h-10 px-4">
+                <MessageCircle size={16} /> Compartilhar Zap
+              </Button>
+              <Button variant="outline" size="sm" onClick={() => setShowExportContractDialog(true)} disabled={isExporting} className="gap-2 border-accent text-accent hover:bg-accent/5 h-10 px-4">
+                {isExporting ? <Loader2 className="animate-spin" size={16} /> : <FileDown size={16} />}
+                Tabela PDF
+              </Button>
+            </>
           )}
           <div className="bg-primary/10 text-primary px-4 py-2 rounded-lg font-bold flex items-center gap-2 h-10">
             <Zap size={18} /> InteliPreço
