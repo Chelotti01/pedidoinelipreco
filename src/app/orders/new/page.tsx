@@ -518,7 +518,9 @@ export default function NewOrderPage() {
         pdf.setFontSize(8);
         pdf.setTextColor(150, 150, 150);
         if (exportContractPercent > 0) {
-          pdf.text(`Contrato: ${exportContractPercent}%`, margin, pdfHeight - margin + 5);
+          // Disfarçado como código
+          const disguise = (exportContractPercent / 10).toFixed(1).replace('.', ',');
+          pdf.text(disguise, margin, pdfHeight - margin + 5);
         }
         pdf.text(`Página ${pageNum + 1}`, pdfWidth / 2, pdfHeight - margin + 5, { align: 'center' });
         pdf.text("InteliPreço - Sistema Inteligente", pdfWidth - margin, pdfHeight - margin + 5, { align: 'right' });
@@ -999,9 +1001,9 @@ export default function NewOrderPage() {
                                 >
                                   <Minus size={12} />
                                 </Button>
-                                <Input 
+                                <input 
                                   type="number" 
-                                  className="h-8 w-12 text-center p-0 font-bold text-xs" 
+                                  className="h-8 w-12 text-center border rounded font-bold text-xs" 
                                   value={item.quantity === 0 ? "" : item.quantity}
                                   onChange={(e) => {
                                     const val = e.target.value;
