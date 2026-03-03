@@ -80,6 +80,7 @@ export default function NewOrderPage() {
   const [selectedBrand, setSelectedBrand] = useState<string>("all");
   const [productSearch, setProductSearch] = useState<string>("");
   const [lineFilter, setLineFilter] = useState<string>("none");
+  const [categoryFilter, setCategoryFilter] = useState<string>("none");
   const [quantity, setQuantity] = useState<number>(1);
   const [priceType, setPriceType] = useState<'closed' | 'fractional'>('closed');
   const [useCatalogDiscount, setUseCatalogDiscount] = useState<boolean>(true);
@@ -103,6 +104,41 @@ export default function NewOrderPage() {
     return factories?.find(f => f.id === selectedFactoryId);
   }, [selectedFactoryId, factories]);
 
+  // Simplificação de categorias
+  const handleCategoryChange = (val: string) => {
+    setCategoryFilter(val);
+    setSelectedProductId("none");
+    setSelectedBrand("all");
+    setProductSearch("");
+
+    if (val === "none") {
+      setSelectedFactoryId("none");
+      setLineFilter("none");
+      return;
+    }
+
+    let targetFactory = "";
+    let targetLine = "";
+
+    if (val === "leite") {
+      targetFactory = "ARA";
+      targetLine = "SECA UHT";
+    } else if (val === "mix") {
+      targetFactory = "MRV";
+      targetLine = "SECA";
+      setPriceType('fractional');
+    } else if (val === "refrigerados") {
+      targetFactory = "BVG";
+      targetLine = "REFRIGERADA";
+    }
+
+    const foundFactory = factories?.find(f => f.name.toUpperCase().includes(targetFactory));
+    if (foundFactory) {
+      setSelectedFactoryId(foundFactory.id);
+      setLineFilter(targetLine);
+    }
+  };
+
   useEffect(() => {
     const factoryName = selectedFactory?.name?.toUpperCase() || '';
     const selectedLine = lineFilter?.toUpperCase() || '';
@@ -118,15 +154,6 @@ export default function NewOrderPage() {
       setShowSjoRulesDialog(true);
     }
   }, [selectedFactoryId, lineFilter, selectedFactory]);
-
-  const availableLines = useMemo(() => {
-    if (selectedFactoryId === "none" || !registeredProducts) return [];
-    const lines = registeredProducts
-      .filter(p => p.factoryId === selectedFactoryId)
-      .map(p => p.line)
-      .filter(Boolean);
-    return Array.from(new Set(lines)).sort();
-  }, [selectedFactoryId, registeredProducts]);
 
   const availableBrands = useMemo(() => {
     if (selectedFactoryId === "none" || lineFilter === "none" || !registeredProducts) return [];
@@ -370,6 +397,8 @@ export default function NewOrderPage() {
     const updatedItems = orderItems.filter((_, i) => i !== index);
     setOrderItems(updatedItems);
     if (updatedItems.length === 0) {
+      setCategoryFilter("none");
+      setSelectedFactoryId("none");
       setLineFilter("none");
       setObservations("");
     }
@@ -575,18 +604,16 @@ export default function NewOrderPage() {
               ) : (
                 <>
                   <div className="space-y-1.5">
-                    <Label className="text-xs font-bold uppercase">Fábrica</Label>
-                    <Select value={selectedFactoryId} onValueChange={(val) => {
-                      setSelectedFactoryId(val);
-                      setSelectedProductId("none");
-                      setSelectedBrand("all");
-                      setProductSearch("");
-                      setLineFilter("none");
-                    }}>
-                      <SelectTrigger className="h-11"><SelectValue placeholder="Selecione" /></SelectTrigger>
+                    <Label className="text-xs font-bold uppercase">Tipo de Pedido</Label>
+                    <Select value={categoryFilter} onValueChange={handleCategoryChange} disabled={orderItems.length > 0}>
+                      <SelectTrigger className="h-11">
+                        <SelectValue placeholder="Selecione o tipo..." />
+                      </SelectTrigger>
                       <SelectContent>
                         <SelectItem value="none">Selecione...</SelectItem>
-                        {factories?.map(f => (<SelectItem key={f.id} value={f.id}>{f.name}</SelectItem>))}
+                        <SelectItem value="leite">Leite (ARA - SECA UHT)</SelectItem>
+                        <SelectItem value="mix">Mix (MRV - SECA)</SelectItem>
+                        <SelectItem value="refrigerados">Refrigerados (BVG - REFRIGERADA)</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
@@ -594,51 +621,30 @@ export default function NewOrderPage() {
                   {selectedFactoryId !== "none" && (
                     <div className="space-y-4 animate-in fade-in duration-300">
                       <div className="space-y-1.5">
-                        <Label className="text-xs font-bold uppercase">Linha</Label>
-                        <Select value={lineFilter} onValueChange={(val) => { setLineFilter(val); setSelectedBrand("all"); setSelectedProductId("none"); }} disabled={orderItems.length > 0}>
-                          <SelectTrigger className="h-11"><SelectValue placeholder="Selecione" /></SelectTrigger>
+                        <Label className="text-xs font-bold uppercase">Marca</Label>
+                        <Select value={selectedBrand} onValueChange={setSelectedBrand}>
+                          <SelectTrigger className="h-11"><SelectValue placeholder="Todas" /></SelectTrigger>
                           <SelectContent>
-                            {availableLines.map(line => (
-                              <SelectItem key={line} value={line}>
-                                <div className="flex items-center gap-2">
-                                  {line.toLowerCase().includes('refrigerada') ? <Snowflake size={12} className="text-blue-500" /> : <Sun size={12} className="text-orange-500" />}
-                                  {line}
-                                </div>
-                              </SelectItem>
-                            ))}
+                            <SelectItem value="all">Todas</SelectItem>
+                            {availableBrands.map(brand => (<SelectItem key={brand} value={brand}>{brand}</SelectItem>))}
                           </SelectContent>
                         </Select>
                       </div>
 
-                      {lineFilter !== "none" && (
-                        <div className="space-y-4 animate-in fade-in duration-300">
-                          <div className="space-y-1.5">
-                            <Label className="text-xs font-bold uppercase">Marca</Label>
-                            <Select value={selectedBrand} onValueChange={setSelectedBrand}>
-                              <SelectTrigger className="h-11"><SelectValue placeholder="Todas" /></SelectTrigger>
-                              <SelectContent>
-                                <SelectItem value="all">Todas</SelectItem>
-                                {availableBrands.map(brand => (<SelectItem key={brand} value={brand}>{brand}</SelectItem>))}
-                              </SelectContent>
-                            </Select>
-                          </div>
-
-                          <div className="space-y-2">
-                            <Label className="text-xs font-bold uppercase">Produto</Label>
-                            <div className="relative mb-2">
-                              <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" size={16} />
-                              <Input placeholder="Filtrar por nome/código..." className="pl-10 h-11" value={productSearch} onChange={(e) => { setProductSearch(e.target.value); setSelectedProductId("none"); }} />
-                            </div>
-                            <Select value={selectedProductId} onValueChange={setSelectedProductId} disabled={filteredProducts.length === 0}>
-                              <SelectTrigger className="h-11"><SelectValue placeholder="Escolha o produto" /></SelectTrigger>
-                              <SelectContent>
-                                <SelectItem value="none">Selecione...</SelectItem>
-                                {filteredProducts.map(p => (<SelectItem key={p.id} value={p.id}>{p.code} - {p.description}</SelectItem>))}
-                              </SelectContent>
-                            </Select>
-                          </div>
+                      <div className="space-y-2">
+                        <Label className="text-xs font-bold uppercase">Produto</Label>
+                        <div className="relative mb-2">
+                          <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" size={16} />
+                          <Input placeholder="Filtrar por nome/código..." className="pl-10 h-11" value={productSearch} onChange={(e) => { setProductSearch(e.target.value); setSelectedProductId("none"); }} />
                         </div>
-                      )}
+                        <Select value={selectedProductId} onValueChange={setSelectedProductId} disabled={filteredProducts.length === 0}>
+                          <SelectTrigger className="h-11"><SelectValue placeholder="Escolha o produto" /></SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="none">Selecione...</SelectItem>
+                            {filteredProducts.map(p => (<SelectItem key={p.id} value={p.id}>{p.code} - {p.description}</SelectItem>))}
+                          </SelectContent>
+                        </Select>
+                      </div>
                     </div>
                   )}
 
@@ -743,7 +749,7 @@ export default function NewOrderPage() {
                   </div>
                 </div>
                 <div className="grid grid-cols-2 gap-3 w-full">
-                  <Button variant="outline" className="h-14 border-primary text-primary font-bold" onClick={() => { setOrderItems([]); setLineFilter("none"); setObservations(""); }} disabled={isFinalizing}>Limpar</Button>
+                  <Button variant="outline" className="h-14 border-primary text-primary font-bold" onClick={() => { setOrderItems([]); setCategoryFilter("none"); setSelectedFactoryId("none"); setLineFilter("none"); setObservations(""); }} disabled={isFinalizing}>Limpar</Button>
                   <Button className="h-14 bg-accent hover:bg-accent/90 text-white shadow-lg gap-2 text-lg font-bold" onClick={handleFinalizeOrder} disabled={isFinalizing || selectedCustomerId === "none"}>{isFinalizing ? <Loader2 className="animate-spin" /> : <ReceiptText size={20} />}Finalizar</Button>
                 </div>
               </CardFooter>
