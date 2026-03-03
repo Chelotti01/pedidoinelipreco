@@ -344,7 +344,8 @@ export default function NewOrderPage() {
   };
 
   const updateItemQuantity = (index: number, newQuantity: number) => {
-    if (newQuantity < 1) return;
+    // Permitir 0 temporariamente para que o usuário possa apagar e redigitar
+    if (newQuantity < 0) return;
     
     const updatedItems = [...orderItems];
     const item = updatedItems[index];
@@ -573,7 +574,7 @@ export default function NewOrderPage() {
             <AlertDialogTitle className="flex items-center gap-2 text-primary"><Tag className="text-primary" /> Aditivo Contrato na Tabela?</AlertDialogTitle>
             <AlertDialogDescription>Informe a porcentagem de aditivo para a exportação PDF.</AlertDialogDescription>
           </AlertDialogHeader>
-          <div className="py-4"><Input type="number" value={exportContractPercent} onChange={(e) => setExportContractPercent(Number(e.target.value))} placeholder="Ex: 5" className="text-lg font-bold h-12"/></div>
+          <div className="py-4"><Input type="number" value={exportContractPercent} onChange={(e) => setExportContractPercent(Number(e.target.value))} onFocus={(e) => e.target.select()} placeholder="Ex: 5" className="text-lg font-bold h-12"/></div>
           <AlertDialogFooter className="gap-2"><AlertDialogCancel className="h-12 flex-1">Voltar</AlertDialogCancel><AlertDialogAction onClick={handleExportTablePDF} className="h-12 flex-1 gap-2 font-bold"><FileDown size={18} /> Gerar PDF</AlertDialogAction></AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
@@ -756,8 +757,8 @@ export default function NewOrderPage() {
                       </div>
 
                       <div className="grid grid-cols-2 gap-4">
-                        <div className="space-y-1.5"><Label className="text-xs">Qtd (Cxs)</Label><Input type="number" min="1" value={quantity} onChange={(e) => setQuantity(Number(e.target.value))} className="font-bold text-lg h-11"/></div>
-                        <div className="space-y-1.5"><Label className="text-xs">Contrato (%)</Label><Input type="number" value={contractPercent} onChange={(e) => setContractPercent(Number(e.target.value))} className="h-11 font-bold text-primary"/></div>
+                        <div className="space-y-1.5"><Label className="text-xs">Qtd (Cxs)</Label><Input type="number" value={quantity} onChange={(e) => setQuantity(e.target.value === "" ? 0 : Number(e.target.value))} onFocus={(e) => e.target.select()} onBlur={() => quantity <= 0 && setQuantity(1)} className="font-bold text-lg h-11"/></div>
+                        <div className="space-y-1.5"><Label className="text-xs">Contrato (%)</Label><Input type="number" value={contractPercent} onChange={(e) => setContractPercent(Number(e.target.value))} onFocus={(e) => e.target.select()} className="h-11 font-bold text-primary"/></div>
                       </div>
                     </div>
                   )}
@@ -819,8 +820,13 @@ export default function NewOrderPage() {
                                 <Input 
                                   type="number" 
                                   className="h-8 w-12 text-center p-0 font-bold text-xs" 
-                                  value={item.quantity}
-                                  onChange={(e) => updateItemQuantity(idx, Number(e.target.value))}
+                                  value={item.quantity === 0 ? "" : item.quantity}
+                                  onChange={(e) => {
+                                    const val = e.target.value;
+                                    updateItemQuantity(idx, val === "" ? 0 : Number(val));
+                                  }}
+                                  onFocus={(e) => e.target.select()}
+                                  onBlur={() => item.quantity <= 0 && updateItemQuantity(idx, 1)}
                                 />
                                 <Button 
                                   variant="outline" 
