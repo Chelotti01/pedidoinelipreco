@@ -1,3 +1,4 @@
+
 "use client"
 
 import { useState, useMemo, useEffect, useRef } from 'react';
@@ -98,12 +99,17 @@ export default function NewOrderPage() {
 
   // States para exportação PDF
   const [showExportConfigDialog, setShowExportConfigDialog] = useState(false);
+  const [exportFactoryId, setExportFactoryId] = useState<string>("none");
+  const [exportLineFilter, setExportLineFilter] = useState<string>("none");
   const [exportContractPercent, setExportContractPercent] = useState<number>(0);
   const [exportPriceType, setExportPriceType] = useState<'closed' | 'fractional'>('closed');
   const [exportBrand, setExportBrand] = useState<string>("all");
 
   // States para o compartilhamento de WhatsApp
   const [showZapDialog, setShowZapDialog] = useState(false);
+  const [zapFactoryId, setZapFactoryId] = useState<string>("none");
+  const [zapLineFilter, setZapLineFilter] = useState<string>("none");
+  const [zapBrandFilter, setZapBrandFilter] = useState<string>("all");
   const [zapSelectedIds, setZapSelectedIds] = useState<string[]>([]);
   const [zapPriceTypes, setZapPriceTypes] = useState<Record<string, 'closed' | 'fractional'>>({});
   const [zapContractPercent, setZapContractPercent] = useState<number>(0);
@@ -170,23 +176,26 @@ export default function NewOrderPage() {
     }
   }, [selectedFactoryId, lineFilter, selectedFactory]);
 
-  const availableLines = useMemo(() => {
-    if (selectedFactoryId === "none" || !registeredProducts) return [];
+  const getAvailableLines = (factoryId: string) => {
+    if (factoryId === "none" || !registeredProducts) return [];
     const lines = registeredProducts
-      .filter(p => p.factoryId === selectedFactoryId)
+      .filter(p => p.factoryId === factoryId)
       .map(p => p.line)
       .filter(Boolean);
     return Array.from(new Set(lines)).sort();
-  }, [selectedFactoryId, registeredProducts]);
+  };
 
-  const availableBrands = useMemo(() => {
-    if (selectedFactoryId === "none" || lineFilter === "none" || !registeredProducts) return [];
+  const getAvailableBrands = (factoryId: string, line: string) => {
+    if (factoryId === "none" || line === "none" || !registeredProducts) return [];
     const brands = registeredProducts
-      .filter(p => p.factoryId === selectedFactoryId && p.line === lineFilter)
+      .filter(p => p.factoryId === factoryId && p.line === line)
       .map(p => p.brand)
       .filter(Boolean);
     return Array.from(new Set(brands)).sort();
-  }, [selectedFactoryId, lineFilter, registeredProducts]);
+  };
+
+  const availableLines = useMemo(() => getAvailableLines(selectedFactoryId), [selectedFactoryId, registeredProducts]);
+  const availableBrands = useMemo(() => getAvailableBrands(selectedFactoryId, lineFilter), [selectedFactoryId, lineFilter, registeredProducts]);
 
   const filteredProducts = useMemo(() => {
     if (selectedFactoryId === "none" || !registeredProducts || lineFilter === "none") return [];
@@ -211,10 +220,10 @@ export default function NewOrderPage() {
   }, [selectedFactoryId, registeredProducts, productSearch, lineFilter, selectedBrand]);
 
   const pdfFilteredProducts = useMemo(() => {
-    if (selectedFactoryId === "none" || !registeredProducts || lineFilter === "none") return [];
+    if (exportFactoryId === "none" || !registeredProducts || exportLineFilter === "none") return [];
     
     let filtered = registeredProducts.filter(p => 
-      p.factoryId === selectedFactoryId && p.catalogProductId && p.line === lineFilter
+      p.factoryId === exportFactoryId && p.catalogProductId && p.line === exportLineFilter
     );
 
     if (exportBrand !== "all") {
@@ -222,17 +231,29 @@ export default function NewOrderPage() {
     }
 
     return filtered;
-  }, [selectedFactoryId, registeredProducts, lineFilter, exportBrand]);
+  }, [exportFactoryId, registeredProducts, exportLineFilter, exportBrand]);
 
   const zapFilteredProducts = useMemo(() => {
-    if (!filteredProducts) return [];
-    if (!zapSearchTerm.trim()) return filteredProducts;
-    const term = zapSearchTerm.toLowerCase();
-    return filteredProducts.filter(p => 
-      p.code?.toLowerCase().includes(term) || 
-      p.description?.toLowerCase().includes(term)
+    if (zapFactoryId === "none" || zapLineFilter === "none" || !registeredProducts) return [];
+    
+    let filtered = registeredProducts.filter(p => 
+      p.factoryId === zapFactoryId && p.catalogProductId && p.line === zapLineFilter
     );
-  }, [filteredProducts, zapSearchTerm]);
+
+    if (zapBrandFilter !== "all") {
+      filtered = filtered.filter(p => p.brand === zapBrandFilter);
+    }
+
+    if (zapSearchTerm.trim()) {
+      const term = zapSearchTerm.toLowerCase();
+      filtered = filtered.filter(p => 
+        p.code?.toLowerCase().includes(term) || 
+        p.description?.toLowerCase().includes(term)
+      );
+    }
+
+    return filtered;
+  }, [zapFactoryId, registeredProducts, zapLineFilter, zapBrandFilter, zapSearchTerm]);
 
   const currentRegisteredProduct = useMemo(() => {
     return registeredProducts?.find(p => p.id === selectedProductId);
@@ -268,7 +289,6 @@ export default function NewOrderPage() {
     const activePercent = overridePercent !== undefined ? overridePercent : (contractPercent || 0);
     const customSurcharge = registeredItem.customSurchargeR$ || 0;
     
-    // O aditivo personalizado é somado ao preço NET antes do contrato e da ST
     const baseWithSurcharge = priceAfterCatalog + customSurcharge;
     const finalUnitPriceBeforeST = baseWithSurcharge * (1 + activePercent / 100);
     
@@ -487,16 +507,18 @@ export default function NewOrderPage() {
   const formatCurrency = (val: number) => val.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
   const handleExportTablePDF = async () => {
-    if (!pdfRef.current || pdfFilteredProducts.length === 0) return;
+    if (!pdfRef.current || pdfFilteredProducts.length === 0) {
+      toast({ title: "Sem dados", description: "Selecione uma fábrica e linha com produtos.", variant: "destructive" });
+      return;
+    }
     setIsExporting(true);
     setShowExportConfigDialog(false);
-    toast({ title: "Exportando PDF", description: "Processando múltiplas páginas se necessário..." });
     
     try {
       const html2canvas = (await import('html2canvas')).default;
       const { jsPDF } = await import('jspdf');
       
-      await new Promise(resolve => setTimeout(resolve, 100));
+      await new Promise(resolve => setTimeout(resolve, 300));
       
       const canvas = await html2canvas(pdfRef.current, { 
         scale: 2, 
@@ -510,7 +532,7 @@ export default function NewOrderPage() {
       
       const pdfWidth = 210;
       const pdfHeight = 297;
-      const margin = 14.5; // 1.45 cm
+      const margin = 14.5;
       const usableHeight = pdfHeight - (2 * margin);
       
       const imgWidth = pdfWidth;
@@ -525,23 +547,19 @@ export default function NewOrderPage() {
         const yOffset = margin - (pageNum * usableHeight);
         pdf.addImage(imgData, 'PNG', 0, yOffset, imgWidth, imgHeight);
         
-        // Máscara de proteção para cabeçalho e rodapé (retângulos brancos)
         pdf.setFillColor(255, 255, 255);
         pdf.rect(0, 0, pdfWidth, margin, 'F');
         pdf.rect(0, pdfHeight - margin, pdfWidth, margin, 'F');
         
-        // Conteúdo do Cabeçalho Repetido
         pdf.setFontSize(10);
         pdf.setTextColor(40, 40, 40);
-        pdf.text(`Fábrica: ${selectedFactory?.name || ''}`, margin, margin - 5);
-        pdf.text(`Linha: ${lineFilter}`, pdfWidth / 2, margin - 5, { align: 'center' });
+        pdf.text(`Fábrica: ${factories?.find(f => f.id === exportFactoryId)?.name || ''}`, margin, margin - 5);
+        pdf.text(`Linha: ${exportLineFilter}`, pdfWidth / 2, margin - 5, { align: 'center' });
         pdf.text(`${new Date().toLocaleDateString('pt-BR')}`, pdfWidth - margin, margin - 5, { align: 'right' });
         
-        // Conteúdo do Rodapé Repetido
         pdf.setFontSize(8);
         pdf.setTextColor(150, 150, 150);
         if (exportContractPercent > 0) {
-          // Disfarçado como código
           const disguise = (exportContractPercent / 10).toFixed(1).replace('.', ',');
           pdf.text(disguise, margin, pdfHeight - margin + 5);
         }
@@ -552,7 +570,7 @@ export default function NewOrderPage() {
         pageNum++;
       }
 
-      pdf.save(`tabela_${selectedFactory?.name}_${lineFilter}.pdf`);
+      pdf.save(`tabela_${factories?.find(f => f.id === exportFactoryId)?.name}_${exportLineFilter}.pdf`);
       toast({ title: "Sucesso", description: "Tabela exportada com todas as páginas!" });
     } catch (e) {
       console.error(e);
@@ -562,7 +580,6 @@ export default function NewOrderPage() {
     }
   };
 
-  // Funções para WhatsApp
   const handleToggleZapItem = (productId: string) => {
     setZapSelectedIds(prev => 
       prev.includes(productId) ? prev.filter(id => id !== productId) : [...prev, productId]
@@ -582,8 +599,8 @@ export default function NewOrderPage() {
       return;
     }
 
-    let message = `*Tabela de Preços - ${selectedFactory?.name}*\n`;
-    message += `*Linha:* ${lineFilter}\n`;
+    let message = `*Tabela de Preços - ${factories?.find(f => f.id === zapFactoryId)?.name}*\n`;
+    message += `*Linha:* ${zapLineFilter}\n`;
     message += `*Data:* ${new Date().toLocaleDateString('pt-BR')}\n\n`;
 
     zapSelectedIds.forEach(id => {
@@ -665,21 +682,39 @@ export default function NewOrderPage() {
             <AlertDialogTitle className="flex items-center gap-2 text-primary">
               <FileDown className="text-primary" /> Configurar Tabela PDF
             </AlertDialogTitle>
-            <AlertDialogDescription>Filtre os itens e defina os parâmetros de preço para o documento.</AlertDialogDescription>
+            <AlertDialogDescription>Selecione os dados para gerar o documento.</AlertDialogDescription>
           </AlertDialogHeader>
           
           <div className="space-y-4 py-4">
             <div className="space-y-1.5">
+              <Label className="text-xs font-bold uppercase">Fábrica</Label>
+              <Select value={exportFactoryId} onValueChange={(val) => { setExportFactoryId(val); setExportLineFilter("none"); setExportBrand("all"); }}>
+                <SelectTrigger><SelectValue placeholder="Selecione..." /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">Selecione...</SelectItem>
+                  {factories?.map(f => (<SelectItem key={f.id} value={f.id}>{f.name}</SelectItem>))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-1.5">
+              <Label className="text-xs font-bold uppercase">Linha</Label>
+              <Select value={exportLineFilter} onValueChange={(val) => { setExportLineFilter(val); setExportBrand("all"); }} disabled={exportFactoryId === "none"}>
+                <SelectTrigger><SelectValue placeholder="Selecione..." /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">Selecione...</SelectItem>
+                  {getAvailableLines(exportFactoryId).map(line => (<SelectItem key={line} value={line}>{line}</SelectItem>))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-1.5">
               <Label className="text-xs font-bold uppercase">Marca</Label>
-              <Select value={exportBrand} onValueChange={setExportBrand}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Todas" />
-                </SelectTrigger>
+              <Select value={exportBrand} onValueChange={setExportBrand} disabled={exportLineFilter === "none"}>
+                <SelectTrigger><SelectValue placeholder="Todas" /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">Todas as Marcas</SelectItem>
-                  {availableBrands.map(brand => (
-                    <SelectItem key={brand} value={brand}>{brand}</SelectItem>
-                  ))}
+                  {getAvailableBrands(exportFactoryId, exportLineFilter).map(brand => (<SelectItem key={brand} value={brand}>{brand}</SelectItem>))}
                 </SelectContent>
               </Select>
             </div>
@@ -700,19 +735,13 @@ export default function NewOrderPage() {
 
             <div className="space-y-1.5">
               <Label className="text-xs font-bold uppercase">Aditivo Contrato (%)</Label>
-              <Input 
-                type="number" 
-                value={exportContractPercent} 
-                onChange={(e) => setExportContractPercent(Number(e.target.value))} 
-                onFocus={(e) => e.target.select()} 
-                className="text-lg font-bold h-12"
-              />
+              <Input type="number" value={exportContractPercent} onChange={(e) => setExportContractPercent(Number(e.target.value))} className="text-lg font-bold h-12" />
             </div>
           </div>
 
           <AlertDialogFooter className="gap-2">
             <AlertDialogCancel className="h-12 flex-1">Cancelar</AlertDialogCancel>
-            <AlertDialogAction onClick={handleExportTablePDF} className="h-12 flex-1 gap-2 font-bold bg-primary hover:bg-primary/90 text-white rounded-md">
+            <AlertDialogAction onClick={handleExportTablePDF} disabled={exportLineFilter === "none"} className="h-12 flex-1 gap-2 font-bold bg-primary hover:bg-primary/90 text-white rounded-md">
               <FileDown size={18} /> Gerar PDF
             </AlertDialogAction>
           </AlertDialogFooter>
@@ -720,98 +749,81 @@ export default function NewOrderPage() {
       </AlertDialog>
 
       {/* Dialog do WhatsApp */}
-      <AlertDialog open={showZapDialog} onOpenChange={(open) => {
-        setShowZapDialog(open);
-        if (!open) {
-          setZapGeneratedText("");
-          setZapSearchTerm("");
-        }
-      }}>
+      <AlertDialog open={showZapDialog} onOpenChange={(open) => { setShowZapDialog(open); if (!open) setZapGeneratedText(""); }}>
         <AlertDialogContent className="max-w-2xl">
           <AlertDialogHeader>
             <AlertDialogTitle className="flex items-center gap-2 text-primary">
-              <MessageCircle className="text-green-500" /> {zapGeneratedText ? "Texto Gerado" : "Selecionar Itens para Zap"}
+              <MessageCircle className="text-green-500" /> {zapGeneratedText ? "Texto Gerado" : "Seleção WhatsApp"}
             </AlertDialogTitle>
-            <AlertDialogDescription>
-              {zapGeneratedText ? "Copie o texto abaixo para colar no seu aplicativo de mensagens." : "Selecione os produtos e o tipo de carga para gerar a mensagem."}
-            </AlertDialogDescription>
           </AlertDialogHeader>
           
           <div className="space-y-4 py-4">
             {!zapGeneratedText ? (
               <>
-                <div className="flex flex-col sm:flex-row sm:items-end gap-4 p-3 bg-muted rounded-lg border">
-                  <div className="flex-1 space-y-1.5">
-                    <Label className="text-xs font-bold uppercase">Aditivo Contrato (%)</Label>
-                    <Input type="number" value={zapContractPercent} onChange={(e) => setZapContractPercent(Number(e.target.value))} className="h-10 font-bold" />
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div className="space-y-1.5">
+                    <Label className="text-xs font-bold uppercase">Fábrica</Label>
+                    <Select value={zapFactoryId} onValueChange={(val) => { setZapFactoryId(val); setZapLineFilter("none"); setZapBrandFilter("all"); setZapSelectedIds([]); }}>
+                      <SelectTrigger><SelectValue placeholder="Selecione..." /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="none">Selecione...</SelectItem>
+                        {factories?.map(f => (<SelectItem key={f.id} value={f.id}>{f.name}</SelectItem>))}
+                      </SelectContent>
+                    </Select>
                   </div>
-                  <div className="flex gap-2">
-                    <Button variant="outline" size="sm" onClick={() => setZapSelectedIds(filteredProducts.map(p => p.id))}>Todos</Button>
-                    <Button variant="ghost" size="sm" onClick={() => { setZapSelectedIds([]); setZapSearchTerm(""); }}>Limpar</Button>
+                  <div className="space-y-1.5">
+                    <Label className="text-xs font-bold uppercase">Linha</Label>
+                    <Select value={zapLineFilter} onValueChange={(val) => { setZapLineFilter(val); setZapBrandFilter("all"); setZapSelectedIds([]); }} disabled={zapFactoryId === "none"}>
+                      <SelectTrigger><SelectValue placeholder="Selecione..." /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="none">Selecione...</SelectItem>
+                        {getAvailableLines(zapFactoryId).map(line => (<SelectItem key={line} value={line}>{line}</SelectItem>))}
+                      </SelectContent>
+                    </Select>
                   </div>
                 </div>
 
-                <div className="relative">
-                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" size={16} />
-                  <Input 
-                    placeholder="Filtrar itens..." 
-                    className="pl-10 h-10" 
-                    value={zapSearchTerm} 
-                    onChange={(e) => setZapSearchTerm(e.target.value)} 
-                  />
-                </div>
+                {zapLineFilter !== "none" && (
+                  <>
+                    <div className="flex flex-col sm:flex-row sm:items-end gap-4 p-3 bg-muted rounded-lg border">
+                      <div className="flex-1 space-y-1.5">
+                        <Label className="text-xs font-bold uppercase">Aditivo Contrato (%)</Label>
+                        <Input type="number" value={zapContractPercent} onChange={(e) => setZapContractPercent(Number(e.target.value))} className="h-10 font-bold" />
+                      </div>
+                      <div className="flex gap-2">
+                        <Button variant="outline" size="sm" onClick={() => setZapSelectedIds(zapFilteredProducts.map(p => p.id))}>Todos</Button>
+                        <Button variant="ghost" size="sm" onClick={() => { setZapSelectedIds([]); setZapSearchTerm(""); }}>Limpar</Button>
+                      </div>
+                    </div>
 
-                <ScrollArea className="h-[40vh] border rounded-md p-4">
-                  <div className="space-y-3">
-                    {zapFilteredProducts.length === 0 ? (
-                      <div className="text-center py-10 text-muted-foreground text-sm">Nenhum item encontrado.</div>
-                    ) : (
-                      zapFilteredProducts.map(p => (
-                        <div key={p.id} className="flex items-center justify-between border-b pb-2 last:border-0">
-                          <div className="flex items-center gap-3 flex-1 min-w-0">
-                            <Checkbox 
-                              id={`zap-${p.id}`} 
-                              checked={zapSelectedIds.includes(p.id)} 
-                              onCheckedChange={() => handleToggleZapItem(p.id)}
-                            />
-                            <label htmlFor={`zap-${p.id}`} className="text-xs font-bold uppercase cursor-pointer truncate">
-                              {p.code} - {p.description}
-                            </label>
+                    <div className="relative">
+                      <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" size={16} />
+                      <Input placeholder="Filtrar itens..." className="pl-10 h-10" value={zapSearchTerm} onChange={(e) => setZapSearchTerm(e.target.value)} />
+                    </div>
+
+                    <ScrollArea className="h-[30vh] border rounded-md p-4">
+                      <div className="space-y-3">
+                        {zapFilteredProducts.map(p => (
+                          <div key={p.id} className="flex items-center justify-between border-b pb-2 last:border-0">
+                            <div className="flex items-center gap-3 flex-1 min-w-0">
+                              <Checkbox id={`zap-${p.id}`} checked={zapSelectedIds.includes(p.id)} onCheckedChange={() => handleToggleZapItem(p.id)} />
+                              <label htmlFor={`zap-${p.id}`} className="text-xs font-bold uppercase cursor-pointer truncate">{p.code} - {p.description}</label>
+                            </div>
+                            <div className="flex items-center gap-2 ml-4">
+                              <Button variant={zapPriceTypes[p.id] === 'closed' || !zapPriceTypes[p.id] ? 'default' : 'outline'} size="sm" className="h-7 text-[10px] px-2" onClick={() => handleSetZapPriceType(p.id, 'closed')}>Fechada</Button>
+                              <Button variant={zapPriceTypes[p.id] === 'fractional' ? 'default' : 'outline'} size="sm" className="h-7 text-[10px] px-2" onClick={() => handleSetZapPriceType(p.id, 'fractional')}>Frac</Button>
+                            </div>
                           </div>
-                          <div className="flex items-center gap-2 shrink-0 ml-4">
-                            <Button 
-                              variant={zapPriceTypes[p.id] === 'closed' || !zapPriceTypes[p.id] ? 'default' : 'outline'} 
-                              size="sm" 
-                              className="h-7 text-[10px] px-2"
-                              onClick={() => handleSetZapPriceType(p.id, 'closed')}
-                            >
-                              Fechada
-                            </Button>
-                            <Button 
-                              variant={zapPriceTypes[p.id] === 'fractional' ? 'default' : 'outline'} 
-                              size="sm" 
-                              className="h-7 text-[10px] px-2"
-                              onClick={() => handleSetZapPriceType(p.id, 'fractional')}
-                            >
-                              Frac
-                            </Button>
-                          </div>
-                        </div>
-                      ))
-                    )}
-                  </div>
-                </ScrollArea>
+                        ))}
+                      </div>
+                    </ScrollArea>
+                  </>
+                )}
               </>
             ) : (
               <div className="space-y-4 animate-in fade-in duration-300">
-                <Textarea 
-                  value={zapGeneratedText} 
-                  readOnly 
-                  className="min-h-[40vh] font-mono text-xs bg-slate-50 leading-relaxed"
-                />
-                <Button variant="outline" className="w-full gap-2 text-primary border-primary" onClick={() => setZapGeneratedText("")}>
-                  <ArrowLeft size={16} /> Voltar para Seleção
-                </Button>
+                <Textarea value={zapGeneratedText} readOnly className="min-h-[40vh] font-mono text-xs bg-slate-50 leading-relaxed" />
+                <Button variant="outline" className="w-full gap-2 text-primary border-primary" onClick={() => setZapGeneratedText("")}><ArrowLeft size={16} /> Voltar</Button>
               </div>
             )}
           </div>
@@ -819,13 +831,9 @@ export default function NewOrderPage() {
           <AlertDialogFooter className="gap-2">
             <AlertDialogCancel className="h-12 flex-1">Cancelar</AlertDialogCancel>
             {!zapGeneratedText ? (
-              <Button onClick={handleGenerateZapMessage} className="h-12 flex-1 gap-2 font-bold bg-green-600 hover:bg-green-700 text-white rounded-md">
-                <MessageCircle size={18} /> Gerar Texto
-              </Button>
+              <Button onClick={handleGenerateZapMessage} disabled={zapSelectedIds.length === 0} className="h-12 flex-1 gap-2 font-bold bg-green-600 hover:bg-green-700 text-white rounded-md">Gerar Texto</Button>
             ) : (
-              <Button onClick={handleCopyZapText} className="h-12 flex-1 gap-2 font-bold bg-blue-600 hover:bg-blue-700 text-white rounded-md">
-                <ClipboardCopy size={18} /> Copiar Texto
-              </Button>
+              <Button onClick={handleCopyZapText} className="h-12 flex-1 gap-2 font-bold bg-blue-600 hover:bg-blue-700 text-white rounded-md">Copiar</Button>
             )}
           </AlertDialogFooter>
         </AlertDialogContent>
@@ -834,17 +842,13 @@ export default function NewOrderPage() {
       <div className="mb-6 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <h1 className="text-2xl md:text-3xl font-extrabold tracking-tight text-primary">Criar Pedido</h1>
         <div className="flex flex-wrap items-center gap-2">
-          {selectedFactoryId !== "none" && lineFilter !== "none" && (
-            <>
-              <Button variant="outline" size="sm" onClick={() => setShowZapDialog(true)} className="gap-2 border-green-500 text-green-600 hover:bg-green-50 h-10 px-4">
-                <MessageCircle size={16} /> Compartilhar Zap
-              </Button>
-              <Button variant="outline" size="sm" onClick={() => setShowExportConfigDialog(true)} disabled={isExporting} className="gap-2 border-accent text-accent hover:bg-accent/5 h-10 px-4">
-                {isExporting ? <Loader2 className="animate-spin" size={16} /> : <FileDown size={16} />}
-                Tabela PDF
-              </Button>
-            </>
-          )}
+          <Button variant="outline" size="sm" onClick={() => setShowZapDialog(true)} className="gap-2 border-green-500 text-green-600 hover:bg-green-50 h-10 px-4">
+            <MessageCircle size={16} /> Compartilhar Zap
+          </Button>
+          <Button variant="outline" size="sm" onClick={() => setShowExportConfigDialog(true)} disabled={isExporting} className="gap-2 border-accent text-accent hover:bg-accent/5 h-10 px-4">
+            {isExporting ? <Loader2 className="animate-spin" size={16} /> : <FileDown size={16} />}
+            Tabela PDF
+          </Button>
           <div className="bg-primary/10 text-primary px-4 py-2 rounded-lg font-bold flex items-center gap-2 h-10">
             <Zap size={18} /> InteliPreço
           </div>
@@ -862,9 +866,7 @@ export default function NewOrderPage() {
              </CardHeader>
              <CardContent className="pt-4 px-5">
                 <Select value={selectedCustomerId} onValueChange={setSelectedCustomerId}>
-                  <SelectTrigger className="h-11">
-                    <SelectValue placeholder="Selecione o cliente" />
-                  </SelectTrigger>
+                  <SelectTrigger className="h-11"><SelectValue placeholder="Selecione o cliente" /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="none">Escolha um cliente...</SelectItem>
                     {customers?.map(c => (<SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>))}
@@ -881,23 +883,9 @@ export default function NewOrderPage() {
           <Card className="shadow-md border-none">
             <CardHeader className="bg-primary/5 py-4 px-5">
               <CardTitle className="text-base flex items-center justify-between gap-2">
-                <div className="flex items-center gap-2">
-                  <Plus size={18} className="text-primary" /> Item
-                </div>
-                <Button 
-                  variant="link" 
-                  size="sm" 
-                  className="h-auto p-0 text-[10px] font-bold text-primary flex items-center gap-1"
-                  onClick={() => {
-                    setIsCustomMode(!isCustomMode);
-                    setCategoryFilter("none");
-                    setSelectedFactoryId("none");
-                    setLineFilter("none");
-                  }}
-                  disabled={orderItems.length > 0}
-                >
-                  <Settings2 size={12} />
-                  {isCustomMode ? "Modo Simples" : "Personalizar"}
+                <div className="flex items-center gap-2"><Plus size={18} className="text-primary" /> Item</div>
+                <Button variant="link" size="sm" className="h-auto p-0 text-[10px] font-bold text-primary flex items-center gap-1" onClick={() => { setIsCustomMode(!isCustomMode); setCategoryFilter("none"); setSelectedFactoryId("none"); setLineFilter("none"); }} disabled={orderItems.length > 0}>
+                  <Settings2 size={12} /> {isCustomMode ? "Modo Simples" : "Personalizar"}
                 </Button>
               </CardTitle>
             </CardHeader>
@@ -910,9 +898,7 @@ export default function NewOrderPage() {
                     <div className="space-y-1.5 animate-in slide-in-from-left-2 duration-300">
                       <Label className="text-xs font-bold uppercase">Tipo de Pedido</Label>
                       <Select value={categoryFilter} onValueChange={handleCategoryChange} disabled={orderItems.length > 0}>
-                        <SelectTrigger className="h-11">
-                          <SelectValue placeholder="Selecione o tipo..." />
-                        </SelectTrigger>
+                        <SelectTrigger className="h-11"><SelectValue placeholder="Selecione..." /></SelectTrigger>
                         <SelectContent>
                           <SelectItem value="none">Selecione...</SelectItem>
                           <SelectItem value="leite">Leite (ARA - SECA UHT)</SelectItem>
@@ -925,36 +911,22 @@ export default function NewOrderPage() {
                     <div className="space-y-4 animate-in slide-in-from-right-2 duration-300">
                       <div className="space-y-1.5">
                         <Label className="text-xs font-bold uppercase">Fábrica</Label>
-                        <Select value={selectedFactoryId} onValueChange={(val) => {
-                          setSelectedFactoryId(val);
-                          setSelectedProductId("none");
-                          setSelectedBrand("all");
-                          setProductSearch("");
-                          setLineFilter("none");
-                        }} disabled={orderItems.length > 0}>
-                          <SelectTrigger className="h-11"><SelectValue placeholder="Escolha a Fábrica" /></SelectTrigger>
+                        <Select value={selectedFactoryId} onValueChange={(val) => { setSelectedFactoryId(val); setSelectedProductId("none"); setSelectedBrand("all"); setProductSearch(""); setLineFilter("none"); }} disabled={orderItems.length > 0}>
+                          <SelectTrigger className="h-11"><SelectValue placeholder="Fábrica" /></SelectTrigger>
                           <SelectContent>
                             <SelectItem value="none">Selecione...</SelectItem>
                             {factories?.map(f => (<SelectItem key={f.id} value={f.id}>{f.name}</SelectItem>))}
                           </SelectContent>
                         </Select>
                       </div>
-
                       {selectedFactoryId !== "none" && (
-                        <div className="space-y-1.5 animate-in fade-in duration-300">
+                        <div className="space-y-1.5">
                           <Label className="text-xs font-bold uppercase">Linha</Label>
                           <Select value={lineFilter} onValueChange={(val) => { setLineFilter(val); setSelectedBrand("all"); setSelectedProductId("none"); }} disabled={orderItems.length > 0}>
-                            <SelectTrigger className="h-11"><SelectValue placeholder="Selecione a Linha" /></SelectTrigger>
+                            <SelectTrigger className="h-11"><SelectValue placeholder="Linha" /></SelectTrigger>
                             <SelectContent>
                               <SelectItem value="none">Escolha a Linha...</SelectItem>
-                              {availableLines.map(line => (
-                                <SelectItem key={line} value={line}>
-                                  <div className="flex items-center gap-2">
-                                    {line.toLowerCase().includes('refrigerada') ? <Snowflake size={12} className="text-blue-500" /> : <Sun size={12} className="text-orange-500" />}
-                                    {line}
-                                  </div>
-                                </SelectItem>
-                              ))}
+                              {availableLines.map(line => (<SelectItem key={line} value={line}>{line}</SelectItem>))}
                             </SelectContent>
                           </Select>
                         </div>
@@ -974,15 +946,14 @@ export default function NewOrderPage() {
                           </SelectContent>
                         </Select>
                       </div>
-
                       <div className="space-y-2">
                         <Label className="text-xs font-bold uppercase">Produto</Label>
                         <div className="relative mb-2">
                           <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" size={16} />
-                          <Input placeholder="Filtrar por nome/código..." className="pl-10 h-11" value={productSearch} onChange={(e) => { setProductSearch(e.target.value); setSelectedProductId("none"); }} />
+                          <Input placeholder="Filtrar..." className="pl-10 h-11" value={productSearch} onChange={(e) => { setProductSearch(e.target.value); setSelectedProductId("none"); }} />
                         </div>
-                        <Select value={selectedProductId} onValueChange={setSelectedProductId} disabled={filteredProducts.length === 0}>
-                          <SelectTrigger className="h-11"><SelectValue placeholder="Escolha o produto" /></SelectTrigger>
+                        <Select value={selectedProductId} onValueChange={setSelectedProductId}>
+                          <SelectTrigger className="h-11"><SelectValue placeholder="Produto" /></SelectTrigger>
                           <SelectContent>
                             <SelectItem value="none">Selecione...</SelectItem>
                             {filteredProducts.map(p => (<SelectItem key={p.id} value={p.id}>{p.code} - {p.description}</SelectItem>))}
@@ -997,24 +968,12 @@ export default function NewOrderPage() {
                       <div className="space-y-2">
                         <Label className="text-xs font-bold uppercase">Preço</Label>
                         <RadioGroup value={priceType} onValueChange={(val: any) => handlePriceTypeChange(val)} className="grid grid-cols-2 gap-2">
-                          <Label htmlFor="price-closed" className={`flex items-center justify-center gap-2 border-2 rounded-lg p-3 cursor-pointer transition-all ${priceType === 'closed' ? 'border-primary bg-primary/5 text-primary' : 'border-muted'}`}>
-                            <RadioGroupItem value="closed" id="price-closed" className="sr-only" />
-                            <span className="font-semibold text-xs text-center">Fechada</span>
-                          </Label>
-                          <Label htmlFor="price-fractional" className={`flex items-center justify-center gap-2 border-2 rounded-lg p-3 cursor-pointer transition-all ${priceType === 'fractional' ? 'border-primary bg-primary/5 text-primary' : 'border-muted'}`}>
-                            <RadioGroupItem value="fractional" id="price-fractional" className="sr-only" />
-                            <span className="font-semibold text-xs text-center">Fracionado</span>
-                          </Label>
+                          <Label htmlFor="price-closed" className={`flex items-center justify-center gap-2 border-2 rounded-lg p-3 cursor-pointer transition-all ${priceType === 'closed' ? 'border-primary bg-primary/5 text-primary' : 'border-muted'}`}><RadioGroupItem value="closed" id="price-closed" className="sr-only" /><span className="font-semibold text-xs">Fechada</span></Label>
+                          <Label htmlFor="price-fractional" className={`flex items-center justify-center gap-2 border-2 rounded-lg p-3 cursor-pointer transition-all ${priceType === 'fractional' ? 'border-primary bg-primary/5 text-primary' : 'border-muted'}`}><RadioGroupItem value="fractional" id="price-fractional" className="sr-only" /><span className="font-semibold text-xs">Fracionado</span></Label>
                         </RadioGroup>
                       </div>
-
-                      <div className="flex items-center justify-between p-3 bg-muted/30 rounded-lg border">
-                        <Label className="text-sm font-semibold">Desconto Catálogo</Label>
-                        <Switch checked={useCatalogDiscount} onCheckedChange={setUseCatalogDiscount} />
-                      </div>
-
                       <div className="grid grid-cols-2 gap-4">
-                        <div className="space-y-1.5"><Label className="text-xs">Qtd (Cxs)</Label><Input type="number" value={quantity} onChange={(e) => setQuantity(e.target.value === "" ? 0 : Number(e.target.value))} onFocus={(e) => e.target.select()} onBlur={() => quantity <= 0 && setQuantity(1)} className="font-bold text-lg h-11"/></div>
+                        <div className="space-y-1.5"><Label className="text-xs">Qtd (Cxs)</Label><Input type="number" value={quantity === 0 ? "" : quantity} onChange={(e) => setQuantity(e.target.value === "" ? 0 : Number(e.target.value))} onFocus={(e) => e.target.select()} className="font-bold text-lg h-11"/></div>
                         <div className="space-y-1.5"><Label className="text-xs">Contrato (%)</Label><Input type="number" value={contractPercent} onChange={(e) => setContractPercent(Number(e.target.value))} onFocus={(e) => e.target.select()} className="h-11 font-bold text-primary"/></div>
                       </div>
                     </div>
@@ -1022,22 +981,13 @@ export default function NewOrderPage() {
                 </>
               )}
             </CardContent>
-            
             {unitCalculations && (
               <div className="px-5 py-4 bg-muted/50 border-y space-y-1.5">
-                <div className="flex justify-between text-[11px] text-muted-foreground"><span>Base:</span><span>R$ {formatCurrency(unitCalculations.basePrice)}</span></div>
-                {unitCalculations.catalogDiscount > 0 && useCatalogDiscount && (
-                  <div className="flex justify-between text-[11px] text-accent font-medium"><span>(-) Desc. Catálogo:</span><span>- R$ {formatCurrency(unitCalculations.catalogDiscount)}</span></div>
-                )}
-                <div className="flex justify-between text-xs text-accent font-bold"><span>Preço Líquido (NET):</span><span>R$ {formatCurrency(unitCalculations.priceAfterCatalog)}</span></div>
-                <div className="flex justify-between text-[11px] text-primary"><span>(+) Contrato:</span><span>+ R$ {formatCurrency(unitCalculations.finalUnitPriceBeforeST - (unitCalculations.priceAfterCatalog + (currentRegisteredProduct?.customSurchargeR$ || 0)))}</span></div>
-                <div className="flex justify-between text-[11px] text-destructive"><span>(+) ST ({ (unitCalculations.stRate * 100).toFixed(0) }%):</span><span>+ R$ {formatCurrency(unitCalculations.stAmount)}</span></div>
-                <div className="pt-2 border-t flex justify-between items-center"><span className="text-sm font-bold">Unitário Final:</span><span className="text-xl font-black text-primary">R$ {formatCurrency(unitCalculations.finalUnitPriceWithST)}</span></div>
+                <div className="flex justify-between items-center"><span className="text-sm font-bold">Unitário Final:</span><span className="text-xl font-black text-primary">R$ {formatCurrency(unitCalculations.finalUnitPriceWithST)}</span></div>
               </div>
             )}
-
             <CardFooter className="pt-4 px-5">
-              <Button className="w-full gap-2 h-14 text-lg font-bold shadow-lg" onClick={handleAddProduct} disabled={selectedProductId === "none" || isLoading || !currentCatalogProduct}><Plus size={20} /> Adicionar</Button>
+              <Button className="w-full gap-2 h-14 text-lg font-bold shadow-lg" onClick={handleAddProduct} disabled={selectedProductId === "none" || isLoading}><Plus size={20} /> Adicionar</Button>
             </CardFooter>
           </Card>
         </div>
@@ -1061,65 +1011,28 @@ export default function NewOrderPage() {
                           <TableRow key={`${item.productId}-${idx}`}>
                             <TableCell className="py-3">
                               <div className="font-bold text-xs uppercase">{item.name}</div>
-                              <div className="text-[9px] text-muted-foreground mt-0.5">{item.priceType === 'closed' ? 'FECHADA' : 'FRAC'} | {item.line}</div>
+                              <div className="text-[9px] text-muted-foreground mt-0.5">{item.priceType === 'closed' ? 'FECHADA' : 'FRAC'}</div>
                             </TableCell>
                             <TableCell className="text-center">
                               <div className="flex items-center justify-center gap-2">
-                                <Button 
-                                  variant="outline" 
-                                  size="icon" 
-                                  className="h-7 w-7 rounded-full"
-                                  onClick={() => updateItemQuantity(idx, item.quantity - 1)}
-                                  disabled={item.quantity <= 1}
-                                >
-                                  <Minus size={12} />
-                                </Button>
-                                <input 
-                                  type="number" 
-                                  className="h-8 w-12 text-center border rounded font-bold text-xs" 
-                                  value={item.quantity === 0 ? "" : item.quantity}
-                                  onChange={(e) => {
-                                    const val = e.target.value;
-                                    updateItemQuantity(idx, val === "" ? 0 : Number(val));
-                                  }}
-                                  onFocus={(e) => e.target.select()}
-                                  onBlur={() => item.quantity <= 0 && updateItemQuantity(idx, 1)}
-                                />
-                                <Button 
-                                  variant="outline" 
-                                  size="icon" 
-                                  className="h-7 w-7 rounded-full"
-                                  onClick={() => updateItemQuantity(idx, item.quantity + 1)}
-                                >
-                                  <Plus size={12} />
-                                </Button>
+                                <Button variant="outline" size="icon" className="h-7 w-7 rounded-full" onClick={() => updateItemQuantity(idx, item.quantity - 1)} disabled={item.quantity <= 1}><Minus size={12} /></Button>
+                                <input type="number" className="h-8 w-12 text-center border rounded font-bold text-xs" value={item.quantity === 0 ? "" : item.quantity} onChange={(e) => updateItemQuantity(idx, e.target.value === "" ? 0 : Number(e.target.value))} onFocus={(e) => e.target.select()} onBlur={() => item.quantity <= 0 && updateItemQuantity(idx, 1)} />
+                                <Button variant="outline" size="icon" className="h-7 w-7 rounded-full" onClick={() => updateItemQuantity(idx, item.quantity + 1)}><Plus size={12} /></Button>
                               </div>
                             </TableCell>
                             <TableCell className="text-right py-3">
                               <div className="font-black text-primary text-xs">R$ {formatCurrency(item.total)}</div>
                               <div className="text-[9px] text-muted-foreground mt-0.5 font-medium">Unit: R$ {formatCurrency(item.unitPriceFinal)}</div>
                             </TableCell>
-                            <TableCell className="text-right pr-2">
-                              <Button variant="ghost" size="icon" onClick={() => removeProduct(idx)} className="text-destructive h-8 w-8">
-                                <Trash2 size={16} />
-                              </Button>
-                            </TableCell>
+                            <TableCell className="text-right pr-2"><Button variant="ghost" size="icon" onClick={() => removeProduct(idx)} className="text-destructive h-8 w-8"><Trash2 size={16} /></Button></TableCell>
                           </TableRow>
                         ))}
                       </TableBody>
                     </Table>
                   </div>
-                  
                   <div className="p-5 border-t bg-muted/10 space-y-2">
-                    <Label className="text-xs font-bold uppercase flex items-center gap-2">
-                      <MessageSquare size={14} className="text-primary" /> Observações do Pedido
-                    </Label>
-                    <Textarea 
-                      placeholder="Detalhes de entrega, restrições, etc..." 
-                      className="min-h-[80px] bg-white text-xs"
-                      value={observations}
-                      onChange={(e) => setObservations(e.target.value)}
-                    />
+                    <Label className="text-xs font-bold uppercase flex items-center gap-2"><MessageSquare size={14} className="text-primary" /> Observações</Label>
+                    <Textarea placeholder="Detalhes de entrega..." className="min-h-[80px] bg-white text-xs" value={observations} onChange={(e) => setObservations(e.target.value)} />
                   </div>
                 </div>
               )}
@@ -1128,13 +1041,10 @@ export default function NewOrderPage() {
               <CardFooter className="bg-primary/5 p-6 flex flex-col border-t gap-5">
                 <div className="w-full flex justify-between items-center">
                   <div className="space-y-0.5"><p className="text-[10px] text-muted-foreground uppercase font-black">Total</p><p className="text-3xl font-black text-primary">R$ {formatCurrency(orderTotal)}</p></div>
-                  <div className="flex items-center gap-3 bg-white px-4 py-2 rounded-xl border shadow-sm">
-                    <Weight size={18} className="text-primary" />
-                    <div><p className="text-[9px] text-muted-foreground uppercase font-bold">Peso</p><p className="text-base font-black">{orderTotalWeight.toFixed(2)} Kg</p></div>
-                  </div>
+                  <div className="flex items-center gap-3 bg-white px-4 py-2 rounded-xl border shadow-sm"><Weight size={18} className="text-primary" /><div><p className="text-[9px] text-muted-foreground uppercase font-bold">Peso</p><p className="text-base font-black">{orderTotalWeight.toFixed(2)} Kg</p></div></div>
                 </div>
                 <div className="grid grid-cols-2 gap-3 w-full">
-                  <Button variant="outline" className="h-14 border-primary text-primary font-bold" onClick={() => { setOrderItems([]); setCategoryFilter("none"); setSelectedFactoryId("none"); setLineFilter("none"); setObservations(""); }} disabled={isFinalizing}>Limpar</Button>
+                  <Button variant="outline" className="h-14 border-primary text-primary font-bold" onClick={() => { setOrderItems([]); setCategoryFilter("none"); setSelectedFactoryId("none"); setLineFilter("none"); }} disabled={isFinalizing}>Limpar</Button>
                   <Button className="h-14 bg-accent hover:bg-accent/90 text-white shadow-lg gap-2 text-lg font-bold" onClick={handleFinalizeOrder} disabled={isFinalizing || selectedCustomerId === "none"}>{isFinalizing ? <Loader2 className="animate-spin" /> : <ReceiptText size={20} />}Finalizar</Button>
                 </div>
               </CardFooter>
@@ -1148,20 +1058,16 @@ export default function NewOrderPage() {
           <div className="flex items-center justify-between border-b-2 border-primary pb-4 mb-2">
             <div className="flex items-center gap-3"><Zap className="text-primary" size={40} /><h1 className="text-3xl font-black text-primary uppercase">Tabela de Preços</h1></div>
             <div className="text-right text-xs">
-              <p className="font-bold">{selectedFactory?.name}</p>
-              <p className="text-muted-foreground uppercase">{lineFilter}</p>
+              <p className="font-bold">{factories?.find(f => f.id === exportFactoryId)?.name}</p>
+              <p className="text-muted-foreground uppercase">{exportLineFilter}</p>
               <p>{new Date().toLocaleDateString('pt-BR')}</p>
             </div>
           </div>
-          {deliveryEstimate && (
-            <div className="mb-4 text-center">
-              <p className="text-primary font-bold text-sm">Prazo estimado de entrega: Até o dia {deliveryEstimate}</p>
-            </div>
-          )}
+          {deliveryEstimate && (<div className="mb-4 text-center"><p className="text-primary font-bold text-sm">Prazo estimado: {deliveryEstimate}</p></div>)}
           <table className="w-full text-[10px] border-collapse">
             <thead><tr className="bg-primary text-white"><th className="p-2 text-left border">Cod</th><th className="p-2 text-left border">EAN</th><th className="p-2 text-left border">Descrição</th><th className="p-2 text-right border">Preço NET</th><th className="p-2 text-right border">Final (+ST)</th></tr></thead>
             <tbody>
-              {[...pdfFilteredProducts].sort((a, b) => (a.code || "").localeCompare(b.code || "", undefined, { numeric: true, sensitivity: 'base' })).map((p) => {
+              {pdfFilteredProducts.sort((a, b) => (a.code || "").localeCompare(b.code || "", undefined, { numeric: true })).map((p) => {
                   const catalog = catalogProducts?.find(cp => cp.id === p.catalogProductId);
                   const prices = calculateItemPrices(p, catalog, exportContractPercent, exportPriceType);
                   if (!prices) return null;
@@ -1169,9 +1075,9 @@ export default function NewOrderPage() {
               })}
             </tbody>
           </table>
-          <div className="mt-8 border-t pt-4 text-[8px] text-muted-foreground flex justify-between items-center">
+          <div className="mt-8 border-t pt-4 text-[8px] text-muted-foreground flex justify-between">
             <div className="opacity-30">{exportContractPercent > 0 && (<span>{(exportContractPercent / 10).toFixed(1).replace('.', ',')}</span>)}</div>
-            <p className="flex-1 text-center">Gerado eletronicamente por InteliPreço.</p>
+            <p>Gerado eletronicamente por InteliPreço.</p>
           </div>
         </div>
       </div>
