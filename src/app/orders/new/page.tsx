@@ -419,6 +419,23 @@ export default function NewOrderPage() {
     setOrderItems(updatedItems);
   };
 
+  const updateItemPrice = (index: number, newFinalPrice: number) => {
+    if (newFinalPrice < 0) return;
+    const updatedItems = [...orderItems];
+    const item = updatedItems[index];
+    
+    const stRateDecimal = (item.stRate || 0) / 100;
+    // FinalPrice = NetPrice * (1 + ST)
+    // NetPrice = FinalPrice / (1 + ST)
+    const newNetPrice = newFinalPrice / (1 + stRateDecimal);
+    
+    item.unitPriceFinal = newFinalPrice;
+    item.unitPriceNet = newNetPrice;
+    item.total = newFinalPrice * item.quantityPerBox * item.quantity;
+    
+    setOrderItems(updatedItems);
+  };
+
   const handleFinalizeOrder = async () => {
     if (orderItems.length === 0) return;
     if (selectedCustomerId === "none") {
@@ -1005,7 +1022,7 @@ export default function NewOrderPage() {
                 <div className="flex flex-col h-full">
                   <div className="overflow-x-auto flex-1">
                     <Table>
-                      <TableHeader><TableRow className="bg-muted/30"><TableHead className="text-xs">Item</TableHead><TableHead className="text-center text-xs">Qtd</TableHead><TableHead className="text-right text-xs">Total</TableHead><TableHead></TableHead></TableRow></TableHeader>
+                      <TableHeader><TableRow className="bg-muted/30"><TableHead className="text-xs">Item</TableHead><TableHead className="text-center text-xs">Qtd</TableHead><TableHead className="text-right text-xs">Preços e Total</TableHead><TableHead></TableHead></TableRow></TableHeader>
                       <TableBody>
                         {orderItems.map((item, idx) => (
                           <TableRow key={`${item.productId}-${idx}`}>
@@ -1021,8 +1038,21 @@ export default function NewOrderPage() {
                               </div>
                             </TableCell>
                             <TableCell className="text-right py-3">
-                              <div className="font-black text-primary text-xs">R$ {formatCurrency(item.total)}</div>
-                              <div className="text-[9px] text-muted-foreground mt-0.5 font-medium">Unit: R$ {formatCurrency(item.unitPriceFinal)}</div>
+                              <div className="flex flex-col items-end gap-1">
+                                <div className="font-black text-primary text-xs">R$ {formatCurrency(item.total)}</div>
+                                <div className="flex items-center gap-1">
+                                  <span className="text-[9px] text-muted-foreground font-medium">Unit R$:</span>
+                                  <input 
+                                    type="number" 
+                                    step="0.01"
+                                    className="h-7 w-20 text-right border rounded bg-slate-50 font-bold text-[11px] px-1 focus:border-primary focus:ring-1 focus:ring-primary outline-none" 
+                                    value={item.unitPriceFinal === 0 ? "" : item.unitPriceFinal.toFixed(2)} 
+                                    onChange={(e) => updateItemPrice(idx, e.target.value === "" ? 0 : Number(e.target.value))}
+                                    onFocus={(e) => e.target.select()}
+                                  />
+                                </div>
+                                <div className="text-[9px] text-destructive font-medium">+{item.stRate?.toFixed(0)}% ST</div>
+                              </div>
                             </TableCell>
                             <TableCell className="text-right pr-2"><Button variant="ghost" size="icon" onClick={() => removeProduct(idx)} className="text-destructive h-8 w-8"><Trash2 size={16} /></Button></TableCell>
                           </TableRow>
