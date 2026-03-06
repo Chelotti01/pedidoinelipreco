@@ -10,7 +10,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { ChevronLeft, DollarSign, Percent, Search, Loader2, Save, FilterX } from "lucide-react";
+import { ChevronLeft, DollarSign, Percent, Search, Loader2, Save, FilterX, Tag } from "lucide-react";
 import Link from 'next/link';
 import { useToast } from "@/hooks/use-toast";
 
@@ -66,7 +66,7 @@ export default function MarginsManagementPage() {
             <ChevronLeft size={28} />
           </Link>
           <div>
-            <h1 className="text-3xl font-black tracking-tight text-primary">Gestão de Margens</h1>
+            <h1 className="text-3xl font-black tracking-tight text-primary uppercase">Gestão de Margens</h1>
             <p className="text-muted-foreground">Ajuste o aditivo oculto de todos os produtos cadastrados.</p>
           </div>
         </div>
@@ -142,9 +142,9 @@ export default function MarginsManagementPage() {
           <p className="text-muted-foreground font-medium">Nenhum produto encontrado com os filtros selecionados.</p>
         </div>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <div className="space-y-3">
           {filteredProducts.map((p) => (
-            <MarginSurchargeCard key={p.id} product={p} db={db} />
+            <MarginSurchargeRow key={p.id} product={p} db={db} />
           ))}
         </div>
       )}
@@ -152,7 +152,7 @@ export default function MarginsManagementPage() {
   );
 }
 
-function MarginSurchargeCard({ product, db }: { product: any, db: any }) {
+function MarginSurchargeRow({ product, db }: { product: any, db: any }) {
   const { toast } = useToast();
   const [isSaving, setIsSaving] = useState(false);
   const [surchargeValue, setSurchargeValue] = useState(product.customSurchargeValue !== undefined ? String(product.customSurchargeValue) : (product.customSurchargeR$ !== undefined ? String(product.customSurchargeR$) : '0'));
@@ -178,85 +178,70 @@ function MarginSurchargeCard({ product, db }: { product: any, db: any }) {
   };
 
   return (
-    <Card className="shadow-lg border-none hover:shadow-xl transition-shadow">
-      <CardHeader className="bg-slate-50/50 pb-4">
-        <div className="flex justify-between items-start">
-          <div className="space-y-1">
-            <CardTitle className="text-sm font-black text-slate-800 uppercase flex items-center gap-2">
-               {product.code}
-            </CardTitle>
-            <CardDescription className="text-[10px] font-bold uppercase truncate max-w-[200px]">
-              {product.description}
-            </CardDescription>
-          </div>
-          <div className="flex items-center gap-2">
-            <div className={`px-2 py-0.5 rounded-full text-[10px] font-bold border border-slate-200 text-slate-600`}>
+    <Card className="shadow-sm border-none hover:shadow-md transition-shadow bg-white overflow-hidden">
+      <CardContent className="p-4 flex flex-col md:flex-row items-center gap-6">
+        {/* Info do Produto */}
+        <div className="flex-1 min-w-0 w-full md:w-auto">
+          <div className="flex items-center gap-2 mb-1">
+            <span className="font-black text-slate-800 uppercase tracking-tighter">{product.code}</span>
+            <div className="px-2 py-0.5 rounded bg-primary/10 text-primary text-[9px] font-black uppercase">
               {product.brand}
             </div>
           </div>
-        </div>
-      </CardHeader>
-      <CardContent className="pt-6 space-y-6">
-        <div className="space-y-4">
-          <div className="flex items-center gap-2 text-primary">
-            <DollarSign size={20} className="shrink-0" />
-            <div className="flex flex-col">
-              <span className="text-sm font-bold tracking-tight">Aditivo de Margem (Oculto)</span>
-              <span className="text-[10px] text-muted-foreground">Valor somado ao preço unitário sem sinalização externa.</span>
-            </div>
+          <div className="text-[10px] text-muted-foreground font-bold uppercase truncate max-w-md">
+            {product.description}
           </div>
+          <div className="text-[9px] text-slate-400 mt-0.5">
+            Linha: {product.line || 'N/A'}
+          </div>
+        </div>
 
-          <div className="space-y-3">
-            <Label className="text-[10px] uppercase font-black text-muted-foreground tracking-widest">TIPO DE ADITIVO</Label>
-            <Tabs 
-              value={surchargeType} 
-              onValueChange={(val) => setSurchargeType(val)}
-              className="w-full"
-            >
-              <TabsList className="grid w-full grid-cols-2 h-11 bg-slate-100 p-1">
-                <TabsTrigger value="fixed" className="gap-2 text-xs font-bold data-[state=active]:bg-white data-[state=active]:shadow-sm">
-                  <DollarSign size={14} /> Fixo (R$)
-                </TabsTrigger>
-                <TabsTrigger value="percentage" className="gap-2 text-xs font-bold data-[state=active]:bg-white data-[state=active]:shadow-sm">
-                  <Percent size={14} /> Percentual (%)
-                </TabsTrigger>
-              </TabsList>
-            </Tabs>
+        {/* Tipo de Aditivo */}
+        <div className="w-full md:w-auto shrink-0">
+          <Tabs 
+            value={surchargeType} 
+            onValueChange={(val) => setSurchargeType(val)}
+            className="w-full md:w-56"
+          >
+            <TabsList className="grid w-full grid-cols-2 h-9 bg-slate-100 p-1">
+              <TabsTrigger value="fixed" className="gap-2 text-[10px] font-black data-[state=active]:bg-white">
+                <DollarSign size={12} /> FIXO (R$)
+              </TabsTrigger>
+              <TabsTrigger value="percentage" className="gap-2 text-[10px] font-black data-[state=active]:bg-white">
+                <Percent size={12} /> PERC. (%)
+              </TabsTrigger>
+            </TabsList>
+          </Tabs>
+        </div>
+        
+        {/* Valor e Ação */}
+        <div className="flex items-center gap-3 w-full md:w-auto shrink-0">
+          <div className="relative w-full md:w-32">
+            <div className="absolute left-2.5 top-1/2 -translate-y-1/2 text-primary font-black text-xs">
+              {surchargeType === 'fixed' ? 'R$' : '%'}
+            </div>
+            <Input 
+              type="number" 
+              step="0.01" 
+              value={surchargeValue} 
+              onChange={(e) => setSurchargeValue(e.target.value)} 
+              onFocus={(e) => e.target.select()}
+              className="h-9 text-right font-black text-primary pl-8 pr-2 bg-slate-50 border-slate-200"
+            />
           </div>
           
-          <div className="space-y-2">
-            <Label className="text-xs font-bold">{surchargeType === 'fixed' ? 'Valor Fixo (R$)' : 'Porcentagem (%)'}</Label>
-            <div className="relative">
-              <div className="absolute left-3 top-1/2 -translate-y-1/2 text-primary font-black text-lg">
-                {surchargeType === 'fixed' ? 'R$' : '%'}
-              </div>
-              <Input 
-                type="number" 
-                step="0.01" 
-                value={surchargeValue} 
-                onChange={(e) => setSurchargeValue(e.target.value)} 
-                onFocus={(e) => e.target.select()}
-                className="h-14 text-2xl font-black text-primary pl-12 bg-slate-50/30 border-slate-200 focus:border-primary focus:ring-1 focus:ring-primary"
-              />
-            </div>
-            <p className="text-[10px] text-muted-foreground italic font-medium">
-              {surchargeType === 'fixed' 
-                ? "Este valor será somado diretamente ao preço unitário." 
-                : "Esta porcentagem será aplicada sobre o preço líquido do item."}
-            </p>
-          </div>
+          <Button 
+            onClick={handleSave} 
+            disabled={isSaving} 
+            size="sm"
+            className="h-9 px-4 gap-2 font-black shadow-sm"
+          >
+            {isSaving ? <Loader2 className="animate-spin size-4" /> : <Save size={16} />}
+            SALVAR
+          </Button>
         </div>
       </CardContent>
-      <CardFooter className="pt-0 pb-6 px-6">
-        <Button 
-          onClick={handleSave} 
-          disabled={isSaving} 
-          className="w-full h-12 gap-2 font-bold shadow-md hover:shadow-lg transition-all"
-        >
-          {isSaving ? <Loader2 className="animate-spin" /> : <Save size={18} />}
-          Salvar Margem
-        </Button>
-      </CardFooter>
     </Card>
   );
 }
+
