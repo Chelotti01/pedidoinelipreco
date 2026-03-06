@@ -20,7 +20,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { useToast } from "@/hooks/use-toast";
 import { 
   ShoppingCart, Plus, Trash2, Calculator, ReceiptText, Zap, 
-  Loader2, Weight, Tag, User, AlertTriangle, Search, Snowflake, Sun, FileDown, LogOut, MessageSquare, Settings2, Minus, MessageCircle, ClipboardCopy, Check, ArrowLeft, Save
+  Loader2, Weight, Tag, User, AlertTriangle, Search, Snowflake, Sun, FileDown, LogOut, MessageSquare, Settings2, Minus, MessageCircle, ClipboardCopy, Check, ArrowLeft, Save, Gift
 } from "lucide-react";
 import {
   AlertDialog,
@@ -52,6 +52,7 @@ export type OrderItem = {
   line: string;
   quantityPerBox: number;
   unitWeight: number;
+  isBonus?: boolean;
 };
 
 export default function NewOrderPage() {
@@ -92,6 +93,7 @@ export default function NewOrderPage() {
   const [priceType, setPriceType] = useState<'closed' | 'fractional'>('closed');
   const [useCatalogDiscount, setUseCatalogDiscount] = useState<boolean>(true);
   const [contractPercent, setContractPercent] = useState<number>(0);
+  const [isBonus, setIsBonus] = useState(false);
   
   const [showAraRulesDialog, setShowAraRulesDialog] = useState(false);
   const [showBvgRulesDialog, setShowBvgRulesDialog] = useState(false);
@@ -318,6 +320,9 @@ export default function NewOrderPage() {
     if (orderItems.length === 0) return;
 
     const updatedItems = orderItems.map(item => {
+      // Itens bonificados mantêm total 0 independente do tipo de preço
+      if (item.isBonus) return item;
+
       const catalogItem = catalogProducts?.find(cp => cp.id === item.catalogProductId);
       const registeredItem = registeredProducts?.find(rp => rp.id === item.productId);
       
@@ -371,8 +376,9 @@ export default function NewOrderPage() {
     const { finalUnitPriceWithST, finalUnitPriceBeforeST, stRate } = unitCalculations;
     
     const qtyPerBox = currentRegisteredProduct.quantityPerBox || 1;
-    const total = finalUnitPriceWithST * qtyPerBox * (quantity || 1);
-    const weight = (currentRegisteredProduct.boxWeightKg || 0) * (quantity || 1);
+    // Item bonificado tem total 0 e peso 0 para fins de mínimo e financeiro
+    const total = isBonus ? 0 : (finalUnitPriceWithST * qtyPerBox * (quantity || 1));
+    const weight = isBonus ? 0 : ((currentRegisteredProduct.boxWeightKg || 0) * (quantity || 1));
 
     const newItem: OrderItem = {
       productId: currentRegisteredProduct.id,
@@ -392,12 +398,13 @@ export default function NewOrderPage() {
       weight,
       line: currentRegisteredProduct.line || '',
       quantityPerBox: qtyPerBox,
-      unitWeight: currentRegisteredProduct.boxWeightKg || 0
+      unitWeight: currentRegisteredProduct.boxWeightKg || 0,
+      isBonus
     };
 
     setOrderItems([...orderItems, newItem]);
     toast({
-      title: "Adicionado",
+      title: isBonus ? "Bonificação Adicionada" : "Adicionado",
       description: `${currentRegisteredProduct.description} no carrinho.`,
     });
 
@@ -405,6 +412,7 @@ export default function NewOrderPage() {
     setProductSearch("");
     setQuantity(1);
     setContractPercent(0);
+    setIsBonus(false);
   };
 
   const updateItemQuantity = (index: number, newQuantity: number) => {
@@ -414,8 +422,9 @@ export default function NewOrderPage() {
     const item = updatedItems[index];
     
     item.quantity = newQuantity;
-    item.total = item.unitPriceFinal * item.quantityPerBox * newQuantity;
-    item.weight = item.unitWeight * newQuantity;
+    // Mantém total e peso zerados se for bonificado
+    item.total = item.isBonus ? 0 : (item.unitPriceFinal * item.quantityPerBox * newQuantity);
+    item.weight = item.isBonus ? 0 : (item.unitWeight * newQuantity);
     
     setOrderItems(updatedItems);
   };
@@ -430,7 +439,8 @@ export default function NewOrderPage() {
     
     item.unitPriceFinal = newFinalPrice;
     item.unitPriceNet = newNetPrice;
-    item.total = newFinalPrice * item.quantityPerBox * item.quantity;
+    // Mantém total zerado se for bonificado
+    item.total = item.isBonus ? 0 : (newFinalPrice * item.quantityPerBox * item.quantity);
     
     setOrderItems(updatedItems);
   };
@@ -484,11 +494,11 @@ export default function NewOrderPage() {
         toast({ title: "Pedido Inválido", description: `Mínimo 30 caixas (Atual: ${totalQty}).`, variant: "destructive" });
         return;
       }
-      if (totalQty >= 30 && totalQty <= 130 && orderItems.some(item => item.priceType !== 'fractional')) {
+      if (totalQty >= 30 && totalQty <= 130 && orderItems.some(item => !item.isBonus && item.priceType !== 'fractional')) {
         toast({ title: "Ajuste de Preço", description: "Use 'Fracionado' para este volume.", variant: "destructive" });
         return;
       }
-      if (totalQty > 130 && orderItems.some(item => item.priceType !== 'closed')) {
+      if (totalQty > 130 && orderItems.some(item => !item.isBonus && item.priceType !== 'closed')) {
         toast({ title: "Ajuste de Preço", description: "Use 'Carga Fechada' para este volume.", variant: "destructive" });
         return;
       }
@@ -1025,6 +1035,16 @@ export default function NewOrderPage() {
                         <div className="space-y-1.5"><Label className="text-xs">Qtd (Cxs)</Label><Input type="number" value={quantity === 0 ? "" : quantity} onChange={(e) => setQuantity(e.target.value === "" ? 0 : Number(e.target.value))} onFocus={(e) => e.target.select()} className="font-bold text-lg h-11"/></div>
                         <div className="space-y-1.5"><Label className="text-xs">Contrato (%)</Label><Input type="number" value={contractPercent} onChange={(e) => setContractPercent(Number(e.target.value))} onFocus={(e) => e.target.select()} className="h-11 font-bold text-primary"/></div>
                       </div>
+                      <div className="flex items-center space-x-2 bg-muted/50 p-2 rounded-lg">
+                        <Switch 
+                          id="bonus-mode" 
+                          checked={isBonus} 
+                          onCheckedChange={setIsBonus}
+                        />
+                        <Label htmlFor="bonus-mode" className="text-xs font-bold flex items-center gap-1 cursor-pointer">
+                          <Gift size={14} className="text-accent" /> Bonificado
+                        </Label>
+                      </div>
                     </div>
                   )}
                 </>
@@ -1032,7 +1052,15 @@ export default function NewOrderPage() {
             </CardContent>
             {unitCalculations && (
               <div className="px-5 py-4 bg-muted/50 border-y space-y-1.5">
-                <div className="flex justify-between items-center"><span className="text-sm font-bold">Unitário Final:</span><span className="text-xl font-black text-primary">R$ {formatCurrency(unitCalculations.finalUnitPriceWithST)}</span></div>
+                <div className="flex justify-between items-center">
+                  <span className="text-sm font-bold">Unitário Final:</span>
+                  <span className={`text-xl font-black ${isBonus ? 'text-muted-foreground line-through' : 'text-primary'}`}>
+                    R$ {formatCurrency(unitCalculations.finalUnitPriceWithST)}
+                  </span>
+                </div>
+                {isBonus && (
+                  <div className="text-right"><Badge variant="outline" className="bg-accent/10 text-accent border-accent/20">VALOR ZERADO</Badge></div>
+                )}
               </div>
             )}
             <CardFooter className="pt-4 px-5">
@@ -1057,10 +1085,13 @@ export default function NewOrderPage() {
                       <TableHeader><TableRow className="bg-muted/30"><TableHead className="text-xs">Item</TableHead><TableHead className="text-center text-xs">Qtd</TableHead><TableHead className="text-right text-xs">Preços e Total</TableHead><TableHead></TableHead></TableRow></TableHeader>
                       <TableBody>
                         {orderItems.map((item, idx) => (
-                          <TableRow key={`${item.productId}-${idx}`}>
+                          <TableRow key={`${item.productId}-${idx}`} className={item.isBonus ? "bg-accent/5" : ""}>
                             <TableCell className="py-3">
                               <div className="font-bold text-xs uppercase">{item.name}</div>
-                              <div className="text-[9px] text-muted-foreground mt-0.5">{item.priceType === 'closed' ? 'FECHADA' : 'FRAC'}</div>
+                              <div className="flex items-center gap-2 mt-0.5">
+                                <span className="text-[9px] text-muted-foreground font-medium uppercase">{item.priceType === 'closed' ? 'FECHADA' : 'FRAC'}</span>
+                                {item.isBonus && <Badge variant="outline" className="text-[8px] h-4 px-1 py-0 bg-accent text-white border-none">BONIFICAÇÃO</Badge>}
+                              </div>
                             </TableCell>
                             <TableCell className="text-center">
                               <div className="flex items-center justify-center gap-2">
@@ -1071,16 +1102,19 @@ export default function NewOrderPage() {
                             </TableCell>
                             <TableCell className="text-right py-3">
                               <div className="flex flex-col items-end gap-1">
-                                <div className="font-black text-primary text-xs">R$ {formatCurrency(item.total)}</div>
+                                <div className={`font-black text-xs ${item.isBonus ? 'text-accent' : 'text-primary'}`}>
+                                  {item.isBonus ? 'BONUS' : `R$ ${formatCurrency(item.total)}`}
+                                </div>
                                 <div className="flex items-center gap-1">
                                   <span className="text-[9px] text-muted-foreground font-medium">Unit R$:</span>
                                   <input 
                                     type="number" 
                                     step="0.01"
-                                    className="h-7 w-20 text-right border rounded bg-slate-50 font-bold text-[11px] px-1 focus:border-primary focus:ring-1 focus:ring-primary outline-none" 
+                                    className={`h-7 w-20 text-right border rounded bg-slate-50 font-bold text-[11px] px-1 outline-none ${item.isBonus ? 'text-muted-foreground line-through opacity-50' : 'focus:border-primary focus:ring-1 focus:ring-primary'}`}
                                     value={item.unitPriceFinal === 0 ? "" : item.unitPriceFinal.toFixed(2)} 
-                                    onChange={(e) => updateItemPrice(idx, e.target.value === "" ? 0 : Number(e.target.value))}
+                                    onChange={(e) => !item.isBonus && updateItemPrice(idx, e.target.value === "" ? 0 : Number(e.target.value))}
                                     onFocus={(e) => e.target.select()}
+                                    readOnly={item.isBonus}
                                   />
                                 </div>
                                 <div className="text-[9px] text-destructive font-medium">+{item.stRate?.toFixed(0)}% ST</div>

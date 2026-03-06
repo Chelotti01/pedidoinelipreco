@@ -1,3 +1,4 @@
+
 "use client"
 
 import { useState, useRef } from 'react';
@@ -7,11 +8,12 @@ import { doc } from 'firebase/firestore';
 import { Button } from "@/components/ui/button";
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "@/components/ui/table";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
-import { Printer, ChevronLeft, Zap, Calendar, Home, Loader2, Download, MessageSquare } from "lucide-react";
+import { Printer, ChevronLeft, Zap, Calendar, Home, Loader2, Download, MessageSquare, Gift } from "lucide-react";
 import Link from 'next/link';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { useToast } from "@/hooks/use-toast";
+import { Badge } from "@/components/ui/badge";
 
 export default function ViewOrderPage() {
   const params = useParams();
@@ -196,13 +198,14 @@ export default function ViewOrderPage() {
                 </TableHeader>
                 <TableBody>
                   {order.items?.map((item: any, idx: number) => (
-                    <TableRow key={`${item.productId}-${idx}`}>
+                    <TableRow key={`${item.productId}-${idx}`} className={item.isBonus ? "bg-accent/5" : ""}>
                       <TableCell className="min-w-[200px]">
                         <div className="font-bold text-sm">{item.code}</div>
                         <div className="text-[11px] text-muted-foreground leading-tight mb-1">{item.name}</div>
                         <div className="flex flex-wrap items-center gap-2">
                           <span className="text-[10px] font-mono bg-slate-100 px-1.5 py-0.5 rounded border border-slate-200">EAN: {item.ean}</span>
                           <span className="text-[10px] bg-primary/5 text-primary px-1.5 py-0.5 rounded font-bold border border-primary/10">{item.factoryName}</span>
+                          {item.isBonus && <Badge className="bg-accent text-white border-none h-5 px-1.5 text-[10px] flex items-center gap-1"><Gift size={10} /> BONIFICAÇÃO</Badge>}
                         </div>
                       </TableCell>
                       <TableCell className="text-center">
@@ -210,14 +213,14 @@ export default function ViewOrderPage() {
                         <div className="text-[10px] text-muted-foreground uppercase">{item.priceType === 'closed' ? 'Fechada' : 'Frac'}</div>
                       </TableCell>
                       <TableCell className="text-right text-xs text-muted-foreground">
-                        {formatCurrency(item.unitPriceNet)}
+                        {item.isBonus ? '-' : formatCurrency(item.unitPriceNet)}
                       </TableCell>
                       <TableCell className="text-right">
-                        <div className="font-bold text-primary text-sm">{formatCurrency(item.unitPriceFinal)}</div>
-                        <div className="text-[10px] text-destructive font-medium">+{item.stRate?.toFixed(0)}% ST</div>
+                        <div className={`font-bold text-sm ${item.isBonus ? 'text-accent' : 'text-primary'}`}>{item.isBonus ? 'BONUS' : formatCurrency(item.unitPriceFinal)}</div>
+                        {!item.isBonus && <div className="text-[10px] text-destructive font-medium">+{item.stRate?.toFixed(0)}% ST</div>}
                       </TableCell>
                       <TableCell className="text-right font-black text-sm">
-                        {formatCurrency(item.total)}
+                        {item.isBonus ? 'R$ 0,00' : formatCurrency(item.total)}
                       </TableCell>
                     </TableRow>
                   ))}
