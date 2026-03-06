@@ -95,28 +95,6 @@ export default function NewOrderPage() {
   const [isBonus, setIsBonus] = useState(false);
   
   const [showAraRulesDialog, setShowAraRulesDialog] = useState(false);
-  const [showBvgRulesDialog, setShowBvgRulesDialog] = useState(false);
-  const [showMrvRulesDialog, setShowMrvRulesDialog] = useState(false);
-  const [showSjoRulesDialog, setShowSjoRulesDialog] = useState(false);
-
-  // States para exportação PDF
-  const [showExportConfigDialog, setShowExportConfigDialog] = useState(false);
-  const [exportFactoryId, setExportFactoryId] = useState<string>("none");
-  const [exportLineFilter, setExportLineFilter] = useState<string>("none");
-  const [exportContractPercent, setExportContractPercent] = useState<number>(0);
-  const [exportPriceType, setExportPriceType] = useState<'closed' | 'fractional'>('closed');
-  const [exportBrand, setExportBrand] = useState<string>("all");
-
-  // States para o compartilhamento de WhatsApp
-  const [showZapDialog, setShowZapDialog] = useState(false);
-  const [zapFactoryId, setZapFactoryId] = useState<string>("none");
-  const [zapLineFilter, setZapLineFilter] = useState<string>("none");
-  const [zapBrandFilter, setZapBrandFilter] = useState<string>("all");
-  const [zapSelectedIds, setZapSelectedIds] = useState<string[]>([]);
-  const [zapPriceTypes, setZapPriceTypes] = useState<Record<string, 'closed' | 'fractional'>>({});
-  const [zapContractPercent, setZapContractPercent] = useState<number>(0);
-  const [zapSearchTerm, setZapSearchTerm] = useState("");
-  const [zapGeneratedText, setZapGeneratedText] = useState("");
 
   useEffect(() => {
     const date = new Date();
@@ -205,36 +183,26 @@ export default function NewOrderPage() {
 
     if (factoryName.includes('ARA') && selectedLine.includes('SECA UHT')) {
       setShowAraRulesDialog(true);
-    } else if (factoryName.includes('BVG') && selectedLine.includes('REFRIGERADA')) {
-      setShowBvgRulesDialog(true);
-    } else if (factoryName.includes('MRV') && selectedLine.includes('SECA')) {
-      setShowMrvRulesDialog(true);
-      setPriceType('fractional');
-    } else if (factoryName.includes('SJO') && selectedLine.includes('REFRIGERADA')) {
-      setShowSjoRulesDialog(true);
     }
   }, [selectedFactoryId, lineFilter, selectedFactory]);
 
-  const getAvailableLines = (factoryId: string) => {
-    if (factoryId === "none" || !registeredProducts) return [];
+  const availableLines = useMemo(() => {
+    if (selectedFactoryId === "none" || !registeredProducts) return [];
     const lines = registeredProducts
-      .filter(p => p.factoryId === factoryId)
+      .filter(p => p.factoryId === selectedFactoryId)
       .map(p => p.line)
       .filter(Boolean);
     return Array.from(new Set(lines)).sort();
-  };
+  }, [selectedFactoryId, registeredProducts]);
 
-  const getAvailableBrands = (factoryId: string, line: string) => {
-    if (factoryId === "none" || line === "none" || !registeredProducts) return [];
+  const availableBrands = useMemo(() => {
+    if (selectedFactoryId === "none" || lineFilter === "none" || !registeredProducts) return [];
     const brands = registeredProducts
-      .filter(p => p.factoryId === factoryId && p.line === line)
+      .filter(p => p.factoryId === selectedFactoryId && p.line === lineFilter)
       .map(p => p.brand)
       .filter(Boolean);
     return Array.from(new Set(brands)).sort();
-  };
-
-  const availableLines = useMemo(() => getAvailableLines(selectedFactoryId), [selectedFactoryId, registeredProducts]);
-  const availableBrands = useMemo(() => getAvailableBrands(selectedFactoryId, lineFilter), [selectedFactoryId, lineFilter, registeredProducts]);
+  }, [selectedFactoryId, lineFilter, registeredProducts]);
 
   const filteredProducts = useMemo(() => {
     if (selectedFactoryId === "none" || !registeredProducts || lineFilter === "none") return [];
@@ -278,18 +246,15 @@ export default function NewOrderPage() {
     return isNaN(parsed) ? 0 : parsed / 100;
   };
 
-  const calculateItemPrices = (registeredItem: any, catalogItem: any, overridePercent?: number, overridePriceType?: 'closed' | 'fractional') => {
+  const calculateItemPrices = (registeredItem: any, catalogItem: any) => {
     if (!registeredItem || !catalogItem) return null;
 
-    const activePriceType = overridePriceType || priceType;
-    const basePrice = activePriceType === 'closed' 
+    const basePrice = priceType === 'closed' 
       ? (catalogItem.closedLoadPrice || 0) 
       : (catalogItem.fractionalLoadPrice || 0);
     
     const catalogDiscount = useCatalogDiscount ? (catalogItem.discountAmount || 0) : 0;
     const priceAfterCatalog = Math.max(0, basePrice - catalogDiscount);
-    
-    const activePercent = overridePercent !== undefined ? overridePercent : (contractPercent || 0);
     
     const surchargeValue = registeredItem.customSurchargeValue !== undefined ? Number(registeredItem.customSurchargeValue) : (registeredItem.customSurchargeR$ || 0);
     const surchargeType = registeredItem.customSurchargeType || 'fixed';
@@ -301,19 +266,15 @@ export default function NewOrderPage() {
       baseWithSurcharge += surchargeValue;
     }
     
-    const finalUnitPriceBeforeST = baseWithSurcharge * (1 + activePercent / 100);
+    const finalUnitPriceBeforeST = baseWithSurcharge * (1 + contractPercent / 100);
     
     const stRate = parseST(registeredItem.st);
     const stAmount = finalUnitPriceBeforeST * stRate;
     const finalUnitPriceWithST = finalUnitPriceBeforeST + stAmount;
 
     return {
-      basePrice,
-      catalogDiscount,
-      priceAfterCatalog,
       finalUnitPriceBeforeST,
       stRate,
-      stAmount,
       finalUnitPriceWithST
     };
   };
@@ -339,8 +300,7 @@ export default function NewOrderPage() {
         ? (catalogItem.closedLoadPrice || 0) 
         : (catalogItem.fractionalLoadPrice || 0);
       
-      const catalogDiscount = useCatalogDiscount ? (catalogItem.discountAmount || 0) : 0;
-      const priceAfterCatalog = Math.max(0, basePrice - catalogDiscount);
+      const priceAfterCatalog = Math.max(0, basePrice - (catalogItem.discountAmount || 0));
       
       const surchargeValue = registeredItem.customSurchargeValue !== undefined ? Number(registeredItem.customSurchargeValue) : (registeredItem.customSurchargeR$ || 0);
       const surchargeType = registeredItem.customSurchargeType || 'fixed';
@@ -355,8 +315,7 @@ export default function NewOrderPage() {
       const finalUnitPriceBeforeST = baseWithSurcharge * (1 + (item.appliedContract || 0) / 100);
       
       const stRate = parseST(registeredItem.st);
-      const stAmount = finalUnitPriceBeforeST * stRate;
-      const finalUnitPriceWithST = finalUnitPriceBeforeST + stAmount;
+      const finalUnitPriceWithST = finalUnitPriceBeforeST * (1 + stRate);
       
       const qtyPerBox = registeredItem.quantityPerBox || 1;
       const total = finalUnitPriceWithST * qtyPerBox * item.quantity;
@@ -375,7 +334,7 @@ export default function NewOrderPage() {
 
   const handleAddProduct = () => {
     if (!currentRegisteredProduct || !currentCatalogProduct || !unitCalculations) {
-      toast({ title: "Erro", description: "Produto inválido ou sem preço encontrado no catálogo.", variant: "destructive" });
+      toast({ title: "Erro", description: "Produto inválido.", variant: "destructive" });
       return;
     }
 
@@ -425,7 +384,6 @@ export default function NewOrderPage() {
     setSelectedProductId("none");
     setProductSearch("");
     setQuantity(1);
-    setContractPercent(0);
     setIsBonus(false);
   };
 
@@ -468,7 +426,7 @@ export default function NewOrderPage() {
   const handleSaveDraft = async () => {
     if (orderItems.length === 0) return;
     if (selectedCustomerId === "none") {
-      toast({ title: "Cliente obrigatório", description: "Selecione um cliente para salvar o rascunho.", variant: "destructive" });
+      toast({ title: "Cliente obrigatório", description: "Selecione um cliente.", variant: "destructive" });
       return;
     }
 
@@ -481,7 +439,7 @@ export default function NewOrderPage() {
 
     const orderData = {
       customerId: selectedCustomerId,
-      customerName: selectedCustomer?.name || 'Cliente Desconhecido',
+      customerName: selectedCustomer?.name || 'Cliente',
       items: orderItems,
       notes: finalObservations,
       totalAmount: orderTotal,
@@ -493,10 +451,9 @@ export default function NewOrderPage() {
 
     try {
       await addDocumentNonBlocking(collection(db, 'orders'), orderData);
-      toast({ title: "Rascunho Salvo", description: "O pedido foi salvo para edição posterior." });
+      toast({ title: "Rascunho Salvo" });
       router.push('/orders/history');
     } catch (error) {
-      toast({ title: "Erro", description: "Problema ao salvar rascunho.", variant: "destructive" });
       setIsSavingDraft(false);
     }
   };
@@ -510,37 +467,11 @@ export default function NewOrderPage() {
 
     const totalQty = orderItems.reduce((acc, item) => acc + item.quantity, 0);
     const totalWeight = orderItems.reduce((acc, item) => acc + item.weight, 0);
-    const totalAmount = orderItems.reduce((acc, item) => acc + item.total, 0);
     const factoryName = selectedFactory?.name?.toUpperCase() || '';
     const selectedLine = orderItems[0]?.line?.toUpperCase() || '';
 
-    if (factoryName.includes('ARA') && selectedLine.includes('SECA UHT')) {
-      if (totalQty < 30) {
-        toast({ title: "Pedido Inválido", description: `Mínimo 30 caixas (Atual: ${totalQty}).`, variant: "destructive" });
-        return;
-      }
-      if (totalQty >= 30 && totalQty <= 130 && orderItems.some(item => !item.isBonus && item.priceType !== 'fractional')) {
-        toast({ title: "Ajuste de Preço", description: "Use 'Fracionado' para este volume.", variant: "destructive" });
-        return;
-      }
-      if (totalQty > 130 && orderItems.some(item => !item.isBonus && item.priceType !== 'closed')) {
-        toast({ title: "Ajuste de Preço", description: "Use 'Carga Fechada' para este volume.", variant: "destructive" });
-        return;
-      }
-    }
-
-    if (factoryName.includes('BVG') && selectedLine.includes('REFRIGERADA') && totalWeight < 70) {
-      toast({ title: "Peso Mínimo", description: `Mínimo 70 Kg (Atual: ${totalWeight.toFixed(2)}).`, variant: "destructive" });
-      return;
-    }
-
-    if (factoryName.includes('SJO') && selectedLine.includes('REFRIGERADA') && totalWeight < 1500) {
-      toast({ title: "Peso Mínimo", description: `Mínimo 1.500 Kg (Atual: ${totalWeight.toFixed(2)}).`, variant: "destructive" });
-      return;
-    }
-
-    if (factoryName.includes('MRV') && selectedLine.includes('SECA') && totalAmount < 1500) {
-      toast({ title: "Pedido Mínimo", description: `Mínimo R$ 1.500,00.`, variant: "destructive" });
+    if (factoryName.includes('ARA') && selectedLine.includes('SECA UHT') && totalQty < 30) {
+      toast({ title: "Pedido Inválido", description: `Mínimo 30 caixas.`, variant: "destructive" });
       return;
     }
 
@@ -553,7 +484,7 @@ export default function NewOrderPage() {
 
     const orderData = {
       customerId: selectedCustomerId,
-      customerName: selectedCustomer?.name || 'Cliente Desconhecido',
+      customerName: selectedCustomer?.name || 'Cliente',
       items: orderItems,
       notes: finalObservations,
       totalAmount: orderTotal,
@@ -565,10 +496,9 @@ export default function NewOrderPage() {
 
     try {
       await addDocumentNonBlocking(collection(db, 'orders'), orderData);
-      toast({ title: "Finalizado!", description: "Pedido gravado com sucesso." });
+      toast({ title: "Finalizado!" });
       router.push('/orders/history');
     } catch (error) {
-      toast({ title: "Erro", description: "Problema ao salvar pedido.", variant: "destructive" });
       setIsFinalizing(false);
     }
   };
@@ -576,12 +506,6 @@ export default function NewOrderPage() {
   const removeProduct = (index: number) => {
     const updatedItems = orderItems.filter((_, i) => i !== index);
     setOrderItems(updatedItems);
-    if (updatedItems.length === 0) {
-      setCategoryFilter("none");
-      setSelectedFactoryId("none");
-      setLineFilter("none");
-      setManualObservations("");
-    }
   };
 
   const handleLogout = async () => {
@@ -619,13 +543,6 @@ export default function NewOrderPage() {
       <div className="mb-6 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <h1 className="text-2xl md:text-3xl font-extrabold tracking-tight text-primary">Criar Pedido</h1>
         <div className="flex flex-wrap items-center gap-2">
-          <Button variant="outline" size="sm" onClick={() => setShowZapDialog(true)} className="gap-2 border-green-500 text-green-600 hover:bg-green-50 h-10 px-4">
-            <MessageCircle size={16} /> Compartilhar Zap
-          </Button>
-          <Button variant="outline" size="sm" onClick={() => setShowExportConfigDialog(true)} disabled={isExporting} className="gap-2 border-accent text-accent hover:bg-accent/5 h-10 px-4">
-            {isExporting ? <Loader2 className="animate-spin" size={16} /> : <FileDown size={16} />}
-            Tabela PDF
-          </Button>
           <div className="bg-primary/10 text-primary px-4 py-2 rounded-lg font-bold flex items-center gap-2 h-10">
             <Zap size={18} /> InteliPreço
           </div>
@@ -649,11 +566,6 @@ export default function NewOrderPage() {
                     {customers?.map(c => (<SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>))}
                   </SelectContent>
                 </Select>
-                {selectedCustomer && (
-                  <div className="mt-2 p-2 bg-muted rounded text-[10px] space-y-1">
-                    <p><strong>CNPJ:</strong> {selectedCustomer.cnpj} | <strong>Prazo:</strong> {selectedCustomer.paymentTerm}</p>
-                  </div>
-                )}
              </CardContent>
           </Card>
 
@@ -750,7 +662,7 @@ export default function NewOrderPage() {
                         </RadioGroup>
                       </div>
                       <div className="grid grid-cols-2 gap-4">
-                        <div className="space-y-1.5"><Label className="text-xs">Qtd (Cxs)</Label><Input type="number" value={quantity === 0 ? "" : quantity} onChange={(e) => setQuantity(e.target.value === "" ? 0 : Number(e.target.value))} onFocus={(e) => e.target.select()} className="font-bold text-lg h-11"/></div>
+                        <div className="space-y-1.5"><Label className="text-xs">Qtd (Cxs)</Label><Input type="number" value={quantity || ""} onChange={(e) => setQuantity(Number(e.target.value))} onFocus={(e) => e.target.select()} className="font-bold text-lg h-11"/></div>
                         <div className="space-y-1.5"><Label className="text-xs">Contrato (%)</Label><Input type="number" value={contractPercent} onChange={(e) => setContractPercent(Number(e.target.value))} onFocus={(e) => e.target.select()} className="h-11 font-bold text-primary"/></div>
                       </div>
                       <div className="flex items-center space-x-2 bg-muted/50 p-2 rounded-lg">
@@ -770,9 +682,6 @@ export default function NewOrderPage() {
                     R$ {formatCurrency(unitCalculations.finalUnitPriceWithST)}
                   </span>
                 </div>
-                {isBonus && (
-                  <div className="text-right"><Badge variant="outline" className="bg-accent/10 text-accent border-accent/20">VALOR ZERADO</Badge></div>
-                )}
               </div>
             )}
             <CardFooter className="pt-4 px-5">
@@ -808,7 +717,13 @@ export default function NewOrderPage() {
                             <TableCell className="text-center">
                               <div className="flex items-center justify-center gap-2">
                                 <Button variant="outline" size="icon" className="h-7 w-7 rounded-full" onClick={() => updateItemQuantity(idx, item.quantity - 1)} disabled={item.quantity <= 1}><Minus size={12} /></Button>
-                                <input type="number" className="h-8 w-12 text-center border rounded font-bold text-xs" value={item.quantity === 0 ? "" : item.quantity} onChange={(e) => updateItemQuantity(idx, e.target.value === "" ? 0 : Number(e.target.value))} onFocus={(e) => e.target.select()} />
+                                <input 
+                                  type="number" 
+                                  className="h-8 w-12 text-center border rounded font-bold text-xs" 
+                                  value={item.quantity || ""} 
+                                  onChange={(e) => updateItemQuantity(idx, Number(e.target.value))} 
+                                  onFocus={(e) => e.target.select()} 
+                                />
                                 <Button variant="outline" size="icon" className="h-7 w-7 rounded-full" onClick={() => updateItemQuantity(idx, item.quantity + 1)}><Plus size={12} /></Button>
                               </div>
                             </TableCell>
@@ -824,8 +739,8 @@ export default function NewOrderPage() {
                                       type="number" 
                                       step="0.01"
                                       className={`h-7 w-20 text-right border rounded bg-slate-50 font-bold text-[10px] px-1 outline-none ${item.isBonus ? 'text-muted-foreground line-through opacity-50' : 'focus:border-primary focus:ring-1 focus:ring-primary'}`}
-                                      value={item.unitPriceNet === 0 ? "" : item.unitPriceNet.toFixed(2)} 
-                                      onChange={(e) => !item.isBonus && updateItemNetPrice(idx, e.target.value === "" ? 0 : Number(e.target.value))}
+                                      value={item.unitPriceNet || ""} 
+                                      onChange={(e) => !item.isBonus && updateItemNetPrice(idx, Number(e.target.value))}
                                       onFocus={(e) => e.target.select()}
                                       readOnly={item.isBonus}
                                     />
@@ -836,8 +751,8 @@ export default function NewOrderPage() {
                                       type="number" 
                                       step="0.01"
                                       className={`h-7 w-20 text-right border rounded bg-slate-50 font-bold text-[10px] px-1 outline-none ${item.isBonus ? 'text-muted-foreground line-through opacity-50' : 'focus:border-primary focus:ring-1 focus:ring-primary border-primary/40'}`}
-                                      value={item.unitPriceFinal === 0 ? "" : item.unitPriceFinal.toFixed(2)} 
-                                      onChange={(e) => !item.isBonus && updateItemPrice(idx, e.target.value === "" ? 0 : Number(e.target.value))}
+                                      value={item.unitPriceFinal || ""} 
+                                      onChange={(e) => !item.isBonus && updateItemPrice(idx, Number(e.target.value))}
                                       onFocus={(e) => e.target.select()}
                                       readOnly={item.isBonus}
                                     />

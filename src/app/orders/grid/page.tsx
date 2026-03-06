@@ -59,7 +59,7 @@ export default function GridOrderPage() {
   const [isFinalizing, setIsFinalizing] = useState(false);
   const [isSavingDraft, setIsSavingDraft] = useState(false);
 
-  // Estados para as quantidades e preços editáveis (por ID de produto registrado)
+  // Estados para as quantidades e preços editáveis
   const [gridQuantities, setGridQuantities] = useState<Record<string, number>>({});
   const [gridPricesFinal, setGridPricesFinal] = useState<Record<string, number>>({});
   const [gridPricesNet, setGridPricesNet] = useState<Record<string, number>>({});
@@ -102,7 +102,6 @@ export default function GridOrderPage() {
     return isNaN(parsed) ? 0 : parsed / 100;
   };
 
-  // Inicializar preços base quando mudar a fábrica/linha/contrato
   useEffect(() => {
     if (filteredProducts.length > 0 && catalogProducts) {
       const newPricesFinal: Record<string, number> = {};
@@ -207,34 +206,20 @@ export default function GridOrderPage() {
 
     return Object.values(grouped)
       .filter(g => g.saleQty > 0 && g.bonusQty > 0)
-      .map(g => `• ${g.name}: Preço unitário médio com bônus: R$ ${(g.totalVal / ((g.saleQty + g.bonusQty) * g.qtyPerBox)).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`);
+      .map(g => `• ${g.name}: Preço médio com bônus: R$ ${(g.totalVal / ((g.saleQty + g.bonusQty) * g.qtyPerBox)).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`);
   }, [orderItems]);
 
   const handleProcessOrder = async (status: 'DRAFT' | 'CONFIRMED') => {
-    if (orderItems.length === 0) {
-      toast({ title: "Pedido vazio", description: "Informe quantidades em pelo menos um item.", variant: "destructive" });
-      return;
-    }
+    if (orderItems.length === 0) return;
     if (selectedCustomerId === "none") {
-      toast({ title: "Cliente obrigatório", description: "Selecione um cliente.", variant: "destructive" });
+      toast({ title: "Cliente obrigatório", variant: "destructive" });
       return;
-    }
-
-    if (status === 'CONFIRMED') {
-      const totalQty = orderItems.reduce((acc, item) => acc + item.quantity, 0);
-      const factoryName = factories?.find(f => f.id === selectedFactoryId)?.name?.toUpperCase() || '';
-      const line = lineFilter.toUpperCase();
-
-      if (factoryName.includes('ARA') && line.includes('SECA UHT') && totalQty < 30) {
-        toast({ title: "Mínimo ARA", description: "Mínimo de 30 caixas para esta linha.", variant: "destructive" });
-        return;
-      }
     }
 
     status === 'DRAFT' ? setIsSavingDraft(true) : setIsFinalizing(true);
 
     let finalNotes = manualObservations;
-    if (bonusSummaries.length > 0) finalNotes += `\n\n--- RESUMO BONIFICAÇÃO ---\n${bonusSummaries.join('\n')}`;
+    if (bonusSummaries.length > 0) finalNotes += `\n\n--- BONIFICAÇÃO ---\n${bonusSummaries.join('\n')}`;
 
     const orderData = {
       customerId: selectedCustomerId,
@@ -250,10 +235,9 @@ export default function GridOrderPage() {
 
     try {
       await addDocumentNonBlocking(collection(db, 'orders'), orderData);
-      toast({ title: status === 'DRAFT' ? "Rascunho Salvo" : "Pedido Finalizado", description: "Sucesso!" });
+      toast({ title: "Sucesso!" });
       router.push('/orders/history');
     } catch (e) {
-      toast({ title: "Erro", description: "Tente novamente.", variant: "destructive" });
       status === 'DRAFT' ? setIsSavingDraft(false) : setIsFinalizing(false);
     }
   };
@@ -267,9 +251,8 @@ export default function GridOrderPage() {
           </Link>
           <div>
             <h1 className="text-2xl font-black text-primary flex items-center gap-2">
-              <LayoutGrid size={24} /> Pedido em Grade (Desktop)
+              <LayoutGrid size={24} /> Pedido em Grade
             </h1>
-            <p className="text-sm text-muted-foreground">Preencha quantidades e valores em massa.</p>
           </div>
         </div>
       </div>
@@ -327,22 +310,14 @@ export default function GridOrderPage() {
                 <Input type="number" value={contractPercent} onChange={(e) => setContractPercent(Number(e.target.value))} className="h-9 text-xs bg-white font-bold" />
               </div>
             </div>
-            <div className="relative">
-              <Search className="absolute left-2 top-1/2 -translate-y-1/2 text-muted-foreground" size={14} />
-              <Input placeholder="Buscar no grid..." className="pl-8 h-9 text-xs bg-white" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} />
-            </div>
           </CardContent>
         </Card>
 
         <Card className="bg-primary text-white border-none shadow-md">
           <CardContent className="p-6 flex flex-col justify-center h-full">
-            <div className="flex justify-between items-center mb-1">
-              <span className="text-xs font-bold uppercase opacity-80">Total Pedido</span>
-              <ShoppingCart size={20} />
-            </div>
             <div className="text-2xl font-black">R$ {orderTotal.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</div>
-            <div className="text-xs font-medium opacity-80 mt-2 flex items-center gap-1">
-              <Weight size={14} /> {orderTotalWeight.toFixed(2)} Kg total
+            <div className="text-xs font-medium opacity-80 mt-2">
+               {orderTotalWeight.toFixed(2)} Kg total
             </div>
           </CardContent>
         </Card>
@@ -351,8 +326,7 @@ export default function GridOrderPage() {
       <Card className="border-none shadow-xl overflow-hidden mb-24">
         {selectedFactoryId === "none" || lineFilter === "none" ? (
           <div className="p-20 text-center text-muted-foreground bg-white">
-            <Package size={48} className="mx-auto mb-4 opacity-20" />
-            <p className="font-medium">Selecione Fábrica e Linha para carregar a grade de produtos.</p>
+            <p className="font-medium">Selecione Fábrica e Linha para carregar a grade.</p>
           </div>
         ) : (
           <div className="overflow-x-auto">
@@ -360,11 +334,9 @@ export default function GridOrderPage() {
               <TableHeader className="bg-slate-100">
                 <TableRow>
                   <TableHead className="w-[80px]">Bônus</TableHead>
-                  <TableHead>Cód / Descrição</TableHead>
-                  <TableHead>Marca</TableHead>
-                  <TableHead className="text-center">Cx/Und</TableHead>
+                  <TableHead>Descrição</TableHead>
                   <TableHead className="text-right">Net R$</TableHead>
-                  <TableHead className="text-right">Final (+ST) R$</TableHead>
+                  <TableHead className="text-right">Final R$</TableHead>
                   <TableHead className="text-center w-[120px]">Qtd (Cxs)</TableHead>
                   <TableHead className="text-right">Subtotal</TableHead>
                 </TableRow>
@@ -378,56 +350,52 @@ export default function GridOrderPage() {
                   const subtotal = isB ? 0 : (fin * (p.quantityPerBox || 1) * qty);
 
                   return (
-                    <TableRow key={p.id} className={`${qty > 0 ? "bg-primary/5" : ""} hover:bg-slate-50 transition-colors`}>
+                    <TableRow key={p.id} className={qty > 0 ? "bg-primary/5" : ""}>
                       <TableCell className="text-center">
                         <button 
                           onClick={() => setGridBonus(prev => ({ ...prev, [p.id]: !isB }))}
-                          className={`w-10 h-10 rounded-lg flex items-center justify-center transition-all border-2 ${isB ? "bg-accent border-accent text-white" : "bg-white border-slate-200 text-slate-300"}`}
-                          title="Marcar como Bonificação"
+                          className={`w-8 h-8 rounded-lg flex items-center justify-center border-2 ${isB ? "bg-accent border-accent text-white" : "bg-white border-slate-200 text-slate-300"}`}
                         >
-                          <Gift size={18} />
+                          <Gift size={16} />
                         </button>
                       </TableCell>
                       <TableCell>
-                        <div className="font-bold text-xs uppercase">{p.code}</div>
-                        <div className="text-[10px] text-muted-foreground truncate max-w-[250px] uppercase font-medium">{p.description}</div>
+                        <div className="font-bold text-xs">{p.code}</div>
+                        <div className="text-[10px] text-muted-foreground uppercase">{p.description}</div>
                       </TableCell>
-                      <TableCell className="text-[11px] font-bold text-slate-600">{p.brand}</TableCell>
-                      <TableCell className="text-center text-xs font-medium">{p.quantityPerBox} {p.unit}</TableCell>
                       <TableCell className="text-right">
                         <Input 
                           type="number" 
                           step="0.01" 
-                          className="w-20 h-8 text-right text-[11px] font-bold border-slate-200" 
-                          value={net.toFixed(2)}
+                          className="w-20 h-8 text-right text-[11px] font-bold" 
+                          value={net || ""}
                           onChange={(e) => handleUpdatePriceNet(p.id, Number(e.target.value), p.st)}
+                          onFocus={(e) => e.target.select()}
                           disabled={isB}
                         />
                       </TableCell>
                       <TableCell className="text-right">
-                        <div className="flex flex-col items-end">
-                          <Input 
-                            type="number" 
-                            step="0.01" 
-                            className={`w-24 h-8 text-right text-xs font-black border-primary/20 ${isB ? "opacity-50 line-through" : "text-primary bg-primary/5"}`}
-                            value={fin.toFixed(2)}
-                            onChange={(e) => handleUpdatePriceFinal(p.id, Number(e.target.value), p.st)}
-                            disabled={isB}
-                          />
-                          <span className="text-[9px] text-destructive font-bold">ST: {p.st}</span>
-                        </div>
+                        <Input 
+                          type="number" 
+                          step="0.01" 
+                          className={`w-20 h-8 text-right text-[11px] font-bold ${isB ? "opacity-50" : "text-primary bg-primary/5"}`}
+                          value={fin || ""}
+                          onChange={(e) => handleUpdatePriceFinal(p.id, Number(e.target.value), p.st)}
+                          onFocus={(e) => e.target.select()}
+                          disabled={isB}
+                        />
                       </TableCell>
                       <TableCell className="text-center">
                         <Input 
                           type="number" 
-                          className={`w-20 h-10 text-center font-black text-lg ${qty > 0 ? "border-primary ring-1 ring-primary" : "border-slate-200"}`}
-                          value={qty === 0 ? "" : qty}
+                          className="w-20 h-8 text-center font-black"
+                          value={qty || ""}
                           onChange={(e) => setGridQuantities(prev => ({ ...prev, [p.id]: Number(e.target.value) }))}
                           onFocus={(e) => e.target.select()}
                         />
                       </TableCell>
-                      <TableCell className={`text-right font-black ${isB ? "text-accent" : "text-slate-800"}`}>
-                        {isB ? "BONUS" : `R$ ${subtotal.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`}
+                      <TableCell className="text-right font-black">
+                        {isB ? "0,00" : `R$ ${subtotal.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`}
                       </TableCell>
                     </TableRow>
                   );
@@ -438,36 +406,13 @@ export default function GridOrderPage() {
         )}
       </Card>
 
-      <div className="fixed bottom-0 left-0 right-0 bg-white border-t shadow-[0_-8px_30px_rgba(0,0,0,0.1)] p-6 z-50">
-        <div className="container mx-auto max-w-7xl flex flex-col md:flex-row items-center justify-between gap-6">
-          <div className="flex gap-8 items-center">
-            <div className="space-y-1">
-              <p className="text-[10px] text-muted-foreground uppercase font-black tracking-widest">Resumo do Pedido</p>
-              <div className="flex items-baseline gap-2">
-                <span className="text-3xl font-black text-primary">R$ {orderTotal.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
-                <span className="text-sm font-bold text-muted-foreground">({orderTotalWeight.toFixed(2)} Kg)</span>
-              </div>
-            </div>
-            <div className="h-10 w-[1px] bg-slate-200 hidden md:block" />
-            <div className="hidden lg:block max-w-xs">
-              <Label className="text-[10px] font-bold uppercase opacity-60">Observações Rápidas</Label>
-              <Textarea 
-                placeholder="Notas de entrega..." 
-                className="h-10 min-h-0 py-1 text-xs resize-none" 
-                value={manualObservations} 
-                onChange={(e) => setManualObservations(e.target.value)}
-              />
-            </div>
-          </div>
-
-          <div className="flex gap-3 w-full md:w-auto">
-            <Button variant="outline" className="h-14 px-8 border-slate-300 font-bold" onClick={() => setGridQuantities({})} disabled={isFinalizing || isSavingDraft}>Limpar Grade</Button>
-            <Button variant="secondary" className="h-14 px-8 font-bold gap-2 text-lg" onClick={() => handleProcessOrder('DRAFT')} disabled={isFinalizing || isSavingDraft || selectedCustomerId === "none"}>
-              {isSavingDraft ? <Loader2 className="animate-spin" /> : <Save size={20} />} Rascunho
-            </Button>
-            <Button className="h-14 px-12 bg-primary hover:bg-primary/90 text-white shadow-lg gap-2 text-lg font-bold" onClick={() => handleProcessOrder('CONFIRMED')} disabled={isFinalizing || isSavingDraft || selectedCustomerId === "none"}>
-              {isFinalizing ? <Loader2 className="animate-spin" /> : <ReceiptText size={20} />} Finalizar Pedido
-            </Button>
+      <div className="fixed bottom-0 left-0 right-0 bg-white border-t p-6 z-50">
+        <div className="container mx-auto flex items-center justify-between">
+          <div className="text-2xl font-black text-primary">R$ {orderTotal.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</div>
+          <div className="flex gap-3">
+            <Button variant="outline" onClick={() => setGridQuantities({})}>Limpar</Button>
+            <Button variant="secondary" onClick={() => handleProcessOrder('DRAFT')} disabled={isFinalizing || isSavingDraft}>Rascunho</Button>
+            <Button className="bg-primary" onClick={() => handleProcessOrder('CONFIRMED')} disabled={isFinalizing || isSavingDraft}>Finalizar</Button>
           </div>
         </div>
       </div>
