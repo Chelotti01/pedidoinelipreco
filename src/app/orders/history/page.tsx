@@ -6,7 +6,7 @@ import { collection, query, orderBy, doc } from 'firebase/firestore';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { History, ChevronLeft, FileText, Trash2, Printer, ShoppingBag, Weight, Calendar, ArrowRight, User } from "lucide-react";
+import { History, ChevronLeft, FileText, Trash2, Printer, ShoppingBag, Weight, Calendar, ArrowRight, User, Save, CheckCircle2 } from "lucide-react";
 import Link from 'next/link';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
@@ -29,6 +29,17 @@ export default function OrderHistoryPage() {
   const handleDelete = (id: string) => {
     deleteDocumentNonBlocking(doc(db, 'orders', id));
     toast({ title: "Pedido removido", description: "O histórico foi atualizado." });
+  };
+
+  const getStatusBadge = (status: string) => {
+    switch (status) {
+      case 'DRAFT':
+        return <Badge variant="outline" className="bg-orange-50 text-orange-600 border-orange-200 gap-1"><Save size={12} /> Rascunho</Badge>;
+      case 'CONFIRMED':
+        return <Badge variant="outline" className="bg-green-50 text-green-600 border-green-200 gap-1"><CheckCircle2 size={12} /> Confirmado</Badge>;
+      default:
+        return <Badge variant="secondary">{status || 'Finalizado'}</Badge>;
+    }
   };
 
   return (
@@ -73,7 +84,10 @@ export default function OrderHistoryPage() {
                     <FileText size={20} />
                   </div>
                   <div>
-                    <CardTitle className="text-lg">Pedido #{order.id.slice(-6).toUpperCase()}</CardTitle>
+                    <div className="flex items-center gap-3">
+                      <CardTitle className="text-lg">Pedido #{order.id.slice(-6).toUpperCase()}</CardTitle>
+                      {getStatusBadge(order.status)}
+                    </div>
                     <CardDescription className="flex items-center gap-2">
                       <Calendar size={14} />
                       {order.createdAt ? format(order.createdAt.toDate(), "dd 'de' MMMM 'às' HH:mm", { locale: ptBR }) : 'Processando...'}

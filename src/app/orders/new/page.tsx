@@ -20,7 +20,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { useToast } from "@/hooks/use-toast";
 import { 
   ShoppingCart, Plus, Trash2, Calculator, ReceiptText, Zap, 
-  Loader2, Weight, Tag, User, AlertTriangle, Search, Snowflake, Sun, FileDown, LogOut, MessageSquare, Settings2, Minus, MessageCircle, ClipboardCopy, Check, ArrowLeft
+  Loader2, Weight, Tag, User, AlertTriangle, Search, Snowflake, Sun, FileDown, LogOut, MessageSquare, Settings2, Minus, MessageCircle, ClipboardCopy, Check, ArrowLeft, Save
 } from "lucide-react";
 import {
   AlertDialog,
@@ -78,6 +78,7 @@ export default function NewOrderPage() {
   const [orderItems, setOrderItems] = useState<OrderItem[]>([]);
   const [observations, setObservations] = useState("");
   const [isFinalizing, setIsFinalizing] = useState(false);
+  const [isSavingDraft, setIsSavingDraft] = useState(false);
 
   const [selectedCustomerId, setSelectedCustomerId] = useState<string>("none");
   const [selectedFactoryId, setSelectedFactoryId] = useState<string>("none");
@@ -425,8 +426,6 @@ export default function NewOrderPage() {
     const item = updatedItems[index];
     
     const stRateDecimal = (item.stRate || 0) / 100;
-    // FinalPrice = NetPrice * (1 + ST)
-    // NetPrice = FinalPrice / (1 + ST)
     const newNetPrice = newFinalPrice / (1 + stRateDecimal);
     
     item.unitPriceFinal = newFinalPrice;
@@ -434,6 +433,36 @@ export default function NewOrderPage() {
     item.total = newFinalPrice * item.quantityPerBox * item.quantity;
     
     setOrderItems(updatedItems);
+  };
+
+  const handleSaveDraft = async () => {
+    if (orderItems.length === 0) return;
+    if (selectedCustomerId === "none") {
+      toast({ title: "Cliente obrigatório", description: "Selecione um cliente para salvar o rascunho.", variant: "destructive" });
+      return;
+    }
+
+    setIsSavingDraft(true);
+    const orderData = {
+      customerId: selectedCustomerId,
+      customerName: selectedCustomer?.name || 'Cliente Desconhecido',
+      items: orderItems,
+      notes: observations,
+      totalAmount: orderTotal,
+      totalWeight: orderTotalWeight,
+      status: 'DRAFT',
+      createdAt: serverTimestamp(),
+      userId: auth.currentUser?.uid || 'anonymous'
+    };
+
+    try {
+      await addDocumentNonBlocking(collection(db, 'orders'), orderData);
+      toast({ title: "Rascunho Salvo", description: "O pedido foi salvo para edição posterior." });
+      router.push('/orders/history');
+    } catch (error) {
+      toast({ title: "Erro", description: "Problema ao salvar rascunho.", variant: "destructive" });
+      setIsSavingDraft(false);
+    }
   };
 
   const handleFinalizeOrder = async () => {
@@ -449,6 +478,7 @@ export default function NewOrderPage() {
     const factoryName = selectedFactory?.name?.toUpperCase() || '';
     const selectedLine = orderItems[0]?.line?.toUpperCase() || '';
 
+    // Validações de pedido mínimo
     if (factoryName.includes('ARA') && selectedLine.includes('SECA UHT')) {
       if (totalQty < 30) {
         toast({ title: "Pedido Inválido", description: `Mínimo 30 caixas (Atual: ${totalQty}).`, variant: "destructive" });
@@ -487,7 +517,9 @@ export default function NewOrderPage() {
       notes: observations,
       totalAmount: orderTotal,
       totalWeight: orderTotalWeight,
+      status: 'CONFIRMED',
       createdAt: serverTimestamp(),
+      userId: auth.currentUser?.uid || 'anonymous'
     };
 
     try {
@@ -1073,9 +1105,14 @@ export default function NewOrderPage() {
                   <div className="space-y-0.5"><p className="text-[10px] text-muted-foreground uppercase font-black">Total</p><p className="text-3xl font-black text-primary">R$ {formatCurrency(orderTotal)}</p></div>
                   <div className="flex items-center gap-3 bg-white px-4 py-2 rounded-xl border shadow-sm"><Weight size={18} className="text-primary" /><div><p className="text-[9px] text-muted-foreground uppercase font-bold">Peso</p><p className="text-base font-black">{orderTotalWeight.toFixed(2)} Kg</p></div></div>
                 </div>
-                <div className="grid grid-cols-2 gap-3 w-full">
-                  <Button variant="outline" className="h-14 border-primary text-primary font-bold" onClick={() => { setOrderItems([]); setCategoryFilter("none"); setSelectedFactoryId("none"); setLineFilter("none"); }} disabled={isFinalizing}>Limpar</Button>
-                  <Button className="h-14 bg-accent hover:bg-accent/90 text-white shadow-lg gap-2 text-lg font-bold" onClick={handleFinalizeOrder} disabled={isFinalizing || selectedCustomerId === "none"}>{isFinalizing ? <Loader2 className="animate-spin" /> : <ReceiptText size={20} />}Finalizar</Button>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-3 w-full">
+                  <Button variant="outline" className="h-14 border-primary text-primary font-bold" onClick={() => { setOrderItems([]); setCategoryFilter("none"); setSelectedFactoryId("none"); setLineFilter("none"); }} disabled={isFinalizing || isSavingDraft}>Limpar</Button>
+                  <Button variant="secondary" className="h-14 font-bold gap-2 text-lg" onClick={handleSaveDraft} disabled={isFinalizing || isSavingDraft || selectedCustomerId === "none"}>
+                    {isSavingDraft ? <Loader2 className="animate-spin" /> : <Save size={20} />} Rascunho
+                  </Button>
+                  <Button className="h-14 bg-accent hover:bg-accent/90 text-white shadow-lg gap-2 text-lg font-bold" onClick={handleFinalizeOrder} disabled={isFinalizing || isSavingDraft || selectedCustomerId === "none"}>
+                    {isFinalizing ? <Loader2 className="animate-spin" /> : <ReceiptText size={20} />} Finalizar
+                  </Button>
                 </div>
               </CardFooter>
             )}
