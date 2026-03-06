@@ -6,7 +6,7 @@ import { collection, query, orderBy, doc } from 'firebase/firestore';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { History, ChevronLeft, FileText, Trash2, Printer, ShoppingBag, Weight, Calendar, ArrowRight, User, Save, CheckCircle2 } from "lucide-react";
+import { History, ChevronLeft, FileText, Trash2, Printer, ShoppingBag, Weight, Calendar, ArrowRight, User, Save, CheckCircle2, Edit } from "lucide-react";
 import Link from 'next/link';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
@@ -78,7 +78,7 @@ export default function OrderHistoryPage() {
         <div className="grid gap-6">
           {orders.map((order) => (
             <Card key={order.id} className="overflow-hidden border-none shadow-lg hover:shadow-xl transition-all">
-              <CardHeader className="bg-muted/30 flex flex-row items-center justify-between">
+              <CardHeader className="bg-muted/30 flex flex-row items-center justify-between flex-wrap gap-4">
                 <div className="flex items-center gap-4">
                   <div className="bg-primary text-white p-3 rounded-full">
                     <FileText size={20} />
@@ -94,7 +94,14 @@ export default function OrderHistoryPage() {
                     </CardDescription>
                   </div>
                 </div>
-                <div className="flex gap-2">
+                <div className="flex gap-2 items-center">
+                  {order.status === 'DRAFT' && (
+                    <Link href={`/orders/edit/${order.id}`}>
+                      <Button variant="outline" size="sm" className="gap-2 text-primary border-primary hover:bg-primary/5">
+                        <Edit size={16} /> Editar
+                      </Button>
+                    </Link>
+                  )}
                   <Link href={`/orders/view/${order.id}`}>
                     <Button variant="outline" size="sm" className="gap-2">
                       <Printer size={16} /> Exportar PDF
