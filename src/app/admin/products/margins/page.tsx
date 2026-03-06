@@ -4,7 +4,7 @@
 import { useState, useMemo } from 'react';
 import { useFirestore, useCollection, useMemoFirebase, updateDocumentNonBlocking } from '@/firebase';
 import { collection, query, orderBy, doc, serverTimestamp } from 'firebase/firestore';
-import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
+import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -189,7 +189,11 @@ function MarginSurchargeCard({ product, db }: { product: any, db: any }) {
               {product.description}
             </CardDescription>
           </div>
-          <Badge variant="outline" className="text-[10px] font-bold">{product.brand}</Badge>
+          <div className="flex items-center gap-2">
+            <div className={`px-2 py-0.5 rounded-full text-[10px] font-bold border border-slate-200 text-slate-600`}>
+              {product.brand}
+            </div>
+          </div>
         </div>
       </CardHeader>
       <CardContent className="pt-6 space-y-6">
@@ -254,18 +258,5 @@ function MarginSurchargeCard({ product, db }: { product: any, db: any }) {
         </Button>
       </CardFooter>
     </Card>
-  );
-}
-
-function Badge({ children, className, variant = "default" }: { children: React.ReactNode, className?: string, variant?: "default" | "outline" | "secondary" }) {
-  const variants = {
-    default: "bg-primary text-white",
-    outline: "border border-slate-200 text-slate-600",
-    secondary: "bg-slate-100 text-slate-600"
-  };
-  return (
-    <div className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${variants[variant]} ${className}`}>
-      {children}
-    </div>
   );
 }
