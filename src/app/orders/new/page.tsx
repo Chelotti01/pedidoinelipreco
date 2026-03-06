@@ -1,3 +1,4 @@
+
 "use client"
 
 import { useState, useMemo, useEffect, useRef } from 'react';
@@ -19,7 +20,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { useToast } from "@/hooks/use-toast";
 import { 
   ShoppingCart, Plus, Trash2, Calculator, ReceiptText, Zap, 
-  Loader2, Weight, Tag, User, AlertTriangle, Search, Snowflake, Sun, FileDown, LogOut, MessageSquare, Settings2, Minus, MessageCircle, ClipboardCopy, Check, ArrowLeft, Save, Gift
+  Loader2, Weight, Tag, User, AlertTriangle, Search, Snowflake, Sun, FileDown, LogOut, MessageSquare, Settings2, Minus, MessageCircle, ClipboardCopy, Check, ArrowLeft, Save, Gift, DollarSign
 } from "lucide-react";
 import {
   AlertDialog,
@@ -59,7 +60,6 @@ export default function NewOrderPage() {
   const auth = useAuth();
   const { toast } = useToast();
   const router = useRouter();
-  const pdfRef = useRef<HTMLDivElement>(null);
   const [isExporting, setIsExporting] = useState(false);
   const [deliveryEstimate, setDeliveryEstimate] = useState<string>("");
   
@@ -124,7 +124,6 @@ export default function NewOrderPage() {
     setDeliveryEstimate(date.toLocaleDateString('pt-BR'));
   }, []);
 
-  // Calcula o resumo de bonificação em tempo real
   const bonusSummaries = useMemo(() => {
     if (orderItems.length === 0) return [];
 
@@ -154,7 +153,6 @@ export default function NewOrderPage() {
     Object.values(groupedItems).forEach(group => {
       if (group.saleQty > 0 && group.bonusQty > 0) {
         const totalQtyBoxes = group.saleQty + group.bonusQty;
-        // Preço médio unitário = Investimento total / (Total de Caixas * Unidades por Caixa)
         const avgUnitPrice = group.totalVal / (totalQtyBoxes * group.qtyPerBox);
         summaries.push(`• ${group.name}: Preço unitário médio com bonificação: R$ ${avgUnitPrice.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} (Venda: ${group.saleQty} cx + Bônus: ${group.bonusQty} cx)`);
       }
@@ -293,7 +291,6 @@ export default function NewOrderPage() {
     
     const activePercent = overridePercent !== undefined ? overridePercent : (contractPercent || 0);
     
-    // Suporte para aditivo fixo ou percentual
     const surchargeValue = registeredItem.customSurchargeValue !== undefined ? Number(registeredItem.customSurchargeValue) : (registeredItem.customSurchargeR$ || 0);
     const surchargeType = registeredItem.customSurchargeType || 'fixed';
     
@@ -451,6 +448,20 @@ export default function NewOrderPage() {
     item.unitPriceFinal = newFinalPrice;
     item.unitPriceNet = newNetPrice;
     item.total = item.isBonus ? 0 : (newFinalPrice * item.quantityPerBox * item.quantity);
+    item.weight = item.isBonus ? 0 : (item.unitWeight * item.quantity);
+    setOrderItems(updatedItems);
+  };
+
+  const updateItemNetPrice = (index: number, newNetPrice: number) => {
+    if (newNetPrice < 0) return;
+    const updatedItems = [...orderItems];
+    const item = updatedItems[index];
+    const stRateDecimal = (item.stRate || 0) / 100;
+    const newFinalPrice = newNetPrice * (1 + stRateDecimal);
+    item.unitPriceNet = newNetPrice;
+    item.unitPriceFinal = newFinalPrice;
+    item.total = item.isBonus ? 0 : (newFinalPrice * item.quantityPerBox * item.quantity);
+    item.weight = item.isBonus ? 0 : (item.unitWeight * item.quantity);
     setOrderItems(updatedItems);
   };
 
@@ -783,7 +794,7 @@ export default function NewOrderPage() {
                 <div className="flex flex-col h-full">
                   <div className="overflow-x-auto flex-1">
                     <Table>
-                      <TableHeader><TableRow className="bg-muted/30"><TableHead className="text-xs">Item</TableHead><TableHead className="text-center text-xs">Qtd</TableHead><TableHead className="text-right text-xs">Preços e Total</TableHead><TableHead></TableHead></TableRow></TableHeader>
+                      <TableHeader><TableRow className="bg-muted/30"><TableHead className="text-xs">Item</TableHead><TableHead className="text-center text-xs">Qtd</TableHead><TableHead className="text-right text-xs">Ajuste de Preços e Total</TableHead><TableHead></TableHead></TableRow></TableHeader>
                       <TableBody>
                         {orderItems.map((item, idx) => (
                           <TableRow key={`${item.productId}-${idx}`} className={item.isBonus ? "bg-accent/5" : ""}>
@@ -802,22 +813,39 @@ export default function NewOrderPage() {
                               </div>
                             </TableCell>
                             <TableCell className="text-right py-3">
-                              <div className="flex flex-col items-end gap-1">
+                              <div className="flex flex-col items-end gap-1.5">
                                 <div className={`font-black text-xs ${item.isBonus ? 'text-accent' : 'text-primary'}`}>
                                   {item.isBonus ? 'BONUS' : `R$ ${formatCurrency(item.total)}`}
                                 </div>
-                                <div className="flex items-center gap-1">
-                                  <span className="text-[9px] text-muted-foreground font-medium">Unit R$:</span>
-                                  <input 
-                                    type="number" 
-                                    step="0.01"
-                                    className={`h-7 w-20 text-right border rounded bg-slate-50 font-bold text-[11px] px-1 outline-none ${item.isBonus ? 'text-muted-foreground line-through opacity-50' : 'focus:border-primary focus:ring-1 focus:ring-primary'}`}
-                                    value={item.unitPriceFinal === 0 ? "" : item.unitPriceFinal.toFixed(2)} 
-                                    onChange={(e) => !item.isBonus && updateItemPrice(idx, e.target.value === "" ? 0 : Number(e.target.value))}
-                                    onFocus={(e) => e.target.select()}
-                                    readOnly={item.isBonus}
-                                  />
+                                <div className="space-y-1">
+                                  <div className="flex items-center gap-1 justify-end">
+                                    <span className="text-[8px] text-muted-foreground font-bold uppercase">Net R$:</span>
+                                    <input 
+                                      type="number" 
+                                      step="0.01"
+                                      className={`h-7 w-20 text-right border rounded bg-slate-50 font-bold text-[10px] px-1 outline-none ${item.isBonus ? 'text-muted-foreground line-through opacity-50' : 'focus:border-primary focus:ring-1 focus:ring-primary'}`}
+                                      value={item.unitPriceNet === 0 ? "" : item.unitPriceNet.toFixed(2)} 
+                                      onChange={(e) => !item.isBonus && updateItemNetPrice(idx, e.target.value === "" ? 0 : Number(e.target.value))}
+                                      onFocus={(e) => e.target.select()}
+                                      readOnly={item.isBonus}
+                                    />
+                                  </div>
+                                  <div className="flex items-center gap-1 justify-end">
+                                    <span className="text-[8px] text-primary font-bold uppercase">Final R$:</span>
+                                    <input 
+                                      type="number" 
+                                      step="0.01"
+                                      className={`h-7 w-20 text-right border rounded bg-slate-50 font-bold text-[10px] px-1 outline-none ${item.isBonus ? 'text-muted-foreground line-through opacity-50' : 'focus:border-primary focus:ring-1 focus:ring-primary border-primary/40'}`}
+                                      value={item.unitPriceFinal === 0 ? "" : item.unitPriceFinal.toFixed(2)} 
+                                      onChange={(e) => !item.isBonus && updateItemPrice(idx, e.target.value === "" ? 0 : Number(e.target.value))}
+                                      onFocus={(e) => e.target.select()}
+                                      readOnly={item.isBonus}
+                                    />
+                                  </div>
                                 </div>
+                                {!item.isBonus && (
+                                  <span className="text-[8px] text-destructive font-medium italic">ST Incidência: {item.stRate?.toFixed(2)}%</span>
+                                )}
                               </div>
                             </TableCell>
                             <TableCell className="text-right pr-2"><Button variant="ghost" size="icon" onClick={() => removeProduct(idx)} className="text-destructive h-8 w-8"><Trash2 size={16} /></Button></TableCell>
