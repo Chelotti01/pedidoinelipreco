@@ -140,7 +140,7 @@ export default function ViewOrderPage() {
           <CardHeader className="bg-primary text-white p-6 sm:p-8 flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
             <div className="flex items-center gap-4">
               <div className="bg-white/20 p-3 rounded-2xl backdrop-blur-sm">
-                <Zap size={32} />
+                <zap size={32} />
               </div>
               <div>
                 <CardTitle className="text-2xl sm:text-3xl font-black tracking-tighter">RELATÓRIO DE PEDIDO</CardTitle>
@@ -213,18 +213,18 @@ export default function ViewOrderPage() {
                         <div className="text-[10px] text-muted-foreground uppercase">{item.priceType === 'closed' ? 'Fechada' : 'Frac'}</div>
                       </TableCell>
                       <TableCell className="text-right text-xs text-muted-foreground">
-                        {item.isBonus ? '-' : formatCurrency(item.unitPriceNet)}
+                        {item.isBonus ? '-' : (item.unitPriceNet || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                       </TableCell>
                       <TableCell className="text-right">
-                        <div className={`font-bold text-sm ${item.isBonus ? 'text-accent' : 'text-primary'}`}>{item.isBonus ? 'BONUS' : formatCurrency(item.unitPriceFinal)}</div>
+                        <div className={`font-bold text-sm ${item.isBonus ? 'text-accent' : 'text-primary'}`}>{item.isBonus ? 'BONUS' : (item.unitPriceFinal || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
                         {!item.isBonus && (
                           <div className="text-[10px] text-destructive font-medium">
-                            +{item.stRate?.toFixed(2).replace('.', ',')}% ST
+                            +{(item.stRate || 0).toFixed(2).replace('.', ',')}% ST
                           </div>
                         )}
                       </TableCell>
                       <TableCell className="text-right font-black text-sm">
-                        {item.isBonus ? 'R$ 0,00' : formatCurrency(item.total)}
+                        {item.isBonus ? 'R$ 0,00' : (item.total || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
                       </TableCell>
                     </TableRow>
                   ))}

@@ -1,7 +1,7 @@
 
 "use client"
 
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { useFirestore, useCollection, useMemoFirebase, addDocumentNonBlocking, useAuth } from '@/firebase';
 import { collection, query, orderBy, serverTimestamp } from 'firebase/firestore';
@@ -66,6 +66,9 @@ export default function GridOrderPage() {
   const [gridPricesNet, setGridPricesNet] = useState<Record<string, number>>({});
   const [gridBonus, setGridBonus] = useState<Record<string, boolean>>({});
 
+  // Refs para rastrear mudanças globais e evitar sobreposição de preços manuais
+  const lastParams = useRef({ priceType, contractPercent });
+
   const factoriesQuery = useMemoFirebase(() => query(collection(db, 'factories'), orderBy('name')), [db]);
   const { data: factories } = useCollection(factoriesQuery);
 
@@ -113,38 +116,63 @@ export default function GridOrderPage() {
     return isNaN(parsed) ? 0 : parsed / 100;
   };
 
+  // Inicialização e Recálculo Automático de Preços
   useEffect(() => {
-    if (filteredProducts.length > 0 && catalogProducts) {
-      const newPricesFinal: Record<string, number> = {};
-      const newPricesNet: Record<string, number> = {};
-      
-      filteredProducts.forEach(p => {
-        // Only update prices if not already set or if priceType/contract changed
-        const catalogItem = catalogProducts.find(cp => cp.id === p.catalogProductId);
-        if (catalogItem) {
-          const basePrice = priceType === 'closed' ? (catalogItem.closedLoadPrice || 0) : (catalogItem.fractionalLoadPrice || 0);
-          const afterCatalog = Math.max(0, basePrice - (catalogItem.discountAmount || 0));
-          
-          const surchargeValue = p.customSurchargeValue !== undefined ? Number(p.customSurchargeValue) : (p.customSurchargeR$ || 0);
-          const surchargeType = p.customSurchargeType || 'fixed';
-          
-          let withSurcharge = afterCatalog;
-          if (surchargeType === 'percentage') withSurcharge += afterCatalog * (surchargeValue / 100);
-          else withSurcharge += surchargeValue;
-          
-          const netPrice = withSurcharge * (1 + contractPercent / 100);
-          const stRate = parseST(p.st);
-          const finalPrice = netPrice * (1 + stRate);
-          
-          newPricesFinal[p.id] = Number(finalPrice.toFixed(2));
-          newPricesNet[p.id] = Number(netPrice.toFixed(2));
+    if (!registeredProducts || !catalogProducts) return;
+
+    const globalParamsChanged = 
+      lastParams.current.priceType !== priceType || 
+      lastParams.current.contractPercent !== contractPercent;
+    
+    lastParams.current = { priceType, contractPercent };
+
+    const newPricesFinal: Record<string, number> = {};
+    const newPricesNet: Record<string, number> = {};
+
+    registeredProducts.forEach(p => {
+      const catalogItem = catalogProducts.find(cp => cp.id === p.catalogProductId);
+      if (catalogItem) {
+        const basePrice = priceType === 'closed' ? (catalogItem.closedLoadPrice || 0) : (catalogItem.fractionalLoadPrice || 0);
+        const afterCatalog = Math.max(0, basePrice - (catalogItem.discountAmount || 0));
+        
+        const surchargeValue = p.customSurchargeValue !== undefined ? Number(p.customSurchargeValue) : (p.customSurchargeR$ || 0);
+        const surchargeType = p.customSurchargeType || 'fixed';
+        
+        let withSurcharge = afterCatalog;
+        if (surchargeType === 'percentage') withSurcharge += afterCatalog * (surchargeValue / 100);
+        else withSurcharge += surchargeValue;
+        
+        const netPrice = withSurcharge * (1 + contractPercent / 100);
+        const stRate = parseST(p.st);
+        const finalPrice = netPrice * (1 + stRate);
+        
+        newPricesFinal[p.id] = Number(finalPrice.toFixed(2));
+        newPricesNet[p.id] = Number(netPrice.toFixed(2));
+      }
+    });
+
+    setGridPricesFinal(prev => {
+      const updated = { ...prev };
+      Object.keys(newPricesFinal).forEach(id => {
+        // Atualiza se for novo no estado OU se os parâmetros globais mudaram
+        if (updated[id] === undefined || globalParamsChanged) {
+          updated[id] = newPricesFinal[id];
         }
       });
-      
-      setGridPricesFinal(prev => ({ ...prev, ...newPricesFinal }));
-      setGridPricesNet(prev => ({ ...prev, ...newPricesNet }));
-    }
-  }, [filteredProducts, catalogProducts, priceType, contractPercent]);
+      return updated;
+    });
+
+    setGridPricesNet(prev => {
+      const updated = { ...prev };
+      Object.keys(newPricesNet).forEach(id => {
+        if (updated[id] === undefined || globalParamsChanged) {
+          updated[id] = newPricesNet[id];
+        }
+      });
+      return updated;
+    });
+
+  }, [registeredProducts, catalogProducts, priceType, contractPercent]);
 
   const handleUpdatePriceFinal = (productId: string, val: number, stRateStr: string) => {
     const stRate = parseST(stRateStr);
@@ -192,8 +220,8 @@ export default function GridOrderPage() {
         unitPriceFinal: finalPrice,
         appliedContract: contractPercent,
         stRate: stRate * 100,
-        total: isBonus ? 0 : (finalPrice * qtyPerBox * qty),
-        weight: isBonus ? 0 : ((p.boxWeightKg || 0) * qty),
+        total: isBonus ? 0 : Number((finalPrice * qtyPerBox * qty).toFixed(2)),
+        weight: isBonus ? 0 : Number(((p.boxWeightKg || 0) * qty).toFixed(2)),
         line: p.line || "",
         quantityPerBox: qtyPerBox,
         unitWeight: p.boxWeightKg || 0,
