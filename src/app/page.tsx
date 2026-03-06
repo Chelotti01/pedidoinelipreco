@@ -8,7 +8,7 @@ import { useAuth, useUser, useFirestore, useCollection, useMemoFirebase } from '
 import { collection, query, orderBy } from 'firebase/firestore';
 import { Button } from "@/components/ui/button";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
-import { ShoppingCart, ListChecks, Zap, History, Users, LogOut, Package, FileSpreadsheet, FileDown, Loader2, LayoutGrid } from "lucide-react";
+import { ShoppingCart, ListChecks, Zap, History, Users, LogOut, Package, FileSpreadsheet, FileDown, Loader2, LayoutGrid, DollarSign, TrendingUp } from "lucide-react";
 import { useEffect } from 'react';
 import {
   Dialog,
@@ -41,7 +41,6 @@ export default function Home() {
   const [exportPriceType, setExportPriceType] = useState<'closed' | 'fractional'>('closed');
   const [exportBrand, setExportBrand] = useState<string>("all");
 
-  // Novos estados para seleção de colunas
   const [exportIncludeNetUnit, setExportIncludeNetUnit] = useState(true);
   const [exportIncludeFinalUnit, setExportIncludeFinalUnit] = useState(true);
   const [exportIncludeNetBox, setExportIncludeNetBox] = useState(true);
@@ -80,7 +79,6 @@ export default function Home() {
       const html2canvas = (await import('html2canvas')).default;
       const { jsPDF } = await import('jspdf');
 
-      // Filtra e ordena por Marca e depois por Código
       const filtered = (registeredProducts?.filter(p => 
         p.factoryId === exportFactoryId && 
         p.line === exportLineFilter &&
@@ -108,11 +106,11 @@ export default function Home() {
       const factoryName = factories?.find(f => f.id === exportFactoryId)?.name || 'Fábrica';
       
       const colCount = [
-        true, // cod
-        true, // desc
-        true, // marca
-        true, // un
-        true, // cx
+        true, 
+        true, 
+        true, 
+        true, 
+        true, 
         exportIncludeNetUnit,
         exportIncludeFinalUnit,
         exportIncludeNetBox,
@@ -257,6 +255,18 @@ export default function Home() {
                 </div>
                 <CardTitle className="text-xl">Pedido em Grade (Desktop)</CardTitle>
                 <CardDescription className="text-white/70">Preenchimento rápido em massa por fábrica e linha.</CardDescription>
+              </CardHeader>
+            </Card>
+          </Link>
+
+          <Link href="/admin/products/margins" className="group">
+            <Card className="h-full border-none shadow-md hover:shadow-xl transition-all hover:-translate-y-1 bg-primary/90 text-white">
+              <CardHeader>
+                <div className="w-12 h-12 bg-white/20 rounded-xl flex items-center justify-center mb-4">
+                  <TrendingUp size={24} />
+                </div>
+                <CardTitle className="text-xl">Gestão de Margens</CardTitle>
+                <CardDescription className="text-white/70">Ajuste rápido de aditivos ocultos de todos os produtos.</CardDescription>
               </CardHeader>
             </Card>
           </Link>
