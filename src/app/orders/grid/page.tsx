@@ -88,10 +88,14 @@ export default function GridOrderPage() {
 
   const filteredProducts = useMemo(() => {
     if (selectedFactoryId === "none" || lineFilter === "none" || !registeredProducts) return [];
+    const term = searchTerm.toLowerCase();
     return registeredProducts.filter(p => 
       p.factoryId === selectedFactoryId && 
       p.line === lineFilter &&
-      (searchTerm === "" || p.description.toLowerCase().includes(searchTerm.toLowerCase()) || p.code.toLowerCase().includes(searchTerm.toLowerCase()))
+      (searchTerm === "" || 
+       p.description.toLowerCase().includes(term) || 
+       p.code.toLowerCase().includes(term) ||
+       p.ean?.toLowerCase().includes(term))
     );
   }, [selectedFactoryId, lineFilter, registeredProducts, searchTerm]);
 
@@ -325,6 +329,18 @@ export default function GridOrderPage() {
         </Card>
       </div>
 
+      {/* Barra de Pesquisa */}
+      <div className="mb-6 relative max-w-md">
+        <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" size={18} />
+        <Input 
+          placeholder="Pesquisar por código, nome ou EAN..." 
+          className="pl-10 h-11 bg-white shadow-sm"
+          value={searchTerm}
+          onChange={(e) => setSearchTerm(e.target.value)}
+          onFocus={(e) => e.target.select()}
+        />
+      </div>
+
       <Card className="border-none shadow-xl overflow-hidden mb-24">
         {selectedFactoryId === "none" || lineFilter === "none" ? (
           <div className="p-20 text-center text-muted-foreground bg-white">
@@ -364,6 +380,7 @@ export default function GridOrderPage() {
                       <TableCell>
                         <div className="font-bold text-xs">{p.code}</div>
                         <div className="text-[10px] text-muted-foreground uppercase">{p.description}</div>
+                        <div className="text-[9px] text-muted-foreground/60 font-mono">{p.ean}</div>
                       </TableCell>
                       <TableCell className="text-right">
                         <input 
