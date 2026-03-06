@@ -1,4 +1,3 @@
-
 "use client"
 
 import { useState, useMemo, useEffect, useRef } from 'react';
@@ -293,9 +292,18 @@ export default function NewOrderPage() {
     const priceAfterCatalog = Math.max(0, basePrice - catalogDiscount);
     
     const activePercent = overridePercent !== undefined ? overridePercent : (contractPercent || 0);
-    const customSurcharge = registeredItem.customSurchargeR$ || 0;
     
-    const baseWithSurcharge = priceAfterCatalog + customSurcharge;
+    // Suporte para aditivo fixo ou percentual
+    const surchargeValue = registeredItem.customSurchargeValue !== undefined ? Number(registeredItem.customSurchargeValue) : (registeredItem.customSurchargeR$ || 0);
+    const surchargeType = registeredItem.customSurchargeType || 'fixed';
+    
+    let baseWithSurcharge = priceAfterCatalog;
+    if (surchargeType === 'percentage') {
+      baseWithSurcharge += priceAfterCatalog * (surchargeValue / 100);
+    } else {
+      baseWithSurcharge += surchargeValue;
+    }
+    
     const finalUnitPriceBeforeST = baseWithSurcharge * (1 + activePercent / 100);
     
     const stRate = parseST(registeredItem.st);
@@ -336,9 +344,17 @@ export default function NewOrderPage() {
       
       const catalogDiscount = useCatalogDiscount ? (catalogItem.discountAmount || 0) : 0;
       const priceAfterCatalog = Math.max(0, basePrice - catalogDiscount);
-      const customSurcharge = registeredItem.customSurchargeR$ || 0;
       
-      const baseWithSurcharge = priceAfterCatalog + customSurcharge;
+      const surchargeValue = registeredItem.customSurchargeValue !== undefined ? Number(registeredItem.customSurchargeValue) : (registeredItem.customSurchargeR$ || 0);
+      const surchargeType = registeredItem.customSurchargeType || 'fixed';
+      
+      let baseWithSurcharge = priceAfterCatalog;
+      if (surchargeType === 'percentage') {
+        baseWithSurcharge += priceAfterCatalog * (surchargeValue / 100);
+      } else {
+        baseWithSurcharge += surchargeValue;
+      }
+      
       const finalUnitPriceBeforeST = baseWithSurcharge * (1 + (item.appliedContract || 0) / 100);
       
       const stRate = parseST(registeredItem.st);

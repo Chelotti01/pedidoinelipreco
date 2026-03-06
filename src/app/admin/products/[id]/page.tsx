@@ -10,8 +10,9 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
-import { Save, ChevronLeft, Search, Tag, Loader2, AlertCircle, Copy, DollarSign } from "lucide-react";
+import { Save, ChevronLeft, Search, Tag, Loader2, AlertCircle, Copy, DollarSign, Percent } from "lucide-react";
 import Link from 'next/link';
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 export default function EditRegisteredProductPage() {
   const db = useFirestore();
@@ -42,7 +43,8 @@ export default function EditRegisteredProductPage() {
     st: '',
     factoryId: '',
     catalogProductId: '',
-    customSurchargeR$: '0'
+    customSurchargeValue: '0',
+    customSurchargeType: 'fixed'
   });
 
   const [hasPopulated, setHasPopulated] = useState(false);
@@ -68,7 +70,8 @@ export default function EditRegisteredProductPage() {
         st: product.st || '',
         factoryId: product.factoryId || '',
         catalogProductId: product.catalogProductId || '',
-        customSurchargeR$: product.customSurchargeR$ !== undefined ? String(product.customSurchargeR$) : '0'
+        customSurchargeValue: product.customSurchargeValue !== undefined ? String(product.customSurchargeValue) : (product.customSurchargeR$ !== undefined ? String(product.customSurchargeR$) : '0'),
+        customSurchargeType: product.customSurchargeType || 'fixed'
       });
       setHasPopulated(true);
     }
@@ -102,7 +105,9 @@ export default function EditRegisteredProductPage() {
       quantityPerBox: Number(formData.quantityPerBox) || 0,
       unitNetWeightKg: Number(formData.unitNetWeightKg) || 0,
       boxWeightKg: Number(formData.boxWeightKg) || 0,
-      customSurchargeR$: Number(formData.customSurchargeR$) || 0,
+      customSurchargeValue: Number(formData.customSurchargeValue) || 0,
+      // Para retrocompatibilidade
+      customSurchargeR$: formData.customSurchargeType === 'fixed' ? Number(formData.customSurchargeValue) : 0,
       updatedAt: serverTimestamp()
     });
 
@@ -119,7 +124,8 @@ export default function EditRegisteredProductPage() {
       quantityPerBox: Number(formData.quantityPerBox) || 0,
       unitNetWeightKg: Number(formData.unitNetWeightKg) || 0,
       boxWeightKg: Number(formData.boxWeightKg) || 0,
-      customSurchargeR$: Number(formData.customSurchargeR$) || 0,
+      customSurchargeValue: Number(formData.customSurchargeValue) || 0,
+      customSurchargeR$: formData.customSurchargeType === 'fixed' ? Number(formData.customSurchargeValue) : 0,
       createdAt: serverTimestamp(),
       updatedAt: serverTimestamp()
     });
@@ -213,18 +219,46 @@ export default function EditRegisteredProductPage() {
                 <CardTitle className="text-lg flex items-center gap-2">
                   <DollarSign size={18} className="text-primary" /> Aditivo de Margem (Oculto)
                 </CardTitle>
-                <CardDescription>Valor em Reais somado ao preço unitário sem sinalização externa.</CardDescription>
+                <CardDescription>Valor somado ao preço unitário sem sinalização externa.</CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
+                <div className="space-y-3">
+                  <Label className="text-xs uppercase font-bold text-muted-foreground">Tipo de Aditivo</Label>
+                  <Tabs 
+                    value={formData.customSurchargeType} 
+                    onValueChange={(val) => setFormData({...formData, customSurchargeType: val})}
+                    className="w-full"
+                  >
+                    <TabsList className="grid w-full grid-cols-2 h-11">
+                      <TabsTrigger value="fixed" className="gap-2">
+                        <DollarSign size={14} /> Fixo (R$)
+                      </TabsTrigger>
+                      <TabsTrigger value="percentage" className="gap-2">
+                        <Percent size={14} /> Percentual (%)
+                      </TabsTrigger>
+                    </TabsList>
+                  </Tabs>
+                </div>
+                
                 <div className="space-y-2">
-                  <Label>Aditivo Unitário (R$)</Label>
-                  <Input 
-                    type="number" 
-                    step="0.01" 
-                    value={formData.customSurchargeR$} 
-                    onChange={(e) => setFormData({...formData, customSurchargeR$: e.target.value})} 
-                    className="h-12 text-lg font-bold text-primary"
-                  />
+                  <Label>{formData.customSurchargeType === 'fixed' ? 'Valor Fixo (R$)' : 'Porcentagem (%)'}</Label>
+                  <div className="relative">
+                    <div className="absolute left-3 top-1/2 -translate-y-1/2 text-primary font-bold">
+                      {formData.customSurchargeType === 'fixed' ? 'R$' : '%'}
+                    </div>
+                    <Input 
+                      type="number" 
+                      step="0.01" 
+                      value={formData.customSurchargeValue} 
+                      onChange={(e) => setFormData({...formData, customSurchargeValue: e.target.value})} 
+                      className="h-12 text-lg font-bold text-primary pl-10"
+                    />
+                  </div>
+                  <p className="text-[10px] text-muted-foreground italic">
+                    {formData.customSurchargeType === 'fixed' 
+                      ? "Este valor será somado diretamente ao preço unitário." 
+                      : "Esta porcentagem será aplicada sobre o preço líquido do item."}
+                  </p>
                 </div>
               </CardContent>
             </Card>
