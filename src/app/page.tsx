@@ -8,7 +8,7 @@ import { useAuth, useUser, useFirestore, useCollection, useMemoFirebase } from '
 import { collection, query, orderBy } from 'firebase/firestore';
 import { Button } from "@/components/ui/button";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
-import { ShoppingCart, ListChecks, Zap, History, Users, LogOut, Package, FileSpreadsheet, FileDown, Loader2 } from "lucide-react";
+import { ShoppingCart, ListChecks, Zap, History, Users, LogOut, Package, FileSpreadsheet, FileDown, Loader2, LayoutGrid } from "lucide-react";
 import { useEffect } from 'react';
 import {
   Dialog,
@@ -212,6 +212,18 @@ export default function Home() {
                 </div>
                 <CardTitle className="text-xl">Novo Pedido</CardTitle>
                 <CardDescription className="text-white/70">Emita um novo pedido com preços dinâmicos.</CardDescription>
+              </CardHeader>
+            </Card>
+          </Link>
+
+          <Link href="/orders/grid" className="group">
+            <Card className="h-full border-none shadow-md hover:shadow-xl transition-all hover:-translate-y-1 bg-slate-800 text-white">
+              <CardHeader>
+                <div className="w-12 h-12 bg-white/20 rounded-xl flex items-center justify-center mb-4">
+                  <LayoutGrid size={24} />
+                </div>
+                <CardTitle className="text-xl">Pedido em Grade (Desktop)</CardTitle>
+                <CardDescription className="text-white/70">Preenchimento rápido em massa por fábrica e linha.</CardDescription>
               </CardHeader>
             </Card>
           </Link>
