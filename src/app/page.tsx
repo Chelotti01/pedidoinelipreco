@@ -73,11 +73,16 @@ export default function Home() {
       const html2canvas = (await import('html2canvas')).default;
       const { jsPDF } = await import('jspdf');
 
-      const filtered = registeredProducts?.filter(p => 
+      // Filtra e ordena por Marca e depois por Código
+      const filtered = (registeredProducts?.filter(p => 
         p.factoryId === exportFactoryId && 
         p.line === exportLineFilter &&
         (exportBrand === "all" || p.brand === exportBrand)
-      ) || [];
+      ) || []).sort((a, b) => {
+        const brandCompare = (a.brand || "").localeCompare(b.brand || "");
+        if (brandCompare !== 0) return brandCompare;
+        return (a.code || "").localeCompare(b.code || "");
+      });
 
       if (filtered.length === 0) {
         toast({ title: "Nenhum item", description: "Não há produtos registrados para esses filtros.", variant: "destructive" });
@@ -114,7 +119,8 @@ export default function Home() {
               <th style="padding: 8px; border-bottom: 2px solid #cbd5e1;">MARCA</th>
               <th style="padding: 8px; border-bottom: 2px solid #cbd5e1;">UN</th>
               <th style="padding: 8px; border-bottom: 2px solid #cbd5e1;">CX</th>
-              <th style="padding: 8px; border-bottom: 2px solid #cbd5e1; text-align: right;">PREÇO UNIT (+ST)</th>
+              <th style="padding: 8px; border-bottom: 2px solid #cbd5e1; text-align: right;">PREÇO NET</th>
+              <th style="padding: 8px; border-bottom: 2px solid #cbd5e1; text-align: right;">PREÇO FINAL (+ST)</th>
             </tr>
           </thead>
           <tbody>
@@ -142,6 +148,7 @@ export default function Home() {
                   <td style="padding: 8px;">${p.brand}</td>
                   <td style="padding: 8px;">${p.unit}</td>
                   <td style="padding: 8px;">${p.quantityPerBox}</td>
+                  <td style="padding: 8px; text-align: right;">R$ ${netPrice.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
                   <td style="padding: 8px; text-align: right; font-weight: bold;">R$ ${finalPrice.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
                 </tr>
               `;
@@ -210,6 +217,7 @@ export default function Home() {
                 <div className="w-12 h-12 bg-white/20 rounded-xl flex items-center justify-center mb-4">
                   <ShoppingCart size={24} />
                 </div>
+                <CardTitle className="text-xl">Novo Pedido</CardTitle>
                 <CardTitle className="text-xl">Novo Pedido</CardTitle>
                 <CardDescription className="text-white/70">Emita um novo pedido com preços dinâmicos.</CardDescription>
               </CardHeader>
