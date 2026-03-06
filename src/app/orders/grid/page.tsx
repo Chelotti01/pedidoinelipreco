@@ -124,8 +124,8 @@ export default function GridOrderPage() {
           const stRate = parseST(p.st);
           const finalPrice = netPrice * (1 + stRate);
           
-          newPricesFinal[p.id] = finalPrice;
-          newPricesNet[p.id] = netPrice;
+          newPricesFinal[p.id] = Number(finalPrice.toFixed(2));
+          newPricesNet[p.id] = Number(netPrice.toFixed(2));
         }
       });
       
@@ -136,15 +136,17 @@ export default function GridOrderPage() {
 
   const handleUpdatePriceFinal = (productId: string, val: number, stRateStr: string) => {
     const stRate = parseST(stRateStr);
-    const netPrice = val / (1 + stRate);
-    setGridPricesFinal(prev => ({ ...prev, [productId]: val }));
+    const netPrice = Number((val / (1 + stRate)).toFixed(2));
+    const roundedFinal = Number(val.toFixed(2));
+    setGridPricesFinal(prev => ({ ...prev, [productId]: roundedFinal }));
     setGridPricesNet(prev => ({ ...prev, [productId]: netPrice }));
   };
 
   const handleUpdatePriceNet = (productId: string, val: number, stRateStr: string) => {
     const stRate = parseST(stRateStr);
-    const finalPrice = val * (1 + stRate);
-    setGridPricesNet(prev => ({ ...prev, [productId]: val }));
+    const finalPrice = Number((val * (1 + stRate)).toFixed(2));
+    const roundedNet = Number(val.toFixed(2));
+    setGridPricesNet(prev => ({ ...prev, [productId]: roundedNet }));
     setGridPricesFinal(prev => ({ ...prev, [productId]: finalPrice }));
   };
 
@@ -364,10 +366,10 @@ export default function GridOrderPage() {
                         <div className="text-[10px] text-muted-foreground uppercase">{p.description}</div>
                       </TableCell>
                       <TableCell className="text-right">
-                        <Input 
+                        <input 
                           type="number" 
                           step="0.01" 
-                          className="w-20 h-8 text-right text-[11px] font-bold" 
+                          className="w-20 h-8 text-right text-[11px] font-bold border rounded" 
                           value={net || ""}
                           onChange={(e) => handleUpdatePriceNet(p.id, Number(e.target.value), p.st)}
                           onFocus={(e) => e.target.select()}
@@ -375,10 +377,10 @@ export default function GridOrderPage() {
                         />
                       </TableCell>
                       <TableCell className="text-right">
-                        <Input 
+                        <input 
                           type="number" 
                           step="0.01" 
-                          className={`w-20 h-8 text-right text-[11px] font-bold ${isB ? "opacity-50" : "text-primary bg-primary/5"}`}
+                          className={`w-20 h-8 text-right text-[11px] font-bold border rounded ${isB ? "opacity-50" : "text-primary bg-primary/5"}`}
                           value={fin || ""}
                           onChange={(e) => handleUpdatePriceFinal(p.id, Number(e.target.value), p.st)}
                           onFocus={(e) => e.target.select()}
@@ -386,9 +388,9 @@ export default function GridOrderPage() {
                         />
                       </TableCell>
                       <TableCell className="text-center">
-                        <Input 
+                        <input 
                           type="number" 
-                          className="w-20 h-8 text-center font-black"
+                          className="w-20 h-8 text-center font-black border rounded"
                           value={qty || ""}
                           onChange={(e) => setGridQuantities(prev => ({ ...prev, [p.id]: Number(e.target.value) }))}
                           onFocus={(e) => e.target.select()}

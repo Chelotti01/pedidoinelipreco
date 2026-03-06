@@ -273,9 +273,9 @@ export default function NewOrderPage() {
     const finalUnitPriceWithST = finalUnitPriceBeforeST + stAmount;
 
     return {
-      finalUnitPriceBeforeST,
+      finalUnitPriceBeforeST: Number(finalUnitPriceBeforeST.toFixed(2)),
       stRate,
-      finalUnitPriceWithST
+      finalUnitPriceWithST: Number(finalUnitPriceWithST.toFixed(2))
     };
   };
 
@@ -318,13 +318,15 @@ export default function NewOrderPage() {
       const finalUnitPriceWithST = finalUnitPriceBeforeST * (1 + stRate);
       
       const qtyPerBox = registeredItem.quantityPerBox || 1;
-      const total = finalUnitPriceWithST * qtyPerBox * item.quantity;
+      const roundedNet = Number(finalUnitPriceBeforeST.toFixed(2));
+      const roundedFinal = Number(finalUnitPriceWithST.toFixed(2));
+      const total = roundedFinal * qtyPerBox * item.quantity;
 
       return {
         ...item,
         priceType: newType,
-        unitPriceNet: finalUnitPriceBeforeST,
-        unitPriceFinal: finalUnitPriceWithST,
+        unitPriceNet: roundedNet,
+        unitPriceFinal: roundedFinal,
         total: total
       };
     });
@@ -402,10 +404,11 @@ export default function NewOrderPage() {
     const updatedItems = [...orderItems];
     const item = updatedItems[index];
     const stRateDecimal = (item.stRate || 0) / 100;
-    const newNetPrice = newFinalPrice / (1 + stRateDecimal);
-    item.unitPriceFinal = newFinalPrice;
+    const newNetPrice = Number((newFinalPrice / (1 + stRateDecimal)).toFixed(2));
+    const roundedFinal = Number(newFinalPrice.toFixed(2));
+    item.unitPriceFinal = roundedFinal;
     item.unitPriceNet = newNetPrice;
-    item.total = item.isBonus ? 0 : (newFinalPrice * item.quantityPerBox * item.quantity);
+    item.total = item.isBonus ? 0 : (roundedFinal * item.quantityPerBox * item.quantity);
     item.weight = item.isBonus ? 0 : (item.unitWeight * item.quantity);
     setOrderItems(updatedItems);
   };
@@ -415,8 +418,9 @@ export default function NewOrderPage() {
     const updatedItems = [...orderItems];
     const item = updatedItems[index];
     const stRateDecimal = (item.stRate || 0) / 100;
-    const newFinalPrice = newNetPrice * (1 + stRateDecimal);
-    item.unitPriceNet = newNetPrice;
+    const newFinalPrice = Number((newNetPrice * (1 + stRateDecimal)).toFixed(2));
+    const roundedNet = Number(newNetPrice.toFixed(2));
+    item.unitPriceNet = roundedNet;
     item.unitPriceFinal = newFinalPrice;
     item.total = item.isBonus ? 0 : (newFinalPrice * item.quantityPerBox * item.quantity);
     item.weight = item.isBonus ? 0 : (item.unitWeight * item.quantity);
