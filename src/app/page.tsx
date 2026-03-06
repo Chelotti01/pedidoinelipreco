@@ -2,7 +2,7 @@
 "use client"
 
 import { useState, useMemo } from 'react';
-import Link from 'next/navigation';
+import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useAuth, useUser, useFirestore, useCollection, useMemoFirebase } from '@/firebase';
 import { collection, query, orderBy } from 'firebase/firestore';
