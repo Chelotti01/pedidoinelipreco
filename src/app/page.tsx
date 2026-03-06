@@ -2,7 +2,7 @@
 "use client"
 
 import { useState, useMemo } from 'react';
-import Link from 'next/link';
+import Link from 'next/navigation';
 import { useRouter } from 'next/navigation';
 import { useAuth, useUser, useFirestore, useCollection, useMemoFirebase } from '@/firebase';
 import { collection, query, orderBy } from 'firebase/firestore';
@@ -21,6 +21,7 @@ import {
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
+import { Switch } from "@/components/ui/switch";
 import { useToast } from "@/hooks/use-toast";
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
@@ -39,6 +40,12 @@ export default function Home() {
   const [exportContractPercent, setExportContractPercent] = useState<number>(0);
   const [exportPriceType, setExportPriceType] = useState<'closed' | 'fractional'>('closed');
   const [exportBrand, setExportBrand] = useState<string>("all");
+
+  // Novos estados para seleção de colunas
+  const [exportIncludeNetUnit, setExportIncludeNetUnit] = useState(true);
+  const [exportIncludeFinalUnit, setExportIncludeFinalUnit] = useState(true);
+  const [exportIncludeNetBox, setExportIncludeNetBox] = useState(true);
+  const [exportIncludeFinalBox, setExportIncludeFinalBox] = useState(true);
 
   const factoriesQuery = useMemoFirebase(() => query(collection(db, 'factories'), orderBy('name')), [db]);
   const { data: factories } = useCollection(factoriesQuery);
@@ -95,32 +102,48 @@ export default function Home() {
       container.style.left = '-9999px';
       container.style.width = '210mm';
       container.style.backgroundColor = 'white';
-      container.style.padding = '20mm';
+      container.style.padding = '15mm';
       container.style.fontFamily = 'sans-serif';
 
       const factoryName = factories?.find(f => f.id === exportFactoryId)?.name || 'Fábrica';
       
+      const colCount = [
+        true, // cod
+        true, // desc
+        true, // marca
+        true, // un
+        true, // cx
+        exportIncludeNetUnit,
+        exportIncludeFinalUnit,
+        exportIncludeNetBox,
+        exportIncludeFinalBox
+      ].filter(Boolean).length;
+
+      const fontSize = colCount > 7 ? '7px' : '9px';
+
       container.innerHTML = `
         <div style="border-bottom: 3px solid #334155; padding-bottom: 10px; margin-bottom: 20px; display: flex; justify-content: space-between; align-items: center;">
           <div>
-            <h1 style="margin: 0; color: #334155; font-size: 24px; font-weight: 900;">TABELA DE PREÇOS</h1>
-            <p style="margin: 5px 0 0 0; color: #64748b; font-size: 14px;">${factoryName} - ${exportLineFilter}</p>
+            <h1 style="margin: 0; color: #334155; font-size: 20px; font-weight: 900;">TABELA DE PREÇOS</h1>
+            <p style="margin: 5px 0 0 0; color: #64748b; font-size: 12px;">${factoryName} - ${exportLineFilter}</p>
           </div>
           <div style="text-align: right;">
-            <p style="margin: 0; font-weight: bold; font-size: 12px;">InteliPreço v3.0</p>
-            <p style="margin: 2px 0 0 0; font-size: 10px; color: #94a3b8;">Emissão: ${format(new Date(), "dd/MM/yyyy HH:mm")}</p>
+            <p style="margin: 0; font-weight: bold; font-size: 10px;">InteliPreço v3.0</p>
+            <p style="margin: 2px 0 0 0; font-size: 8px; color: #94a3b8;">Emissão: ${format(new Date(), "dd/MM/yyyy HH:mm")}</p>
           </div>
         </div>
-        <table style="width: 100%; border-collapse: collapse; font-size: 10px;">
+        <table style="width: 100%; border-collapse: collapse; font-size: ${fontSize};">
           <thead>
             <tr style="background-color: #f1f5f9; text-align: left;">
-              <th style="padding: 8px; border-bottom: 2px solid #cbd5e1;">CÓD</th>
-              <th style="padding: 8px; border-bottom: 2px solid #cbd5e1;">DESCRIÇÃO</th>
-              <th style="padding: 8px; border-bottom: 2px solid #cbd5e1;">MARCA</th>
-              <th style="padding: 8px; border-bottom: 2px solid #cbd5e1;">UN</th>
-              <th style="padding: 8px; border-bottom: 2px solid #cbd5e1;">CX</th>
-              <th style="padding: 8px; border-bottom: 2px solid #cbd5e1; text-align: right;">PREÇO NET</th>
-              <th style="padding: 8px; border-bottom: 2px solid #cbd5e1; text-align: right;">PREÇO FINAL (+ST)</th>
+              <th style="padding: 6px; border-bottom: 2px solid #cbd5e1;">CÓD</th>
+              <th style="padding: 6px; border-bottom: 2px solid #cbd5e1;">DESCRIÇÃO</th>
+              <th style="padding: 6px; border-bottom: 2px solid #cbd5e1;">MARCA</th>
+              <th style="padding: 6px; border-bottom: 2px solid #cbd5e1;">UN</th>
+              <th style="padding: 6px; border-bottom: 2px solid #cbd5e1;">CX</th>
+              ${exportIncludeNetUnit ? '<th style="padding: 6px; border-bottom: 2px solid #cbd5e1; text-align: right;">UNIT. NET</th>' : ''}
+              ${exportIncludeFinalUnit ? '<th style="padding: 6px; border-bottom: 2px solid #cbd5e1; text-align: right;">UNIT. FINAL</th>' : ''}
+              ${exportIncludeNetBox ? '<th style="padding: 6px; border-bottom: 2px solid #cbd5e1; text-align: right;">CAIXA NET</th>' : ''}
+              ${exportIncludeFinalBox ? '<th style="padding: 6px; border-bottom: 2px solid #cbd5e1; text-align: right;">CAIXA FINAL</th>' : ''}
             </tr>
           </thead>
           <tbody>
@@ -140,22 +163,25 @@ export default function Home() {
               const netPrice = withSurcharge * (1 + exportContractPercent / 100);
               const stRate = p.st ? parseFloat(p.st.replace('%', '').replace(',', '.')) / 100 : 0;
               const finalPrice = netPrice * (1 + stRate);
+              const qtyPerBox = p.quantityPerBox || 1;
 
               return `
                 <tr style="border-bottom: 1px solid #e2e8f0;">
-                  <td style="padding: 8px; font-weight: bold;">${p.code}</td>
-                  <td style="padding: 8px;">${p.description}</td>
-                  <td style="padding: 8px;">${p.brand}</td>
-                  <td style="padding: 8px;">${p.unit}</td>
-                  <td style="padding: 8px;">${p.quantityPerBox}</td>
-                  <td style="padding: 8px; text-align: right;">R$ ${netPrice.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
-                  <td style="padding: 8px; text-align: right; font-weight: bold;">R$ ${finalPrice.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+                  <td style="padding: 6px; font-weight: bold;">${p.code}</td>
+                  <td style="padding: 6px;">${p.description}</td>
+                  <td style="padding: 6px;">${p.brand}</td>
+                  <td style="padding: 6px;">${p.unit}</td>
+                  <td style="padding: 6px;">${qtyPerBox}</td>
+                  ${exportIncludeNetUnit ? `<td style="padding: 6px; text-align: right;">R$ ${netPrice.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>` : ''}
+                  ${exportIncludeFinalUnit ? `<td style="padding: 6px; text-align: right; font-weight: bold;">R$ ${finalPrice.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>` : ''}
+                  ${exportIncludeNetBox ? `<td style="padding: 6px; text-align: right;">R$ ${(netPrice * qtyPerBox).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>` : ''}
+                  ${exportIncludeFinalBox ? `<td style="padding: 6px; text-align: right; font-weight: bold;">R$ ${(finalPrice * qtyPerBox).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>` : ''}
                 </tr>
               `;
             }).join('')}
           </tbody>
         </table>
-        <div style="margin-top: 30px; border-top: 1px dashed #cbd5e1; padding-top: 10px; font-size: 9px; color: #64748b;">
+        <div style="margin-top: 20px; border-top: 1px dashed #cbd5e1; padding-top: 8px; font-size: 8px; color: #64748b;">
           <p>• Preço calculado para modalidade: <strong>${exportPriceType === 'closed' ? 'CARGA FECHADA' : 'CARGA FRACIONADA'}</strong></p>
           <p>• Condições comerciais: <strong>Cod: ${(exportContractPercent / 10).toFixed(1).replace('.', ',')}</strong> | Preços sujeitos a alteração conforme vigência no ato do faturamento.</p>
         </div>
@@ -217,7 +243,6 @@ export default function Home() {
                 <div className="w-12 h-12 bg-white/20 rounded-xl flex items-center justify-center mb-4">
                   <ShoppingCart size={24} />
                 </div>
-                <CardTitle className="text-xl">Novo Pedido</CardTitle>
                 <CardTitle className="text-xl">Novo Pedido</CardTitle>
                 <CardDescription className="text-white/70">Emita um novo pedido com preços dinâmicos.</CardDescription>
               </CardHeader>
@@ -315,7 +340,7 @@ export default function Home() {
         <DialogContent className="max-w-md">
           <DialogHeader>
             <DialogTitle>Configurar Exportação PDF</DialogTitle>
-            <DialogDescription>Selecione os filtros para a tabela de preços.</DialogDescription>
+            <DialogDescription>Selecione os filtros e colunas para a tabela de preços.</DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-4">
             <div className="space-y-2">
@@ -366,6 +391,28 @@ export default function Home() {
               <div className="space-y-2">
                 <Label>Aditivo (%)</Label>
                 <Input type="number" value={exportContractPercent} onChange={(e) => setExportContractPercent(Number(e.target.value))} />
+              </div>
+            </div>
+
+            <div className="space-y-3 pt-2">
+              <Label className="text-xs font-bold uppercase text-muted-foreground">Colunas de Preço</Label>
+              <div className="grid grid-cols-2 gap-4 bg-muted/30 p-3 rounded-lg border">
+                <div className="flex items-center justify-between gap-2">
+                  <Label htmlFor="net-unit" className="text-xs cursor-pointer">Unit. NET</Label>
+                  <Switch id="net-unit" checked={exportIncludeNetUnit} onCheckedChange={setExportIncludeNetUnit} />
+                </div>
+                <div className="flex items-center justify-between gap-2">
+                  <Label htmlFor="final-unit" className="text-xs cursor-pointer">Unit. FINAL</Label>
+                  <Switch id="final-unit" checked={exportIncludeFinalUnit} onCheckedChange={setExportIncludeFinalUnit} />
+                </div>
+                <div className="flex items-center justify-between gap-2">
+                  <Label htmlFor="net-box" className="text-xs cursor-pointer">Caixa NET</Label>
+                  <Switch id="net-box" checked={exportIncludeNetBox} onCheckedChange={setExportIncludeNetBox} />
+                </div>
+                <div className="flex items-center justify-between gap-2">
+                  <Label htmlFor="final-box" className="text-xs cursor-pointer">Caixa FINAL</Label>
+                  <Switch id="final-box" checked={exportIncludeFinalBox} onCheckedChange={setExportIncludeFinalBox} />
+                </div>
               </div>
             </div>
           </div>
