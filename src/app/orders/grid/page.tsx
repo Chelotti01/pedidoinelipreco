@@ -16,7 +16,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
 import { 
   ShoppingCart, Save, ReceiptText, ChevronLeft, Loader2, 
-  Weight, Search, LayoutGrid, Package, AlertTriangle, Gift, DollarSign
+  Weight, Search, LayoutGrid, Package, AlertTriangle, Gift, DollarSign, Crown
 } from "lucide-react";
 import Link from 'next/link';
 
@@ -55,6 +55,7 @@ export default function GridOrderPage() {
   const [priceType, setPriceType] = useState<'closed' | 'fractional'>('closed');
   const [manualObservations, setManualObservations] = useState("");
   const [searchTerm, setSearchTerm] = useState("");
+  const [showOnlyFilled, setShowOnlyFilled] = useState(false);
   
   const [isFinalizing, setIsFinalizing] = useState(false);
   const [isSavingDraft, setIsSavingDraft] = useState(false);
@@ -89,15 +90,21 @@ export default function GridOrderPage() {
   const filteredProducts = useMemo(() => {
     if (selectedFactoryId === "none" || lineFilter === "none" || !registeredProducts) return [];
     const term = searchTerm.toLowerCase();
-    return registeredProducts.filter(p => 
-      p.factoryId === selectedFactoryId && 
-      p.line === lineFilter &&
-      (searchTerm === "" || 
+    return registeredProducts.filter(p => {
+      const matchesSearch = searchTerm === "" || 
        p.description.toLowerCase().includes(term) || 
        p.code.toLowerCase().includes(term) ||
-       p.ean?.toLowerCase().includes(term))
-    );
-  }, [selectedFactoryId, lineFilter, registeredProducts, searchTerm]);
+       p.ean?.toLowerCase().includes(term);
+      
+      const hasQuantity = (gridQuantities[p.id] || 0) > 0;
+      const matchesFilledFilter = !showOnlyFilled || hasQuantity;
+
+      return p.factoryId === selectedFactoryId && 
+             p.line === lineFilter &&
+             matchesSearch &&
+             matchesFilledFilter;
+    });
+  }, [selectedFactoryId, lineFilter, registeredProducts, searchTerm, showOnlyFilled, gridQuantities]);
 
   const parseST = (stValue: string | undefined): number => {
     if (!stValue) return 0;
@@ -112,6 +119,7 @@ export default function GridOrderPage() {
       const newPricesNet: Record<string, number> = {};
       
       filteredProducts.forEach(p => {
+        // Only update prices if not already set or if priceType/contract changed
         const catalogItem = catalogProducts.find(cp => cp.id === p.catalogProductId);
         if (catalogItem) {
           const basePrice = priceType === 'closed' ? (catalogItem.closedLoadPrice || 0) : (catalogItem.fractionalLoadPrice || 0);
@@ -133,8 +141,8 @@ export default function GridOrderPage() {
         }
       });
       
-      setGridPricesFinal(newPricesFinal);
-      setGridPricesNet(newPricesNet);
+      setGridPricesFinal(prev => ({ ...prev, ...newPricesFinal }));
+      setGridPricesNet(prev => ({ ...prev, ...newPricesNet }));
     }
   }, [filteredProducts, catalogProducts, priceType, contractPercent]);
 
@@ -313,7 +321,13 @@ export default function GridOrderPage() {
               </div>
               <div className="space-y-1">
                 <Label className="text-[10px]">Aditivo %</Label>
-                <Input type="number" value={contractPercent} onChange={(e) => setContractPercent(Number(e.target.value))} className="h-9 text-xs bg-white font-bold" />
+                <input 
+                  type="number" 
+                  value={contractPercent} 
+                  onChange={(e) => setContractPercent(Number(e.target.value))} 
+                  onFocus={(e) => e.target.select()}
+                  className="h-9 w-full rounded-md border border-input bg-white px-3 py-1 text-xs font-bold shadow-sm outline-none" 
+                />
               </div>
             </div>
           </CardContent>
@@ -329,16 +343,27 @@ export default function GridOrderPage() {
         </Card>
       </div>
 
-      {/* Barra de Pesquisa */}
-      <div className="mb-6 relative max-w-md">
-        <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" size={18} />
-        <Input 
-          placeholder="Pesquisar por código, nome ou EAN..." 
-          className="pl-10 h-11 bg-white shadow-sm"
-          value={searchTerm}
-          onChange={(e) => setSearchTerm(e.target.value)}
-          onFocus={(e) => e.target.select()}
-        />
+      {/* Barra de Pesquisa e Filtro de Preenchidos */}
+      <div className="mb-6 flex items-center gap-3">
+        <div className="relative flex-1 max-w-md">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" size={18} />
+          <Input 
+            placeholder="Pesquisar por código, nome ou EAN..." 
+            className="pl-10 h-11 bg-white shadow-sm"
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            onFocus={(e) => e.target.select()}
+          />
+        </div>
+        <Button 
+          variant={showOnlyFilled ? "default" : "outline"} 
+          size="icon" 
+          className={`h-11 w-11 shadow-sm transition-all ${showOnlyFilled ? 'bg-amber-400 hover:bg-amber-500 text-white' : 'bg-white text-muted-foreground'}`}
+          onClick={() => setShowOnlyFilled(!showOnlyFilled)}
+          title={showOnlyFilled ? "Mostrando apenas preenchidos" : "Mostrar apenas preenchidos"}
+        >
+          <Crown size={20} fill={showOnlyFilled ? "white" : "none"} />
+        </Button>
       </div>
 
       <Card className="border-none shadow-xl overflow-hidden mb-24">
@@ -386,7 +411,7 @@ export default function GridOrderPage() {
                         <input 
                           type="number" 
                           step="0.01" 
-                          className="w-20 h-8 text-right text-[11px] font-bold border rounded" 
+                          className="w-20 h-8 text-right text-[11px] font-bold border rounded bg-slate-50 outline-none focus:border-primary" 
                           value={net || ""}
                           onChange={(e) => handleUpdatePriceNet(p.id, Number(e.target.value), p.st)}
                           onFocus={(e) => e.target.select()}
@@ -397,7 +422,7 @@ export default function GridOrderPage() {
                         <input 
                           type="number" 
                           step="0.01" 
-                          className={`w-20 h-8 text-right text-[11px] font-bold border rounded ${isB ? "opacity-50" : "text-primary bg-primary/5"}`}
+                          className={`w-20 h-8 text-right text-[11px] font-bold border rounded outline-none focus:border-primary ${isB ? "opacity-50" : "text-primary bg-primary/5 border-primary/20"}`}
                           value={fin || ""}
                           onChange={(e) => handleUpdatePriceFinal(p.id, Number(e.target.value), p.st)}
                           onFocus={(e) => e.target.select()}
@@ -407,7 +432,7 @@ export default function GridOrderPage() {
                       <TableCell className="text-center">
                         <input 
                           type="number" 
-                          className="w-20 h-8 text-center font-black border rounded"
+                          className="w-20 h-8 text-center font-black border rounded bg-slate-50 outline-none focus:border-primary"
                           value={qty || ""}
                           onChange={(e) => setGridQuantities(prev => ({ ...prev, [p.id]: Number(e.target.value) }))}
                           onFocus={(e) => e.target.select()}
@@ -425,13 +450,16 @@ export default function GridOrderPage() {
         )}
       </Card>
 
-      <div className="fixed bottom-0 left-0 right-0 bg-white border-t p-6 z-50">
-        <div className="container mx-auto flex items-center justify-between">
-          <div className="text-2xl font-black text-primary">R$ {orderTotal.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</div>
-          <div className="flex gap-3">
-            <Button variant="outline" onClick={() => setGridQuantities({})}>Limpar</Button>
-            <Button variant="secondary" onClick={() => handleProcessOrder('DRAFT')} disabled={isFinalizing || isSavingDraft}>Rascunho</Button>
-            <Button className="bg-primary" onClick={() => handleProcessOrder('CONFIRMED')} disabled={isFinalizing || isSavingDraft}>Finalizar</Button>
+      <div className="fixed bottom-0 left-0 right-0 bg-white border-t p-6 z-50 shadow-[0_-4px_10px_rgba(0,0,0,0.05)]">
+        <div className="container mx-auto flex flex-col md:flex-row items-center justify-between gap-4">
+          <div className="flex flex-col">
+            <p className="text-[10px] text-muted-foreground uppercase font-black">Total do Pedido</p>
+            <div className="text-2xl font-black text-primary">R$ {orderTotal.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</div>
+          </div>
+          <div className="flex gap-3 w-full md:w-auto">
+            <Button variant="outline" onClick={() => setGridQuantities({})} className="flex-1 md:flex-none">Limpar</Button>
+            <Button variant="secondary" onClick={() => handleProcessOrder('DRAFT')} disabled={isFinalizing || isSavingDraft} className="flex-1 md:flex-none">Rascunho</Button>
+            <Button className="bg-primary flex-1 md:flex-none" onClick={() => handleProcessOrder('CONFIRMED')} disabled={isFinalizing || isSavingDraft}>Finalizar Pedido</Button>
           </div>
         </div>
       </div>
