@@ -77,7 +77,6 @@ export default function NewOrderPage() {
   const { data: customers, isLoading: isCustomersLoading } = useCollection(customersQuery);
 
   const [orderItems, setOrderItems] = useState<OrderItem[]>([]);
-  const [observations, setObservations] = useState("");
   const [manualObservations, setManualObservations] = useState("");
   const [isFinalizing, setIsFinalizing] = useState(false);
   const [isSavingDraft, setIsSavingDraft] = useState(false);
@@ -126,20 +125,22 @@ export default function NewOrderPage() {
     setDeliveryEstimate(date.toLocaleDateString('pt-BR'));
   }, []);
 
-  // Monitora itens do carrinho para gerar o resumo de bonificação nas observações
-  useEffect(() => {
-    if (orderItems.length === 0) {
-      setObservations(manualObservations);
-      return;
-    }
+  // Calcula o resumo de bonificação em tempo real
+  const bonusSummaries = useMemo(() => {
+    if (orderItems.length === 0) return [];
 
-    // Agrupa itens por productId e priceType
-    const groupedItems: Record<string, { saleQty: number, bonusQty: number, totalVal: number, name: string }> = {};
+    const groupedItems: Record<string, { saleQty: number, bonusQty: number, totalVal: number, name: string, qtyPerBox: number }> = {};
 
     orderItems.forEach(item => {
       const key = `${item.productId}-${item.priceType}`;
       if (!groupedItems[key]) {
-        groupedItems[key] = { saleQty: 0, bonusQty: 0, totalVal: 0, name: item.name };
+        groupedItems[key] = { 
+          saleQty: 0, 
+          bonusQty: 0, 
+          totalVal: 0, 
+          name: item.name,
+          qtyPerBox: item.quantityPerBox 
+        };
       }
       
       if (item.isBonus) {
@@ -150,22 +151,18 @@ export default function NewOrderPage() {
       }
     });
 
-    const bonusSummaries: string[] = [];
+    const summaries: string[] = [];
     Object.values(groupedItems).forEach(group => {
       if (group.saleQty > 0 && group.bonusQty > 0) {
-        const totalQty = group.saleQty + group.bonusQty;
-        const avgPrice = group.totalVal / totalQty;
-        bonusSummaries.push(`• ${group.name}: Preço final com bonificação sai a R$ ${avgPrice.toLocaleString('pt-BR', { minimumFractionDigits: 2 })} (Venda + Bônus)`);
+        const totalQtyBoxes = group.saleQty + group.bonusQty;
+        // Preço médio unitário = Investimento total / (Total de Caixas * Unidades por Caixa)
+        const avgUnitPrice = group.totalVal / (totalQtyBoxes * group.qtyPerBox);
+        summaries.push(`• ${group.name}: Preço unitário médio com bonificação: R$ ${avgUnitPrice.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} (Venda: ${group.saleQty} cx + Bônus: ${group.bonusQty} cx)`);
       }
     });
 
-    let finalObs = manualObservations;
-    if (bonusSummaries.length > 0) {
-      const bonusText = `\n\n--- RESUMO DE BONIFICAÇÃO ---\n${bonusSummaries.join('\n')}`;
-      finalObs += bonusText;
-    }
-    setObservations(finalObs);
-  }, [orderItems, manualObservations]);
+    return summaries;
+  }, [orderItems]);
 
   const selectedFactory = useMemo(() => {
     return factories?.find(f => f.id === selectedFactoryId);
@@ -264,42 +261,6 @@ export default function NewOrderPage() {
     return filtered;
   }, [selectedFactoryId, registeredProducts, productSearch, lineFilter, selectedBrand]);
 
-  const pdfFilteredProducts = useMemo(() => {
-    if (exportFactoryId === "none" || !registeredProducts || exportLineFilter === "none") return [];
-    
-    let filtered = registeredProducts.filter(p => 
-      p.factoryId === exportFactoryId && p.catalogProductId && p.line === exportLineFilter
-    );
-
-    if (exportBrand !== "all") {
-      filtered = filtered.filter(p => p.brand === exportBrand);
-    }
-
-    return filtered;
-  }, [exportFactoryId, registeredProducts, exportLineFilter, exportBrand]);
-
-  const zapFilteredProducts = useMemo(() => {
-    if (zapFactoryId === "none" || zapLineFilter === "none" || !registeredProducts) return [];
-    
-    let filtered = registeredProducts.filter(p => 
-      p.factoryId === zapFactoryId && p.catalogProductId && p.line === zapLineFilter
-    );
-
-    if (zapBrandFilter !== "all") {
-      filtered = filtered.filter(p => p.brand === zapBrandFilter);
-    }
-
-    if (zapSearchTerm.trim()) {
-      const term = zapSearchTerm.toLowerCase();
-      filtered = filtered.filter(p => 
-        p.code?.toLowerCase().includes(term) || 
-        p.description?.toLowerCase().includes(term)
-      );
-    }
-
-    return filtered;
-  }, [zapFactoryId, registeredProducts, zapLineFilter, zapBrandFilter, zapSearchTerm]);
-
   const currentRegisteredProduct = useMemo(() => {
     return registeredProducts?.find(p => p.id === selectedProductId);
   }, [selectedProductId, registeredProducts]);
@@ -362,7 +323,6 @@ export default function NewOrderPage() {
     if (orderItems.length === 0) return;
 
     const updatedItems = orderItems.map(item => {
-      // Itens bonificados mantêm total 0 independente do tipo de preço
       if (item.isBonus) return item;
 
       const catalogItem = catalogProducts?.find(cp => cp.id === item.catalogProductId);
@@ -418,7 +378,6 @@ export default function NewOrderPage() {
     const { finalUnitPriceWithST, finalUnitPriceBeforeST, stRate } = unitCalculations;
     
     const qtyPerBox = currentRegisteredProduct.quantityPerBox || 1;
-    // Item bonificado tem total 0 e peso 0 para fins de mínimo e financeiro
     const total = isBonus ? 0 : (finalUnitPriceWithST * qtyPerBox * (quantity || 1));
     const weight = isBonus ? 0 : ((currentRegisteredProduct.boxWeightKg || 0) * (quantity || 1));
 
@@ -459,15 +418,11 @@ export default function NewOrderPage() {
 
   const updateItemQuantity = (index: number, newQuantity: number) => {
     if (newQuantity < 0) return;
-    
     const updatedItems = [...orderItems];
     const item = updatedItems[index];
-    
     item.quantity = newQuantity;
-    // Mantém total e peso zerados se for bonificado
     item.total = item.isBonus ? 0 : (item.unitPriceFinal * item.quantityPerBox * newQuantity);
     item.weight = item.isBonus ? 0 : (item.unitWeight * newQuantity);
-    
     setOrderItems(updatedItems);
   };
 
@@ -475,15 +430,11 @@ export default function NewOrderPage() {
     if (newFinalPrice < 0) return;
     const updatedItems = [...orderItems];
     const item = updatedItems[index];
-    
     const stRateDecimal = (item.stRate || 0) / 100;
     const newNetPrice = newFinalPrice / (1 + stRateDecimal);
-    
     item.unitPriceFinal = newFinalPrice;
     item.unitPriceNet = newNetPrice;
-    // Mantém total zerado se for bonificado
     item.total = item.isBonus ? 0 : (newFinalPrice * item.quantityPerBox * item.quantity);
-    
     setOrderItems(updatedItems);
   };
 
@@ -495,11 +446,17 @@ export default function NewOrderPage() {
     }
 
     setIsSavingDraft(true);
+    
+    let finalObservations = manualObservations;
+    if (bonusSummaries.length > 0) {
+      finalObservations += `\n\n--- RESUMO DE BONIFICAÇÃO ---\n${bonusSummaries.join('\n')}`;
+    }
+
     const orderData = {
       customerId: selectedCustomerId,
       customerName: selectedCustomer?.name || 'Cliente Desconhecido',
       items: orderItems,
-      notes: observations,
+      notes: finalObservations,
       totalAmount: orderTotal,
       totalWeight: orderTotalWeight,
       status: 'DRAFT',
@@ -530,7 +487,6 @@ export default function NewOrderPage() {
     const factoryName = selectedFactory?.name?.toUpperCase() || '';
     const selectedLine = orderItems[0]?.line?.toUpperCase() || '';
 
-    // Validações de pedido mínimo
     if (factoryName.includes('ARA') && selectedLine.includes('SECA UHT')) {
       if (totalQty < 30) {
         toast({ title: "Pedido Inválido", description: `Mínimo 30 caixas (Atual: ${totalQty}).`, variant: "destructive" });
@@ -562,11 +518,17 @@ export default function NewOrderPage() {
     }
 
     setIsFinalizing(true);
+
+    let finalObservations = manualObservations;
+    if (bonusSummaries.length > 0) {
+      finalObservations += `\n\n--- RESUMO DE BONIFICAÇÃO ---\n${bonusSummaries.join('\n')}`;
+    }
+
     const orderData = {
       customerId: selectedCustomerId,
       customerName: selectedCustomer?.name || 'Cliente Desconhecido',
       items: orderItems,
-      notes: observations,
+      notes: finalObservations,
       totalAmount: orderTotal,
       totalWeight: orderTotalWeight,
       status: 'CONFIRMED',
@@ -592,7 +554,6 @@ export default function NewOrderPage() {
       setSelectedFactoryId("none");
       setLineFilter("none");
       setManualObservations("");
-      setObservations("");
     }
   };
 
@@ -607,125 +568,6 @@ export default function NewOrderPage() {
   const isLoading = isFactoriesLoading || isRegisteredLoading || isCatalogLoading || isCustomersLoading;
 
   const formatCurrency = (val: number) => val.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-
-  const handleExportTablePDF = async () => {
-    if (!pdfRef.current || pdfFilteredProducts.length === 0) {
-      toast({ title: "Sem dados", description: "Selecione uma fábrica e linha com produtos.", variant: "destructive" });
-      return;
-    }
-    setIsExporting(true);
-    setShowExportConfigDialog(false);
-    
-    try {
-      const html2canvas = (await import('html2canvas')).default;
-      const { jsPDF } = await import('jspdf');
-      
-      await new Promise(resolve => setTimeout(resolve, 300));
-      
-      const canvas = await html2canvas(pdfRef.current, { 
-        scale: 2, 
-        useCORS: true,
-        logging: false,
-        windowWidth: 800
-      });
-
-      const imgData = canvas.toDataURL('image/png');
-      const pdf = new jsPDF('p', 'mm', 'a4');
-      
-      const pdfWidth = 210;
-      const pdfHeight = 297;
-      const margin = 14.5;
-      const usableHeight = pdfHeight - (2 * margin);
-      
-      const imgWidth = pdfWidth;
-      const imgHeight = (canvas.height * imgWidth) / canvas.width;
-      
-      let heightLeft = imgHeight;
-      let pageNum = 0;
-
-      while (heightLeft > 0) {
-        if (pageNum > 0) pdf.addPage();
-        
-        const yOffset = margin - (pageNum * usableHeight);
-        pdf.addImage(imgData, 'PNG', 0, yOffset, imgWidth, imgHeight);
-        
-        pdf.setFillColor(255, 255, 255);
-        pdf.rect(0, 0, pdfWidth, margin, 'F');
-        pdf.rect(0, pdfHeight - margin, pdfWidth, margin, 'F');
-        
-        pdf.setFontSize(10);
-        pdf.setTextColor(40, 40, 40);
-        pdf.text(`Fábrica: ${factories?.find(f => f.id === exportFactoryId)?.name || ''}`, margin, margin - 5);
-        pdf.text(`Linha: ${exportLineFilter}`, pdfWidth / 2, margin - 5, { align: 'center' });
-        pdf.text(`${new Date().toLocaleDateString('pt-BR')}`, pdfWidth - margin, margin - 5, { align: 'right' });
-        
-        pdf.setFontSize(8);
-        pdf.setTextColor(150, 150, 150);
-        if (exportContractPercent > 0) {
-          const disguise = (exportContractPercent / 10).toFixed(1).replace('.', ',');
-          pdf.text(disguise, margin, pdfHeight - margin + 5);
-        }
-        pdf.text(`Página ${pageNum + 1}`, pdfWidth / 2, pdfHeight - margin + 5, { align: 'center' });
-        pdf.text("InteliPreço - Sistema Inteligente", pdfWidth - margin, pdfHeight - margin + 5, { align: 'right' });
-
-        heightLeft -= usableHeight;
-        pageNum++;
-      }
-
-      pdf.save(`tabela_${factories?.find(f => f.id === exportFactoryId)?.name}_${exportLineFilter}.pdf`);
-      toast({ title: "Sucesso", description: "Tabela exportada com todas as páginas!" });
-    } catch (e) {
-      console.error(e);
-      toast({ title: "Erro", description: "Falha na exportação do PDF.", variant: "destructive" });
-    } finally {
-      setIsExporting(false);
-    }
-  };
-
-  const handleToggleZapItem = (productId: string) => {
-    setZapSelectedIds(prev => 
-      prev.includes(productId) ? prev.filter(id => id !== productId) : [...prev, productId]
-    );
-    if (!zapPriceTypes[productId]) {
-      setZapPriceTypes(prev => ({ ...prev, [productId]: 'closed' }));
-    }
-  };
-
-  const handleSetZapPriceType = (productId: string, type: 'closed' | 'fractional') => {
-    setZapPriceTypes(prev => ({ ...prev, [productId]: type }));
-  };
-
-  const handleGenerateZapMessage = () => {
-    if (zapSelectedIds.length === 0) {
-      toast({ title: "Seleção vazia", description: "Selecione pelo menos um item.", variant: "destructive" });
-      return;
-    }
-
-    let message = `*Tabela de Preços - ${factories?.find(f => f.id === zapFactoryId)?.name}*\n`;
-    message += `*Linha:* ${zapLineFilter}\n`;
-    message += `*Data:* ${new Date().toLocaleDateString('pt-BR')}\n\n`;
-
-    zapSelectedIds.forEach(id => {
-      const p = registeredProducts?.find(item => item.id === id);
-      const catalog = catalogProducts?.find(cp => cp.id === p?.catalogProductId);
-      if (!p || !catalog) return;
-
-      const type = zapPriceTypes[id] || 'closed';
-      const prices = calculateItemPrices(p, catalog, zapContractPercent, type);
-      if (!prices) return;
-
-      message += `• *${p.description}*\n`;
-      message += `  Preço: R$ ${formatCurrency(prices!.finalUnitPriceWithST)}\n\n`;
-    });
-
-    message += `_Gerado por InteliPreço_`;
-    setZapGeneratedText(message);
-  };
-
-  const handleCopyZapText = () => {
-    navigator.clipboard.writeText(zapGeneratedText);
-    toast({ title: "Copiado!", description: "O texto está na sua área de transferência." });
-  };
 
   return (
     <div className="container mx-auto px-4 py-6 md:py-10 max-w-7xl">
@@ -744,200 +586,6 @@ export default function NewOrderPage() {
             </div>
           </AlertDialogHeader>
           <AlertDialogFooter><AlertDialogAction className="w-full">OK</AlertDialogAction></AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
-
-      <AlertDialog open={showBvgRulesDialog} onOpenChange={setShowBvgRulesDialog}>
-        <AlertDialogContent className="max-w-md">
-          <AlertDialogHeader>
-            <AlertDialogTitle className="flex items-center gap-2 text-primary"><AlertTriangle className="text-orange-500" /> Regras BVG</AlertDialogTitle>
-            <div className="py-2 text-sm">Mínimo: 70 KG.</div>
-          </AlertDialogHeader>
-          <AlertDialogFooter><AlertDialogAction className="w-full">OK</AlertDialogAction></AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
-
-      <AlertDialog open={showSjoRulesDialog} onOpenChange={setShowSjoRulesDialog}>
-        <AlertDialogContent className="max-w-md">
-          <AlertDialogHeader>
-            <AlertDialogTitle className="flex items-center gap-2 text-primary"><AlertTriangle className="text-orange-500" /> Regras SJO</AlertDialogTitle>
-            <div className="py-2 text-sm">Mínimo: 1.500 KG.</div>
-          </AlertDialogHeader>
-          <AlertDialogFooter><AlertDialogAction className="w-full">OK</AlertDialogAction></AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
-
-      <AlertDialog open={showMrvRulesDialog} onOpenChange={setShowMrvRulesDialog}>
-        <AlertDialogContent className="max-w-md">
-          <AlertDialogHeader>
-            <AlertDialogTitle className="flex items-center gap-2 text-primary"><AlertTriangle className="text-orange-500" /> Regras MRV</AlertDialogTitle>
-            <div className="py-2 text-sm">Mínimo: R$ 1.500,00.</div>
-          </AlertDialogHeader>
-          <AlertDialogFooter><AlertDialogAction className="w-full">OK</AlertDialogAction></AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
-
-      {/* Dialog de Configuração do PDF */}
-      <AlertDialog open={showExportConfigDialog} onOpenChange={setShowExportConfigDialog}>
-        <AlertDialogContent className="max-w-md">
-          <AlertDialogHeader>
-            <AlertDialogTitle className="flex items-center gap-2 text-primary">
-              <FileDown className="text-primary" /> Configurar Tabela PDF
-            </AlertDialogTitle>
-            <AlertDialogDescription>Selecione os dados para gerar o documento.</AlertDialogDescription>
-          </AlertDialogHeader>
-          
-          <div className="space-y-4 py-4">
-            <div className="space-y-1.5">
-              <Label className="text-xs font-bold uppercase">Fábrica</Label>
-              <Select value={exportFactoryId} onValueChange={(val) => { setExportFactoryId(val); setExportLineFilter("none"); setExportBrand("all"); }}>
-                <SelectTrigger><SelectValue placeholder="Selecione..." /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="none">Selecione...</SelectItem>
-                  {factories?.map(f => (<SelectItem key={f.id} value={f.id}>{f.name}</SelectItem>))}
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div className="space-y-1.5">
-              <Label className="text-xs font-bold uppercase">Linha</Label>
-              <Select value={exportLineFilter} onValueChange={(val) => { setExportLineFilter(val); setExportBrand("all"); }} disabled={exportFactoryId === "none"}>
-                <SelectTrigger><SelectValue placeholder="Selecione..." /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="none">Selecione...</SelectItem>
-                  {getAvailableLines(exportFactoryId).map(line => (<SelectItem key={line} value={line}>{line}</SelectItem>))}
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div className="space-y-1.5">
-              <Label className="text-xs font-bold uppercase">Marca</Label>
-              <Select value={exportBrand} onValueChange={setExportBrand} disabled={exportLineFilter === "none"}>
-                <SelectTrigger><SelectValue placeholder="Todas" /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">Todas as Marcas</SelectItem>
-                  {getAvailableBrands(exportFactoryId, exportLineFilter).map(brand => (<SelectItem key={brand} value={brand}>{brand}</SelectItem>))}
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div className="space-y-1.5">
-              <Label className="text-xs font-bold uppercase">Tipo de Carga (Preço)</Label>
-              <RadioGroup value={exportPriceType} onValueChange={(val: any) => setExportPriceType(val)} className="grid grid-cols-2 gap-2">
-                <Label htmlFor="pdf-price-closed" className={`flex items-center justify-center gap-2 border-2 rounded-lg p-3 cursor-pointer transition-all ${exportPriceType === 'closed' ? 'border-primary bg-primary/5 text-primary' : 'border-muted'}`}>
-                  <RadioGroupItem value="closed" id="pdf-price-closed" className="sr-only" />
-                  <span className="font-semibold text-xs text-center">Carga Fechada</span>
-                </Label>
-                <Label htmlFor="pdf-price-fractional" className={`flex items-center justify-center gap-2 border-2 rounded-lg p-3 cursor-pointer transition-all ${exportPriceType === 'fractional' ? 'border-primary bg-primary/5 text-primary' : 'border-muted'}`}>
-                  <RadioGroupItem value="fractional" id="pdf-price-fractional" className="sr-only" />
-                  <span className="font-semibold text-xs text-center">Fracionado</span>
-                </Label>
-              </RadioGroup>
-            </div>
-
-            <div className="space-y-1.5">
-              <Label className="text-xs font-bold uppercase">Aditivo Contrato (%)</Label>
-              <Input type="number" value={exportContractPercent} onChange={(e) => setExportContractPercent(Number(e.target.value))} className="text-lg font-bold h-12" />
-            </div>
-          </div>
-
-          <AlertDialogFooter className="gap-2">
-            <AlertDialogCancel className="h-12 flex-1">Cancelar</AlertDialogCancel>
-            <AlertDialogAction onClick={handleExportTablePDF} disabled={exportLineFilter === "none"} className="h-12 flex-1 gap-2 font-bold bg-primary hover:bg-primary/90 text-white rounded-md">
-              <FileDown size={18} /> Gerar PDF
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
-
-      {/* Dialog do WhatsApp */}
-      <AlertDialog open={showZapDialog} onOpenChange={(open) => { setShowZapDialog(open); if (!open) setZapGeneratedText(""); }}>
-        <AlertDialogContent className="max-w-2xl">
-          <AlertDialogHeader>
-            <AlertDialogTitle className="flex items-center gap-2 text-primary">
-              <MessageCircle className="text-green-500" /> {zapGeneratedText ? "Texto Gerado" : "Seleção WhatsApp"}
-            </AlertDialogTitle>
-          </AlertDialogHeader>
-          
-          <div className="space-y-4 py-4">
-            {!zapGeneratedText ? (
-              <>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <div className="space-y-1.5">
-                    <Label className="text-xs font-bold uppercase">Fábrica</Label>
-                    <Select value={zapFactoryId} onValueChange={(val) => { setZapFactoryId(val); setZapLineFilter("none"); setZapBrandFilter("all"); setZapSelectedIds([]); }}>
-                      <SelectTrigger><SelectValue placeholder="Selecione..." /></SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="none">Selecione...</SelectItem>
-                        {factories?.map(f => (<SelectItem key={f.id} value={f.id}>{f.name}</SelectItem>))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div className="space-y-1.5">
-                    <Label className="text-xs font-bold uppercase">Linha</Label>
-                    <Select value={zapLineFilter} onValueChange={(val) => { setZapLineFilter(val); setZapBrandFilter("all"); setZapSelectedIds([]); }} disabled={zapFactoryId === "none"}>
-                      <SelectTrigger><SelectValue placeholder="Selecione..." /></SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="none">Selecione...</SelectItem>
-                        {getAvailableLines(zapFactoryId).map(line => (<SelectItem key={line} value={line}>{line}</SelectItem>))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                </div>
-
-                {zapLineFilter !== "none" && (
-                  <>
-                    <div className="flex flex-col sm:flex-row sm:items-end gap-4 p-3 bg-muted rounded-lg border">
-                      <div className="flex-1 space-y-1.5">
-                        <Label className="text-xs font-bold uppercase">Aditivo Contrato (%)</Label>
-                        <Input type="number" value={zapContractPercent} onChange={(e) => setZapContractPercent(Number(e.target.value))} className="h-10 font-bold" />
-                      </div>
-                      <div className="flex gap-2">
-                        <Button variant="outline" size="sm" onClick={() => setZapSelectedIds(zapFilteredProducts.map(p => p.id))}>Todos</Button>
-                        <Button variant="ghost" size="sm" onClick={() => { setZapSelectedIds([]); setZapSearchTerm(""); }}>Limpar</Button>
-                      </div>
-                    </div>
-
-                    <div className="relative">
-                      <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" size={16} />
-                      <Input placeholder="Filtrar itens..." className="pl-10 h-10" value={zapSearchTerm} onChange={(e) => setZapSearchTerm(e.target.value)} />
-                    </div>
-
-                    <ScrollArea className="h-[30vh] border rounded-md p-4">
-                      <div className="space-y-3">
-                        {zapFilteredProducts.map(p => (
-                          <div key={p.id} className="flex items-center justify-between border-b pb-2 last:border-0">
-                            <div className="flex items-center gap-3 flex-1 min-w-0">
-                              <Checkbox id={`zap-${p.id}`} checked={zapSelectedIds.includes(p.id)} onCheckedChange={() => handleToggleZapItem(p.id)} />
-                              <label htmlFor={`zap-${p.id}`} className="text-xs font-bold uppercase cursor-pointer truncate">{p.code} - {p.description}</label>
-                            </div>
-                            <div className="flex items-center gap-2 ml-4">
-                              <Button variant={zapPriceTypes[p.id] === 'closed' || !zapPriceTypes[p.id] ? 'default' : 'outline'} size="sm" className="h-7 text-[10px] px-2" onClick={() => handleSetZapPriceType(p.id, 'closed')}>Fechada</Button>
-                              <Button variant={zapPriceTypes[p.id] === 'fractional' ? 'default' : 'outline'} size="sm" className="h-7 text-[10px] px-2" onClick={() => handleSetZapPriceType(p.id, 'fractional')}>Frac</Button>
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    </ScrollArea>
-                  </>
-                )}
-              </>
-            ) : (
-              <div className="space-y-4 animate-in fade-in duration-300">
-                <Textarea value={zapGeneratedText} readOnly className="min-h-[40vh] font-mono text-xs bg-slate-50 leading-relaxed" />
-                <Button variant="outline" className="w-full gap-2 text-primary border-primary" onClick={() => setZapGeneratedText("")}><ArrowLeft size={16} /> Voltar</Button>
-              </div>
-            )}
-          </div>
-
-          <AlertDialogFooter className="gap-2">
-            <AlertDialogCancel className="h-12 flex-1">Cancelar</AlertDialogCancel>
-            {!zapGeneratedText ? (
-              <Button onClick={handleGenerateZapMessage} disabled={zapSelectedIds.length === 0} className="h-12 flex-1 gap-2 font-bold bg-green-600 hover:bg-green-700 text-white rounded-md">Gerar Texto</Button>
-            ) : (
-              <Button onClick={handleCopyZapText} className="h-12 flex-1 gap-2 font-bold bg-blue-600 hover:bg-blue-700 text-white rounded-md">Copiar</Button>
-            )}
-          </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
 
@@ -1079,14 +727,8 @@ export default function NewOrderPage() {
                         <div className="space-y-1.5"><Label className="text-xs">Contrato (%)</Label><Input type="number" value={contractPercent} onChange={(e) => setContractPercent(Number(e.target.value))} onFocus={(e) => e.target.select()} className="h-11 font-bold text-primary"/></div>
                       </div>
                       <div className="flex items-center space-x-2 bg-muted/50 p-2 rounded-lg">
-                        <Switch 
-                          id="bonus-mode" 
-                          checked={isBonus} 
-                          onCheckedChange={setIsBonus}
-                        />
-                        <Label htmlFor="bonus-mode" className="text-xs font-bold flex items-center gap-1 cursor-pointer">
-                          <Gift size={14} className="text-accent" /> Bonificado
-                        </Label>
+                        <Switch id="bonus-mode" checked={isBonus} onCheckedChange={setIsBonus} />
+                        <Label htmlFor="bonus-mode" className="text-xs font-bold flex items-center gap-1 cursor-pointer"><Gift size={14} className="text-accent" /> Bonificado</Label>
                       </div>
                     </div>
                   )}
@@ -1139,7 +781,7 @@ export default function NewOrderPage() {
                             <TableCell className="text-center">
                               <div className="flex items-center justify-center gap-2">
                                 <Button variant="outline" size="icon" className="h-7 w-7 rounded-full" onClick={() => updateItemQuantity(idx, item.quantity - 1)} disabled={item.quantity <= 1}><Minus size={12} /></Button>
-                                <input type="number" className="h-8 w-12 text-center border rounded font-bold text-xs" value={item.quantity === 0 ? "" : item.quantity} onChange={(e) => updateItemQuantity(idx, e.target.value === "" ? 0 : Number(e.target.value))} onFocus={(e) => e.target.select()} onBlur={() => item.quantity <= 0 && updateItemQuantity(idx, 1)} />
+                                <input type="number" className="h-8 w-12 text-center border rounded font-bold text-xs" value={item.quantity === 0 ? "" : item.quantity} onChange={(e) => updateItemQuantity(idx, e.target.value === "" ? 0 : Number(e.target.value))} onFocus={(e) => e.target.select()} />
                                 <Button variant="outline" size="icon" className="h-7 w-7 rounded-full" onClick={() => updateItemQuantity(idx, item.quantity + 1)}><Plus size={12} /></Button>
                               </div>
                             </TableCell>
@@ -1160,7 +802,6 @@ export default function NewOrderPage() {
                                     readOnly={item.isBonus}
                                   />
                                 </div>
-                                <div className="text-[9px] text-destructive font-medium">+{item.stRate?.toFixed(0)}% ST</div>
                               </div>
                             </TableCell>
                             <TableCell className="text-right pr-2"><Button variant="ghost" size="icon" onClick={() => removeProduct(idx)} className="text-destructive h-8 w-8"><Trash2 size={16} /></Button></TableCell>
@@ -1169,9 +810,24 @@ export default function NewOrderPage() {
                       </TableBody>
                     </Table>
                   </div>
-                  <div className="p-5 border-t bg-muted/10 space-y-2">
-                    <Label className="text-xs font-bold uppercase flex items-center gap-2"><MessageSquare size={14} className="text-primary" /> Observações</Label>
-                    <Textarea placeholder="Detalhes de entrega..." className="min-h-[80px] bg-white text-xs" value={manualObservations} onChange={(e) => setManualObservations(e.target.value)} />
+                  <div className="p-5 border-t bg-muted/10 space-y-4">
+                    <div className="space-y-2">
+                      <Label className="text-xs font-bold uppercase flex items-center gap-2"><MessageSquare size={14} className="text-primary" /> Observações</Label>
+                      <Textarea placeholder="Detalhes de entrega..." className="min-h-[80px] bg-white text-xs" value={manualObservations} onChange={(e) => setManualObservations(e.target.value)} />
+                    </div>
+                    
+                    {bonusSummaries.length > 0 && (
+                      <div className="p-3 bg-accent/5 border border-accent/20 rounded-lg animate-in fade-in slide-in-from-top-2 duration-500">
+                        <p className="text-[10px] font-black text-accent uppercase flex items-center gap-1 mb-2">
+                          <Gift size={12} /> Resumo de Bonificação (Será anexo ao pedido)
+                        </p>
+                        <div className="space-y-1.5">
+                          {bonusSummaries.map((summary, i) => (
+                            <p key={i} className="text-[11px] text-accent font-medium leading-tight">{summary}</p>
+                          ))}
+                        </div>
+                      </div>
+                    )}
                   </div>
                 </div>
               )}
@@ -1183,7 +839,7 @@ export default function NewOrderPage() {
                   <div className="flex items-center gap-3 bg-white px-4 py-2 rounded-xl border shadow-sm"><Weight size={18} className="text-primary" /><div><p className="text-[9px] text-muted-foreground uppercase font-bold">Peso</p><p className="text-base font-black">{orderTotalWeight.toFixed(2)} Kg</p></div></div>
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-3 w-full">
-                  <Button variant="outline" className="h-14 border-primary text-primary font-bold" onClick={() => { setOrderItems([]); setCategoryFilter("none"); setSelectedFactoryId("none"); setLineFilter("none"); setManualObservations(""); setObservations(""); }} disabled={isFinalizing || isSavingDraft}>Limpar</Button>
+                  <Button variant="outline" className="h-14 border-primary text-primary font-bold" onClick={() => { setOrderItems([]); setCategoryFilter("none"); setSelectedFactoryId("none"); setLineFilter("none"); setManualObservations(""); }} disabled={isFinalizing || isSavingDraft}>Limpar</Button>
                   <Button variant="secondary" className="h-14 font-bold gap-2 text-lg" onClick={handleSaveDraft} disabled={isFinalizing || isSavingDraft || selectedCustomerId === "none"}>
                     {isSavingDraft ? <Loader2 className="animate-spin" /> : <Save size={20} />} Rascunho
                   </Button>
@@ -1194,35 +850,6 @@ export default function NewOrderPage() {
               </CardFooter>
             )}
           </Card>
-        </div>
-      </div>
-
-      <div style={{ position: 'absolute', left: '-9999px', top: '-9999px' }}>
-        <div ref={pdfRef} className="bg-white p-10 w-[800px] text-slate-800" style={{ height: 'auto', minHeight: '100%' }}>
-          <div className="flex items-center justify-between border-b-2 border-primary pb-4 mb-2">
-            <div className="flex items-center gap-3"><Zap className="text-primary" size={40} /><h1 className="text-3xl font-black text-primary uppercase">Tabela de Preços</h1></div>
-            <div className="text-right text-xs">
-              <p className="font-bold">{factories?.find(f => f.id === exportFactoryId)?.name}</p>
-              <p className="text-muted-foreground uppercase">{exportLineFilter}</p>
-              <p>{new Date().toLocaleDateString('pt-BR')}</p>
-            </div>
-          </div>
-          {deliveryEstimate && (<div className="mb-4 text-center"><p className="text-primary font-bold text-sm">Prazo estimado: {deliveryEstimate}</p></div>)}
-          <table className="w-full text-[10px] border-collapse">
-            <thead><tr className="bg-primary text-white"><th className="p-2 text-left border">Cod</th><th className="p-2 text-left border">EAN</th><th className="p-2 text-left border">Descrição</th><th className="p-2 text-right border">Preço NET</th><th className="p-2 text-right border">Final (+ST)</th></tr></thead>
-            <tbody>
-              {pdfFilteredProducts.sort((a, b) => (a.code || "").localeCompare(b.code || "", undefined, { numeric: true })).map((p) => {
-                  const catalog = catalogProducts?.find(cp => cp.id === p.catalogProductId);
-                  const prices = calculateItemPrices(p, catalog, exportContractPercent, exportPriceType);
-                  if (!prices) return null;
-                  return (<tr key={p.id} className="border-b"><td className="p-2 border font-bold">{p.code}</td><td className="p-2 border">{p.ean}</td><td className="p-2 border uppercase">{p.description}</td><td className="p-2 border text-right">R$ {formatCurrency(prices.finalUnitPriceBeforeST)}</td><td className="p-2 border text-right font-bold text-primary">R$ {formatCurrency(prices.finalUnitPriceWithST)}</td></tr>);
-              })}
-            </tbody>
-          </table>
-          <div className="mt-8 border-t pt-4 text-[8px] text-muted-foreground flex justify-between">
-            <div className="opacity-30">{exportContractPercent > 0 && (<span>{(exportContractPercent / 10).toFixed(1).replace('.', ',')}</span>)}</div>
-            <p>Gerado eletronicamente por InteliPreço.</p>
-          </div>
         </div>
       </div>
     </div>
