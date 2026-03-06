@@ -78,6 +78,7 @@ export default function NewOrderPage() {
 
   const [orderItems, setOrderItems] = useState<OrderItem[]>([]);
   const [observations, setObservations] = useState("");
+  const [manualObservations, setManualObservations] = useState("");
   const [isFinalizing, setIsFinalizing] = useState(false);
   const [isSavingDraft, setIsSavingDraft] = useState(false);
 
@@ -124,6 +125,47 @@ export default function NewOrderPage() {
     date.setDate(date.getDate() + 15);
     setDeliveryEstimate(date.toLocaleDateString('pt-BR'));
   }, []);
+
+  // Monitora itens do carrinho para gerar o resumo de bonificação nas observações
+  useEffect(() => {
+    if (orderItems.length === 0) {
+      setObservations(manualObservations);
+      return;
+    }
+
+    // Agrupa itens por productId e priceType
+    const groupedItems: Record<string, { saleQty: number, bonusQty: number, totalVal: number, name: string }> = {};
+
+    orderItems.forEach(item => {
+      const key = `${item.productId}-${item.priceType}`;
+      if (!groupedItems[key]) {
+        groupedItems[key] = { saleQty: 0, bonusQty: 0, totalVal: 0, name: item.name };
+      }
+      
+      if (item.isBonus) {
+        groupedItems[key].bonusQty += item.quantity;
+      } else {
+        groupedItems[key].saleQty += item.quantity;
+        groupedItems[key].totalVal += item.total;
+      }
+    });
+
+    const bonusSummaries: string[] = [];
+    Object.values(groupedItems).forEach(group => {
+      if (group.saleQty > 0 && group.bonusQty > 0) {
+        const totalQty = group.saleQty + group.bonusQty;
+        const avgPrice = group.totalVal / totalQty;
+        bonusSummaries.push(`• ${group.name}: Preço final com bonificação sai a R$ ${avgPrice.toLocaleString('pt-BR', { minimumFractionDigits: 2 })} (Venda + Bônus)`);
+      }
+    });
+
+    let finalObs = manualObservations;
+    if (bonusSummaries.length > 0) {
+      const bonusText = `\n\n--- RESUMO DE BONIFICAÇÃO ---\n${bonusSummaries.join('\n')}`;
+      finalObs += bonusText;
+    }
+    setObservations(finalObs);
+  }, [orderItems, manualObservations]);
 
   const selectedFactory = useMemo(() => {
     return factories?.find(f => f.id === selectedFactoryId);
@@ -549,6 +591,7 @@ export default function NewOrderPage() {
       setCategoryFilter("none");
       setSelectedFactoryId("none");
       setLineFilter("none");
+      setManualObservations("");
       setObservations("");
     }
   };
@@ -1128,7 +1171,7 @@ export default function NewOrderPage() {
                   </div>
                   <div className="p-5 border-t bg-muted/10 space-y-2">
                     <Label className="text-xs font-bold uppercase flex items-center gap-2"><MessageSquare size={14} className="text-primary" /> Observações</Label>
-                    <Textarea placeholder="Detalhes de entrega..." className="min-h-[80px] bg-white text-xs" value={observations} onChange={(e) => setObservations(e.target.value)} />
+                    <Textarea placeholder="Detalhes de entrega..." className="min-h-[80px] bg-white text-xs" value={manualObservations} onChange={(e) => setManualObservations(e.target.value)} />
                   </div>
                 </div>
               )}
@@ -1140,7 +1183,7 @@ export default function NewOrderPage() {
                   <div className="flex items-center gap-3 bg-white px-4 py-2 rounded-xl border shadow-sm"><Weight size={18} className="text-primary" /><div><p className="text-[9px] text-muted-foreground uppercase font-bold">Peso</p><p className="text-base font-black">{orderTotalWeight.toFixed(2)} Kg</p></div></div>
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-3 w-full">
-                  <Button variant="outline" className="h-14 border-primary text-primary font-bold" onClick={() => { setOrderItems([]); setCategoryFilter("none"); setSelectedFactoryId("none"); setLineFilter("none"); }} disabled={isFinalizing || isSavingDraft}>Limpar</Button>
+                  <Button variant="outline" className="h-14 border-primary text-primary font-bold" onClick={() => { setOrderItems([]); setCategoryFilter("none"); setSelectedFactoryId("none"); setLineFilter("none"); setManualObservations(""); setObservations(""); }} disabled={isFinalizing || isSavingDraft}>Limpar</Button>
                   <Button variant="secondary" className="h-14 font-bold gap-2 text-lg" onClick={handleSaveDraft} disabled={isFinalizing || isSavingDraft || selectedCustomerId === "none"}>
                     {isSavingDraft ? <Loader2 className="animate-spin" /> : <Save size={20} />} Rascunho
                   </Button>
