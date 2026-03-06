@@ -140,7 +140,7 @@ export default function ViewOrderPage() {
           <CardHeader className="bg-primary text-white p-6 sm:p-8 flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
             <div className="flex items-center gap-4">
               <div className="bg-white/20 p-3 rounded-2xl backdrop-blur-sm">
-                <zap size={32} />
+                <Zap size={32} />
               </div>
               <div>
                 <CardTitle className="text-2xl sm:text-3xl font-black tracking-tighter">RELATÓRIO DE PEDIDO</CardTitle>
