@@ -3,7 +3,7 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter, useParams } from 'next/navigation';
-import { useFirestore, useDoc, useMemoFirebase, updateDocumentNonBlocking } from '@/firebase';
+import { useFirestore, useDoc, useMemoFirebase, updateDocumentNonBlocking, useUser } from '@/firebase';
 import { doc, serverTimestamp } from 'firebase/firestore';
 import { Card, CardHeader, CardTitle, CardContent, CardFooter } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -17,12 +17,20 @@ import Link from 'next/link';
 
 export default function EditCustomerPage() {
   const db = useFirestore();
+  const { user } = useUser();
   const router = useRouter();
   const params = useParams();
   const { toast } = useToast();
   
   const id = Array.isArray(params.id) ? params.id[0] : params.id;
-  const customerRef = useMemoFirebase(() => id ? doc(db, 'customers', id) : null, [db, id]);
+
+  // Get user profile for organizationId
+  const userProfileRef = useMemoFirebase(() => user ? doc(db, 'userProfiles', user.uid) : null, [db, user]);
+  const { data: profile } = useDoc(userProfileRef);
+  const orgId = profile?.organizationId;
+
+  // CORREÇÃO: Usando caminho estruturado /organizations/{orgId}/clients/{id}
+  const customerRef = useMemoFirebase(() => (id && orgId) ? doc(db, 'organizations', orgId, 'clients', id) : null, [db, id, orgId]);
   const { data: customer, isLoading } = useDoc(customerRef);
 
   const [formData, setFormData] = useState({
@@ -47,7 +55,7 @@ export default function EditCustomerPage() {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!customerRef) return;
+    if (!customerRef || !orgId) return;
 
     if (!formData.name || !formData.cnpj) {
       toast({ title: "Erro ao salvar", description: "Nome e CNPJ são obrigatórios.", variant: "destructive" });
@@ -56,6 +64,7 @@ export default function EditCustomerPage() {
 
     updateDocumentNonBlocking(customerRef, {
       ...formData,
+      organizationId: orgId,
       updatedAt: serverTimestamp()
     });
 
@@ -63,7 +72,7 @@ export default function EditCustomerPage() {
     router.push('/admin/customers');
   };
 
-  if (isLoading) {
+  if (isLoading || !profile) {
     return (
       <div className="flex h-[80vh] items-center justify-center">
         <Loader2 className="animate-spin text-primary" size={48} />

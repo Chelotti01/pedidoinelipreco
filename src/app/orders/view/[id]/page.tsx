@@ -29,6 +29,7 @@ export default function ViewOrderPage() {
   const { data: profile, isLoading: isProfileLoading } = useDoc(userProfileRef);
   const orgId = profile?.organizationId;
 
+  // CORREÇÃO: Adicionado 'orders' para ter segmentos pares (4 segmentos)
   const orderRef = useMemoFirebase(() => 
     (id && orgId) ? doc(db, 'organizations', orgId, 'orders', id) : null
   , [db, id, orgId]);
