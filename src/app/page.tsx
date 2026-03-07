@@ -75,8 +75,6 @@ export default function Home() {
   const [exportBrand, setExportBrand] = useState<string>("all");
   const [exportIncludeNetUnit, setExportIncludeNetUnit] = useState(true);
   const [exportIncludeFinalUnit, setExportIncludeFinalUnit] = useState(true);
-  const [exportIncludeNetBox, setExportIncludeNetBox] = useState(true);
-  const [exportIncludeFinalBox, setExportIncludeFinalBox] = useState(true);
 
   const handleLogout = async () => {
     await auth.signOut();
@@ -131,7 +129,7 @@ export default function Home() {
           </thead>
           <tbody>
             ${filtered.map(p => {
-              const catalogItem = catalogProducts?.find(cp => cp.id === p.catalogProductId);
+              const catalogItem = catalogProducts?.find(cp => cp.productId === p.catalogProductId);
               if (!catalogItem) return '';
               const basePrice = exportPriceType === 'closed' ? (catalogItem.closedLoadPrice || 0) : (catalogItem.fractionalLoadPrice || 0);
               const netPrice = (basePrice - (catalogItem.discountAmount || 0)) * (1 + exportContractPercent / 100);
@@ -231,19 +229,6 @@ export default function Home() {
             </Card>
           </Link>
 
-          {/* Gestão de Margens */}
-          <Link href="/admin/products/margins" className="group">
-            <Card className="h-full border-none shadow-md hover:shadow-xl transition-all hover:-translate-y-1 bg-accent text-white">
-              <CardHeader>
-                <div className="w-12 h-12 bg-white/20 rounded-xl flex items-center justify-center mb-4">
-                  <TrendingUp size={24} />
-                </div>
-                <CardTitle className="text-xl">Ajustar Margens</CardTitle>
-                <CardDescription className="text-white/70">Edição rápida de aditivos ocultos.</CardDescription>
-              </CardHeader>
-            </Card>
-          </Link>
-
           {/* Gerar PDF */}
           <div onClick={() => setShowExportConfigDialog(true)} className="group cursor-pointer">
             <Card className="h-full border-none shadow-md hover:shadow-xl transition-all hover:-translate-y-1 bg-white border-l-4 border-l-blue-500">
@@ -303,7 +288,7 @@ export default function Home() {
           </button>
 
           {showConfigs && (
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mt-6 animate-in fade-in slide-in-from-top-4 duration-300">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mt-6 animate-in fade-in slide-in-from-top-4 duration-300">
               <Link href="/catalog">
                 <Card className="hover:border-primary transition-colors cursor-pointer h-full">
                   <CardHeader>
@@ -330,6 +315,16 @@ export default function Home() {
                     <Users size={20} className="text-green-500 mb-2" />
                     <CardTitle className="text-lg">Base de Clientes</CardTitle>
                     <CardDescription className="text-xs text-muted-foreground">Gerencie seus clientes e prazos.</CardDescription>
+                  </CardHeader>
+                </Card>
+              </Link>
+
+              <Link href="/admin/products/margins">
+                <Card className="hover:border-primary transition-colors cursor-pointer h-full bg-accent/5">
+                  <CardHeader>
+                    <TrendingUp size={20} className="text-accent mb-2" />
+                    <CardTitle className="text-lg">Ajustar Margens</CardTitle>
+                    <CardDescription className="text-xs text-muted-foreground">Ajuste aditivos de rentabilidade.</CardDescription>
                   </CardHeader>
                 </Card>
               </Link>
