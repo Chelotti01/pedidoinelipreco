@@ -1,9 +1,8 @@
-
 "use client"
 
 import { useState } from 'react';
-import { useFirestore, useCollection, useMemoFirebase, addDocumentNonBlocking, setDocumentNonBlocking, deleteDocumentNonBlocking, useUser } from '@/firebase';
-import { collection, query, orderBy, serverTimestamp, doc, where, limit } from 'firebase/firestore';
+import { useFirestore, useCollection, useMemoFirebase, setDocumentNonBlocking, deleteDocumentNonBlocking, useUser } from '@/firebase';
+import { collection, query, orderBy, serverTimestamp, doc } from 'firebase/firestore';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -24,14 +23,7 @@ export default function SuperAdminPage() {
   const { user } = useUser();
   const { toast } = useToast();
 
-  // Verificar se o usuário atual é super admin para carregar os dados
-  const userProfileQuery = useMemoFirebase(() => 
-    user?.email ? query(collection(db, 'userProfiles'), where('email', '==', user.email), limit(1)) : null
-  , [db, user]);
-  const { data: profiles } = useCollection(userProfileQuery);
-  const profile = profiles?.[0];
-
-  const isSuperAdmin = profile?.role === 'superAdmin' || user?.email === 'vendas.piracanjuba@gmail.com';
+  const isSuperAdmin = user?.email === 'vendas.piracanjuba@gmail.com';
 
   const organizationsQuery = useMemoFirebase(() => 
     isSuperAdmin ? query(collection(db, 'organizations'), orderBy('name')) : null
@@ -53,7 +45,6 @@ export default function SuperAdminPage() {
     
     setIsSubmitting(true);
     try {
-      // Usamos setDocumentNonBlocking pois definimos um ID manual (slug)
       setDocumentNonBlocking(doc(db, 'organizations', newOrg.id), {
         id: newOrg.id,
         name: newOrg.name,
@@ -73,17 +64,19 @@ export default function SuperAdminPage() {
 
   const handleCreateUser = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newUser.email || !newUser.organizationId) return;
+    const email = newUser.email.toLowerCase().trim();
+    if (!email || !newUser.organizationId) return;
     
     setIsSubmitting(true);
     try {
-      // Criar o perfil de usuário na coleção raiz userProfiles
-      addDocumentNonBlocking(collection(db, 'userProfiles'), {
+      // Salva o perfil usando o EMAIL como ID do documento
+      setDocumentNonBlocking(doc(db, 'userProfiles', email), {
         ...newUser,
-        email: newUser.email.toLowerCase().trim(),
+        id: email,
+        email: email,
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp()
-      });
+      }, { merge: true });
       
       toast({ title: "Perfil autorizado!", description: "O usuário agora pode ativar sua conta na tela de login." });
       setNewUser({ email: '', name: '', organizationId: '', role: 'admin' });
@@ -240,23 +233,10 @@ export default function SuperAdminPage() {
                     Autorizar E-mail
                   </Button>
                 </form>
-                
-                <div className="mt-6 p-4 bg-amber-50 border border-amber-100 rounded-lg flex gap-3 items-start">
-                  <Info className="text-amber-600 shrink-0 mt-0.5" size={18} />
-                  <div className="text-xs text-amber-800 space-y-1">
-                    <p className="font-bold uppercase tracking-tight">Como funciona o acesso?</p>
-                    <p>1. Você autoriza o e-mail aqui vinculando-o a uma empresa.</p>
-                    <p>2. O usuário acessa a tela de login e clica em <strong>"Ativar Conta"</strong>.</p>
-                    <p>3. Ele define a própria senha. Se o e-mail não estiver nesta lista, o sistema impedirá o cadastro.</p>
-                  </div>
-                </div>
               </CardContent>
             </Card>
 
             <Card className="shadow-xl border-none overflow-hidden">
-              <CardHeader className="bg-slate-50 border-b">
-                <CardTitle className="text-sm uppercase font-black text-slate-600">Usuários Vinculados</CardTitle>
-              </CardHeader>
               <Table>
                 <TableHeader>
                   <TableRow>

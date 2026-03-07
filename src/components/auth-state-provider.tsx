@@ -1,10 +1,10 @@
 'use client';
 
 import { useEffect } from 'react';
-import { useUser, useFirestore, useCollection, useMemoFirebase, useAuth } from '@/firebase';
+import { useUser, useFirestore, useDoc, useMemoFirebase, useAuth } from '@/firebase';
 import { useRouter, usePathname } from 'next/navigation';
 import { Loader2, ShieldAlert, LogOut } from 'lucide-react';
-import { collection, query, where, limit } from 'firebase/firestore';
+import { doc } from 'firebase/firestore';
 import { Button } from '@/components/ui/button';
 
 export function AuthStateProvider({ children }: { children: React.ReactNode }) {
@@ -14,13 +14,12 @@ export function AuthStateProvider({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const pathname = usePathname();
 
-  // Buscar perfil pelo e-mail do usuário para identificar a organização
-  const userProfileQuery = useMemoFirebase(() => 
-    user?.email ? query(collection(db, 'userProfiles'), where('email', '==', user.email), limit(1)) : null
+  // Busca perfil pelo e-mail do usuário (ID do documento)
+  const userProfileRef = useMemoFirebase(() => 
+    user?.email ? doc(db, 'userProfiles', user.email.toLowerCase().trim()) : null
   , [db, user]);
   
-  const { data: profiles, isLoading: isProfileLoading } = useCollection(userProfileQuery);
-  const profile = profiles?.[0];
+  const { data: profile, isLoading: isProfileLoading } = useDoc(userProfileRef);
 
   useEffect(() => {
     if (!isUserLoading) {
@@ -32,7 +31,6 @@ export function AuthStateProvider({ children }: { children: React.ReactNode }) {
     }
   }, [user, isUserLoading, pathname, router]);
 
-  // Loading state enquanto verifica auth e perfil
   if (isUserLoading || (user && isProfileLoading)) {
     return (
       <div className="flex h-screen w-screen flex-col items-center justify-center gap-4 bg-slate-100">
@@ -48,7 +46,6 @@ export function AuthStateProvider({ children }: { children: React.ReactNode }) {
     );
   }
 
-  // Se logado mas sem perfil/organização (e não for o admin mestre)
   if (user && !profile && pathname !== '/login' && pathname !== '/super-admin') {
     const isMasterAdmin = user.email === 'vendas.piracanjuba@gmail.com';
     if (!isMasterAdmin) {
@@ -74,9 +71,7 @@ export function AuthStateProvider({ children }: { children: React.ReactNode }) {
     }
   }
 
-  if (!user && pathname !== '/login') {
-    return null;
-  }
+  if (!user && pathname !== '/login') return null;
 
   return <>{children}</>;
 }

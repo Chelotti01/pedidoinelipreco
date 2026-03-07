@@ -3,14 +3,14 @@
 import { useState, useMemo, useEffect } from 'react';
 import { useRouter, useParams } from 'next/navigation';
 import { useFirestore, useCollection, useDoc, useMemoFirebase, updateDocumentNonBlocking, useUser } from '@/firebase';
-import { collection, query, orderBy, serverTimestamp, doc, where } from 'firebase/firestore';
-import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from "@/components/ui/card";
+import { collection, query, orderBy, serverTimestamp, doc, where, limit } from 'firebase/firestore';
+import { Card, CardHeader, CardTitle, CardContent, CardFooter } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
-import { Save, ChevronLeft, Tag, Loader2, DollarSign, Percent } from "lucide-react";
+import { Save, ChevronLeft, Tag, Loader2, DollarSign } from "lucide-react";
 import Link from 'next/link';
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
@@ -23,15 +23,12 @@ export default function EditRegisteredProductPage() {
   
   const id = Array.isArray(params.id) ? params.id[0] : params.id;
 
-  // Obter organização do perfil
-  const userProfileQuery = useMemoFirebase(() => 
-    user?.email ? query(collection(db, 'userProfiles'), where('email', '==', user.email), limit(1)) : null
+  const userProfileRef = useMemoFirebase(() => 
+    user?.email ? doc(db, 'userProfiles', user.email.toLowerCase().trim()) : null
   , [db, user]);
-  const { data: profiles } = useCollection(userProfileQuery);
-  const profile = profiles?.[0];
+  const { data: profile } = useDoc(userProfileRef);
   const orgId = profile?.organizationId;
 
-  // Documento dentro da sub-coleção products da organização
   const productRef = useMemoFirebase(() => 
     (id && orgId) ? doc(db, 'organizations', orgId, 'products', id) : null
   , [db, id, orgId]);

@@ -20,22 +20,16 @@ service cloud.firestore {
     }
 
     function getUserData() {
-      // Nota: get() em regras pode ser custoso, mas necessário para segurança baseada em perfil
-      return get(/databases/$(database)/documents/userProfiles/$(request.auth.uid)).data;
+      // Busca perfil pelo e-mail (ID do documento)
+      return get(/databases/$(database)/documents/userProfiles/$(request.auth.token.email)).data;
     }
 
-    // Checks if the user belongs to the specified organization or is a global super admin
     function hasOrgAccess(orgId) {
       return isSignedIn() && (isSuperAdmin() || getUserData().organizationId == orgId);
     }
 
-    // Checks if the user is an admin of the specified organization
     function isOrgAdmin(orgId) {
       return isSignedIn() && (isSuperAdmin() || (getUserData().organizationId == orgId && getUserData().role == 'admin'));
-    }
-
-    function isOwner(userId) {
-      return isSignedIn() && request.auth.uid == userId;
     }
 
     // --- COLLECTION RULES ---
@@ -46,11 +40,12 @@ service cloud.firestore {
       allow create, update, delete: if isSuperAdmin();
     }
 
-    match /userProfiles/{userId} {
-      allow get: if isOwner(userId) || isSuperAdmin();
-      allow list: if isSuperAdmin(); 
-      allow create: if isSignedIn(); // Permitir criação inicial de perfil
-      allow update: if (isOwner(userId) || isOrgAdmin(resource.data.organizationId)) && (request.resource.data.organizationId == resource.data.organizationId);
+    match /userProfiles/{profileId} {
+      // Permite get público para verificar convite durante ativação de conta
+      allow get: if true;
+      allow list: if isSuperAdmin() || (isSignedIn() && (profileId == request.auth.token.email));
+      allow create: if isSuperAdmin() || (isSignedIn() && !exists(/databases/$(database)/documents/userProfiles/$(request.auth.token.email)));
+      allow update: if isSuperAdmin() || (isSignedIn() && profileId == request.auth.token.email);
       allow delete: if isSuperAdmin();
     }
 
@@ -64,46 +59,44 @@ service cloud.firestore {
 
     match /organizations/{organizationId}/factories/{factoryId} {
       allow get, list: if hasOrgAccess(organizationId);
-      allow create: if isOrgAdmin(organizationId) && request.resource.data.organizationId == organizationId;
+      allow create: if isOrgAdmin(organizationId);
       allow update, delete: if isOrgAdmin(organizationId);
     }
 
     match /organizations/{organizationId}/products/{productId} {
       allow get, list: if hasOrgAccess(organizationId);
-      allow create: if isOrgAdmin(organizationId) && request.resource.data.organizationId == organizationId;
+      allow create: if isOrgAdmin(organizationId);
       allow update, delete: if isOrgAdmin(organizationId);
     }
 
     match /organizations/{organizationId}/productFactoryPrices/{priceId} {
       allow get, list: if hasOrgAccess(organizationId);
-      allow create: if isOrgAdmin(organizationId) && request.resource.data.organizationId == organizationId;
+      allow create: if isOrgAdmin(organizationId);
       allow update, delete: if isOrgAdmin(organizationId);
     }
 
     match /organizations/{organizationId}/discounts/{discountId} {
       allow get, list: if hasOrgAccess(organizationId);
-      allow create: if isOrgAdmin(organizationId) && request.resource.data.organizationId == organizationId;
+      allow create: if isOrgAdmin(organizationId);
       allow update, delete: if isOrgAdmin(organizationId);
     }
 
     match /organizations/{organizationId}/clients/{clientId} {
       allow get, list: if hasOrgAccess(organizationId);
-      allow create: if hasOrgAccess(organizationId) && request.resource.data.organizationId == organizationId;
-      allow update: if isOrgAdmin(organizationId) || (hasOrgAccess(organizationId) && resource.data.organizationId == organizationId);
+      allow create: if hasOrgAccess(organizationId);
+      allow update: if isOrgAdmin(organizationId) || hasOrgAccess(organizationId);
       allow delete: if isOrgAdmin(organizationId);
     }
 
     match /organizations/{organizationId}/orders/{orderId} {
       allow get, list: if hasOrgAccess(organizationId);
-      allow create: if hasOrgAccess(organizationId) && request.resource.data.organizationId == organizationId && request.resource.data.sellerUserId == request.auth.uid;
-      allow update: if (isOrgAdmin(organizationId) || (resource.data.sellerUserId == request.auth.uid)) && (request.resource.data.organizationId == resource.data.organizationId);
+      allow create: if hasOrgAccess(organizationId);
+      allow update: if hasOrgAccess(organizationId);
       allow delete: if isOrgAdmin(organizationId);
 
       match /orderItems/{orderItemId} {
         allow get, list: if hasOrgAccess(organizationId);
-        allow create: if hasOrgAccess(organizationId) && request.resource.data.organizationId == organizationId;
-        allow update: if isOrgAdmin(organizationId) || (get(/databases/$(database)/documents/organizations/$(organizationId)/orders/$(orderId)).data.sellerUserId == request.auth.uid);
-        allow delete: if isOrgAdmin(organizationId);
+        allow create, update, delete: if hasOrgAccess(organizationId);
       }
     }
   }
