@@ -2,14 +2,14 @@
 "use client"
 
 import { useState, useMemo } from 'react';
-import { useCollection, useMemoFirebase } from '@/firebase';
+import { useCollection, useMemoFirebase, useUser, useDoc } from '@/firebase';
 import { collection, query, orderBy, doc } from 'firebase/firestore';
 import { useFirestore, deleteDocumentNonBlocking } from '@/firebase';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import { Plus, Users, Edit, Trash2, ChevronLeft, Search, AlertTriangle } from "lucide-react";
+import { Plus, Users, Edit, Trash2, ChevronLeft, Search, AlertTriangle, Loader2 } from "lucide-react";
 import Link from 'next/link';
 import { useToast } from "@/hooks/use-toast";
 import { Input } from "@/components/ui/input";
@@ -27,14 +27,20 @@ import {
 
 export default function CustomersPage() {
   const db = useFirestore();
+  const { user } = useUser();
   const { toast } = useToast();
   const [searchTerm, setSearchTerm] = useState("");
 
-  const customersQuery = useMemoFirebase(() => {
-    return query(collection(db, 'customers'), orderBy('name', 'asc'));
-  }, [db]);
+  // Get user profile for organizationId
+  const userProfileRef = useMemoFirebase(() => user ? doc(db, 'userProfiles', user.uid) : null, [db, user]);
+  const { data: profile, isLoading: isProfileLoading } = useDoc(userProfileRef);
+  const orgId = profile?.organizationId;
 
-  const { data: customers, isLoading } = useCollection(customersQuery);
+  const customersQuery = useMemoFirebase(() => {
+    return orgId ? query(collection(db, 'organizations', orgId, 'clients'), orderBy('name', 'asc')) : null;
+  }, [db, orgId]);
+
+  const { data: customers, isLoading: isCustomersLoading } = useCollection(customersQuery);
 
   const filteredCustomers = useMemo(() => {
     if (!customers) return [];
@@ -50,9 +56,12 @@ export default function CustomersPage() {
   }, [customers, searchTerm]);
 
   const handleDelete = (id: string) => {
-    deleteDocumentNonBlocking(doc(db, 'customers', id));
+    if (!orgId) return;
+    deleteDocumentNonBlocking(doc(db, 'organizations', orgId, 'clients', id));
     toast({ title: "Cliente excluído", description: "O registro foi removido com sucesso." });
   };
+
+  const isLoading = isProfileLoading || isCustomersLoading;
 
   return (
     <div className="container mx-auto px-4 py-12">
@@ -63,7 +72,7 @@ export default function CustomersPage() {
           </Link>
           <div>
             <h1 className="text-3xl font-bold tracking-tight">Clientes</h1>
-            <p className="text-muted-foreground">Gerencie sua base de clientes.</p>
+            <p className="text-muted-foreground">Gerencie sua base de clientes ({orgId}).</p>
           </div>
         </div>
         <div className="flex gap-2">
@@ -99,7 +108,10 @@ export default function CustomersPage() {
           <TableBody>
             {isLoading ? (
               <TableRow>
-                <TableCell colSpan={5} className="text-center py-10">Carregando clientes...</TableCell>
+                <TableCell colSpan={5} className="text-center py-10">
+                  <Loader2 className="animate-spin mx-auto mb-2" />
+                  Carregando clientes...
+                </TableCell>
               </TableRow>
             ) : filteredCustomers.length === 0 ? (
               <TableRow>

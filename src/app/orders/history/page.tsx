@@ -1,12 +1,12 @@
 
 "use client"
 
-import { useFirestore, useCollection, useMemoFirebase, deleteDocumentNonBlocking } from '@/firebase';
+import { useFirestore, useCollection, useMemoFirebase, deleteDocumentNonBlocking, useUser, useDoc } from '@/firebase';
 import { collection, query, orderBy, doc } from 'firebase/firestore';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { History, ChevronLeft, FileText, Trash2, Printer, ShoppingBag, Weight, Calendar, ArrowRight, User, Save, CheckCircle2, Edit } from "lucide-react";
+import { History, ChevronLeft, FileText, Trash2, Printer, ShoppingBag, Weight, Calendar, ArrowRight, User, Save, CheckCircle2, Edit, Loader2 } from "lucide-react";
 import Link from 'next/link';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
@@ -14,10 +14,19 @@ import { useToast } from "@/hooks/use-toast";
 
 export default function OrderHistoryPage() {
   const db = useFirestore();
+  const { user } = useUser();
   const { toast } = useToast();
 
-  const ordersQuery = useMemoFirebase(() => query(collection(db, 'orders'), orderBy('createdAt', 'desc')), [db]);
-  const { data: orders, isLoading } = useCollection(ordersQuery);
+  // Get user profile for organizationId
+  const userProfileRef = useMemoFirebase(() => user ? doc(db, 'userProfiles', user.uid) : null, [db, user]);
+  const { data: profile, isLoading: isProfileLoading } = useDoc(userProfileRef);
+  const orgId = profile?.organizationId;
+
+  const ordersQuery = useMemoFirebase(() => 
+    orgId ? query(collection(db, 'organizations', orgId, 'orders'), orderBy('createdAt', 'desc')) : null
+  , [db, orgId]);
+  
+  const { data: orders, isLoading: isOrdersLoading } = useCollection(ordersQuery);
 
   const formatCurrency = (val: number) => {
     return val.toLocaleString('pt-BR', { 
@@ -27,7 +36,8 @@ export default function OrderHistoryPage() {
   };
 
   const handleDelete = (id: string) => {
-    deleteDocumentNonBlocking(doc(db, 'orders', id));
+    if (!orgId) return;
+    deleteDocumentNonBlocking(doc(db, 'organizations', orgId, 'orders', id));
     toast({ title: "Pedido removido", description: "O histórico foi atualizado." });
   };
 
@@ -42,11 +52,13 @@ export default function OrderHistoryPage() {
     }
   };
 
+  const isLoading = isProfileLoading || isOrdersLoading;
+
   return (
     <div className="container mx-auto px-4 py-12">
       <div className="mb-10 flex items-center justify-between">
         <div className="flex items-center gap-3">
-          <Link href="/orders/new" className="text-muted-foreground hover:text-primary">
+          <Link href="/" className="text-muted-foreground hover:text-primary transition-colors">
             <ChevronLeft size={28} />
           </Link>
           <div>
@@ -63,7 +75,7 @@ export default function OrderHistoryPage() {
 
       {isLoading ? (
         <div className="flex justify-center py-20">
-          <History className="animate-spin text-primary" size={48} />
+          <Loader2 className="animate-spin text-primary" size={48} />
         </div>
       ) : !orders || orders.length === 0 ? (
         <Card className="py-20 text-center">
@@ -104,7 +116,7 @@ export default function OrderHistoryPage() {
                   )}
                   <Link href={`/orders/view/${order.id}`}>
                     <Button variant="outline" size="sm" className="gap-2">
-                      <Printer size={16} /> Exportar PDF
+                      <Printer size={16} /> Detalhes
                     </Button>
                   </Link>
                   <Button variant="ghost" size="sm" className="text-destructive" onClick={() => handleDelete(order.id)}>

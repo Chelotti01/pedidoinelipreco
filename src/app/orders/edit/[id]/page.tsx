@@ -3,7 +3,7 @@
 
 import { useState, useMemo, useEffect } from 'react';
 import { useRouter, useParams } from 'next/navigation';
-import { useFirestore, useCollection, useMemoFirebase, updateDocumentNonBlocking, useAuth, useDoc } from '@/firebase';
+import { useFirestore, useCollection, useMemoFirebase, updateDocumentNonBlocking, useAuth, useDoc, useUser } from '@/firebase';
 import { collection, query, orderBy, serverTimestamp, doc } from 'firebase/firestore';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -26,24 +26,30 @@ import { OrderItem } from '@/app/orders/new/page';
 export default function EditOrderPage() {
   const db = useFirestore();
   const auth = useAuth();
+  const { user } = useUser();
   const { toast } = useToast();
   const router = useRouter();
   const params = useParams();
   const id = Array.isArray(params.id) ? params.id[0] : params.id;
 
-  const orderRef = useMemoFirebase(() => id ? doc(db, 'orders', id) : null, [db, id]);
+  // Get user profile for organizationId
+  const userProfileRef = useMemoFirebase(() => user ? doc(db, 'userProfiles', user.uid) : null, [db, user]);
+  const { data: profile, isLoading: isProfileLoading } = useDoc(userProfileRef);
+  const orgId = profile?.organizationId;
+
+  const orderRef = useMemoFirebase(() => (id && orgId) ? doc(db, 'organizations', orgId, 'orders', id) : null, [db, id, orgId]);
   const { data: order, isLoading: isOrderLoading } = useDoc(orderRef);
   
-  const factoriesQuery = useMemoFirebase(() => query(collection(db, 'factories'), orderBy('name')), [db]);
+  const factoriesQuery = useMemoFirebase(() => orgId ? query(collection(db, 'organizations', orgId, 'factories'), orderBy('name')) : null, [db, orgId]);
   const { data: factories, isLoading: isFactoriesLoading } = useCollection(factoriesQuery);
 
-  const registeredProductsQuery = useMemoFirebase(() => query(collection(db, 'registered_products'), orderBy('description')), [db]);
+  const registeredProductsQuery = useMemoFirebase(() => orgId ? query(collection(db, 'organizations', orgId, 'products'), orderBy('description')) : null, [db, orgId]);
   const { data: registeredProducts, isLoading: isRegisteredLoading } = useCollection(registeredProductsQuery);
 
-  const catalogProductsQuery = useMemoFirebase(() => query(collection(db, 'catalog_products')), [db]);
+  const catalogProductsQuery = useMemoFirebase(() => orgId ? query(collection(db, 'organizations', orgId, 'productFactoryPrices')) : null, [db, orgId]);
   const { data: catalogProducts, isLoading: isCatalogLoading } = useCollection(catalogProductsQuery);
 
-  const customersQuery = useMemoFirebase(() => query(collection(db, 'customers'), orderBy('name', 'asc')), [db]);
+  const customersQuery = useMemoFirebase(() => orgId ? query(collection(db, 'organizations', orgId, 'clients'), orderBy('name', 'asc')) : null, [db, orgId]);
   const { data: customers, isLoading: isCustomersLoading } = useCollection(customersQuery);
 
   const [orderItems, setOrderItems] = useState<OrderItem[]>([]);
@@ -57,20 +63,17 @@ export default function EditOrderPage() {
   const [selectedBrand, setSelectedBrand] = useState<string>("all");
   const [productSearch, setProductSearch] = useState<string>("");
   const [lineFilter, setLineFilter] = useState<string>("none");
-  const [isCustomMode, setIsCustomMode] = useState(true);
   const [quantity, setQuantity] = useState<number>(1);
   const [priceType, setPriceType] = useState<'closed' | 'fractional'>('closed');
   const [contractPercent, setContractPercent] = useState<number>(0);
   const [isBonus, setIsBonus] = useState(false);
 
-  // Popula o estado quando o pedido é carregado
   useEffect(() => {
     if (order && !isOrderLoading) {
       setSelectedCustomerId(order.customerId || "none");
       setOrderItems(order.items || []);
       setManualObservations(order.notes?.split('\n\n--- RESUMO DE BONIFICAÇÃO ---')[0] || "");
       
-      // Se tiver itens, tenta setar a fábrica e linha do primeiro item para facilitar a continuação
       if (order.items && order.items.length > 0) {
         const firstItem = order.items[0];
         const product = registeredProducts?.find(p => p.id === firstItem.productId);
@@ -301,7 +304,7 @@ export default function EditOrderPage() {
   const orderTotal = orderItems.reduce((acc, item) => acc + item.total, 0);
   const orderTotalWeight = orderItems.reduce((acc, item) => acc + item.weight, 0);
 
-  if (isOrderLoading || isFactoriesLoading || isRegisteredLoading || isCatalogLoading || isCustomersLoading) {
+  if (isProfileLoading || isOrderLoading || isFactoriesLoading || isRegisteredLoading || isCatalogLoading || isCustomersLoading) {
     return <div className="flex h-screen items-center justify-center"><Loader2 className="animate-spin text-primary" size={48} /></div>;
   }
 

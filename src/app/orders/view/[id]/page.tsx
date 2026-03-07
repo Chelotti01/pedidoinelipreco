@@ -3,7 +3,7 @@
 
 import { useState, useRef } from 'react';
 import { useParams, useRouter } from 'next/navigation';
-import { useFirestore, useDoc, useMemoFirebase } from '@/firebase';
+import { useFirestore, useDoc, useMemoFirebase, useUser } from '@/firebase';
 import { doc } from 'firebase/firestore';
 import { Button } from "@/components/ui/button";
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "@/components/ui/table";
@@ -17,14 +17,22 @@ import { Badge } from "@/components/ui/badge";
 
 export default function ViewOrderPage() {
   const params = useParams();
+  const { user } = useUser();
   const { toast } = useToast();
   const db = useFirestore();
   const id = Array.isArray(params.id) ? params.id[0] : params.id;
   const reportRef = useRef<HTMLDivElement>(null);
   const [isGenerating, setIsGenerating] = useState(false);
 
-  const orderRef = useMemoFirebase(() => id ? doc(db, 'orders', id) : null, [db, id]);
-  const { data: order, isLoading } = useDoc(orderRef);
+  // Get user profile for organizationId
+  const userProfileRef = useMemoFirebase(() => user ? doc(db, 'userProfiles', user.uid) : null, [db, user]);
+  const { data: profile, isLoading: isProfileLoading } = useDoc(userProfileRef);
+  const orgId = profile?.organizationId;
+
+  const orderRef = useMemoFirebase(() => 
+    (id && orgId) ? doc(db, 'organizations', orgId, 'orders', id) : null
+  , [db, id, orgId]);
+  const { data: order, isLoading: isOrderLoading } = useDoc(orderRef);
 
   const formatCurrency = (val: number) => {
     return (val || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
@@ -50,9 +58,8 @@ export default function ViewOrderPage() {
         useCORS: true,
         backgroundColor: '#ffffff',
         logging: false,
-        windowWidth: 1200, // Simula largura de desktop para evitar cortes responsivos do mobile
+        windowWidth: 1200,
         onclone: (clonedDoc) => {
-          // Garante que containers com scroll fiquem visíveis no clone para a captura
           const scrollables = clonedDoc.querySelectorAll('.overflow-x-auto');
           scrollables.forEach((el: any) => {
             el.style.overflow = 'visible';
@@ -94,7 +101,7 @@ export default function ViewOrderPage() {
     }
   };
 
-  if (isLoading) return (
+  if (isProfileLoading || isOrderLoading) return (
     <div className="flex flex-col items-center justify-center min-h-screen gap-4">
       <Loader2 className="animate-spin text-primary" size={48} />
       <div className="text-muted-foreground font-medium">Carregando detalhes do pedido...</div>
@@ -161,11 +168,18 @@ export default function ViewOrderPage() {
                 <Calendar size={14} />
                 {order.createdAt ? format(order.createdAt.toDate(), "dd/MM/yyyy HH:mm", { locale: ptBR }) : '-'}
               </div>
-              <p className="font-bold text-lg">InteliPreço - Sistema Inteligente</p>
+              <p className="font-bold text-lg">InteliPreço - {profile?.organizationId || 'SaaS'}</p>
             </div>
           </CardHeader>
 
           <CardContent className="p-0">
+            <div className="p-6 sm:p-8 border-b bg-slate-50/50">
+              <h3 className="text-xs font-bold text-muted-foreground uppercase tracking-widest mb-2">Cliente</h3>
+              <p className="text-xl font-bold text-primary flex items-center gap-2">
+                <Home size={18} className="text-accent" /> {order.customerName}
+              </p>
+            </div>
+
             <div className="grid grid-cols-1 md:grid-cols-2 border-b border-slate-200">
               <div className="p-6 sm:p-8 space-y-4 border-b md:border-b-0 md:border-r border-slate-200">
                 <h3 className="text-xs font-bold text-muted-foreground uppercase tracking-widest">Resumo Financeiro</h3>

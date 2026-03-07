@@ -2,7 +2,7 @@
 "use client"
 
 import { useState, useMemo } from 'react';
-import { useFirestore, useCollection, useMemoFirebase, updateDocumentNonBlocking } from '@/firebase';
+import { useFirestore, useCollection, useMemoFirebase, updateDocumentNonBlocking, useUser, useDoc } from '@/firebase';
 import { collection, query, orderBy, doc, serverTimestamp } from 'firebase/firestore';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -16,17 +16,27 @@ import { useToast } from "@/hooks/use-toast";
 
 export default function MarginsManagementPage() {
   const db = useFirestore();
+  const { user } = useUser();
   const { toast } = useToast();
   
+  // Get user profile for organizationId
+  const userProfileRef = useMemoFirebase(() => user ? doc(db, 'userProfiles', user.uid) : null, [db, user]);
+  const { data: profile, isLoading: isProfileLoading } = useDoc(userProfileRef);
+  const orgId = profile?.organizationId;
+
   const [searchTerm, setSearchTerm] = useState("");
   const [factoryFilter, setFactoryFilter] = useState("all");
   const [brandFilter, setBrandFilter] = useState("all");
   const [lineFilter, setLineFilter] = useState("all");
 
-  const productsQuery = useMemoFirebase(() => query(collection(db, 'registered_products'), orderBy('description')), [db]);
-  const { data: products, isLoading } = useCollection(productsQuery);
+  const productsQuery = useMemoFirebase(() => 
+    orgId ? query(collection(db, 'organizations', orgId, 'products'), orderBy('description')) : null
+  , [db, orgId]);
+  const { data: products, isLoading: isProductsLoading } = useCollection(productsQuery);
 
-  const factoriesQuery = useMemoFirebase(() => query(collection(db, 'factories'), orderBy('name')), [db]);
+  const factoriesQuery = useMemoFirebase(() => 
+    orgId ? query(collection(db, 'organizations', orgId, 'factories'), orderBy('name')) : null
+  , [db, orgId]);
   const { data: factories } = useCollection(factoriesQuery);
 
   const uniqueBrands = useMemo(() => {
@@ -58,6 +68,8 @@ export default function MarginsManagementPage() {
     setLineFilter("all");
   };
 
+  const isLoading = isProfileLoading || isProductsLoading;
+
   return (
     <div className="container mx-auto px-4 py-12 max-w-6xl">
       <div className="mb-10 flex items-center justify-between flex-wrap gap-4">
@@ -67,12 +79,11 @@ export default function MarginsManagementPage() {
           </Link>
           <div>
             <h1 className="text-3xl font-black tracking-tight text-primary uppercase">Gestão de Margens</h1>
-            <p className="text-muted-foreground">Ajuste o aditivo oculto de todos os produtos cadastrados.</p>
+            <p className="text-muted-foreground">Ajuste o aditivo oculto dos produtos ({orgId}).</p>
           </div>
         </div>
       </div>
 
-      {/* Barra de Filtros */}
       <Card className="mb-8 border-none shadow-sm bg-muted/30">
         <CardContent className="p-4 space-y-4">
           <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
@@ -144,7 +155,7 @@ export default function MarginsManagementPage() {
       ) : (
         <div className="space-y-3">
           {filteredProducts.map((p) => (
-            <MarginSurchargeRow key={p.id} product={p} db={db} />
+            <MarginSurchargeRow key={p.id} product={p} db={db} orgId={orgId!} />
           ))}
         </div>
       )}
@@ -152,7 +163,7 @@ export default function MarginsManagementPage() {
   );
 }
 
-function MarginSurchargeRow({ product, db }: { product: any, db: any }) {
+function MarginSurchargeRow({ product, db, orgId }: { product: any, db: any, orgId: string }) {
   const { toast } = useToast();
   const [isSaving, setIsSaving] = useState(false);
   const [surchargeValue, setSurchargeValue] = useState(product.customSurchargeValue !== undefined ? String(product.customSurchargeValue) : (product.customSurchargeR$ !== undefined ? String(product.customSurchargeR$) : '0'));
@@ -161,10 +172,9 @@ function MarginSurchargeRow({ product, db }: { product: any, db: any }) {
   const handleSave = async () => {
     setIsSaving(true);
     try {
-      updateDocumentNonBlocking(doc(db, 'registered_products', product.id), {
+      updateDocumentNonBlocking(doc(db, 'organizations', orgId, 'products', product.id), {
         customSurchargeValue: Number(surchargeValue) || 0,
         customSurchargeType: surchargeType,
-        // Retrocompatibilidade
         customSurchargeR$: surchargeType === 'fixed' ? Number(surchargeValue) : 0,
         updatedAt: serverTimestamp()
       });
@@ -180,7 +190,6 @@ function MarginSurchargeRow({ product, db }: { product: any, db: any }) {
   return (
     <Card className="shadow-sm border-none hover:shadow-md transition-shadow bg-white overflow-hidden">
       <CardContent className="p-4 flex flex-col md:flex-row items-center gap-6">
-        {/* Info do Produto */}
         <div className="flex-1 min-w-0 w-full md:w-auto">
           <div className="flex items-center gap-2 mb-1">
             <span className="font-black text-slate-800 uppercase tracking-tighter">{product.code}</span>
@@ -196,7 +205,6 @@ function MarginSurchargeRow({ product, db }: { product: any, db: any }) {
           </div>
         </div>
 
-        {/* Tipo de Aditivo */}
         <div className="w-full md:w-auto shrink-0">
           <Tabs 
             value={surchargeType} 
@@ -214,7 +222,6 @@ function MarginSurchargeRow({ product, db }: { product: any, db: any }) {
           </Tabs>
         </div>
         
-        {/* Valor e Ação */}
         <div className="flex items-center gap-3 w-full md:w-auto shrink-0">
           <div className="relative w-full md:w-32">
             <div className="absolute left-2.5 top-1/2 -translate-y-1/2 text-primary font-black text-xs">
@@ -244,4 +251,3 @@ function MarginSurchargeRow({ product, db }: { product: any, db: any }) {
     </Card>
   );
 }
-
