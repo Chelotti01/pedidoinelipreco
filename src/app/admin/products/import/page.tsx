@@ -23,7 +23,7 @@ export default function ImportRegisteredProductsPage() {
   const db = useFirestore();
   const { user } = useUser();
 
-  // Busca perfil pelo e-mail (Padrão SaaS Multi-tenant)
+  // OBRIGATÓRIO: Identificar organização pelo e-mail do usuário
   const userProfileRef = useMemoFirebase(() => 
     user?.email ? doc(db, 'userProfiles', user.email.toLowerCase().trim()) : null
   , [db, user]);
@@ -34,13 +34,13 @@ export default function ImportRegisteredProductsPage() {
     const templateData = [
       {
         "Status": "Active",
-        "Marca": "PIRACANJUBA",
+        "Marca": "EXEMPLO",
         "Linha": "SECA",
-        "Código": "272807",
-        "Descrição": "ALIM AMENDOA...",
+        "Código": "12345",
+        "Descrição": "PRODUTO TESTE IMPORTAÇÃO",
         "Qtd Caixa": 12,
         "Unidade": "CX",
-        "EAN": "7898215157175",
+        "EAN": "7890000000000",
         "DUN14": "",
         "NCM": "21069090",
         "CEST": "",
@@ -52,7 +52,7 @@ export default function ImportRegisteredProductsPage() {
     const worksheet = XLSX.utils.json_to_sheet(templateData);
     const workbook = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(workbook, worksheet, "Modelo");
-    XLSX.writeFile(workbook, "modelo_ficha_tecnica.xlsx");
+    XLSX.writeFile(workbook, "modelo_produtos.xlsx");
   };
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -86,7 +86,7 @@ export default function ImportRegisteredProductsPage() {
 
   const handleUpload = async () => {
     if (!file || !orgId) {
-      toast({ title: "Organização não identificada", variant: "destructive" });
+      toast({ title: "Erro", description: "Organização não identificada.", variant: "destructive" });
       return;
     }
 
@@ -101,30 +101,30 @@ export default function ImportRegisteredProductsPage() {
       let count = 0;
 
       for (const row of data as any[]) {
-        const code = String(getRowValue(row, ["Código", "Codigo", "Cód", "Ref"]) || '');
-        const description = String(getRowValue(row, ["Descrição", "Descricao", "Produto", "Item"]) || '');
+        const code = String(getRowValue(row, ["Código", "Codigo", "Cód", "Ref"]) || '').trim();
+        const description = String(getRowValue(row, ["Descrição", "Descricao", "Produto", "Item"]) || '').trim();
 
         if (!code && !description) continue;
 
         const productData = {
           organizationId: orgId,
-          status: String(getRowValue(row, ["Status", "Ativo", "Situacao"]) || 'Active'),
-          brand: String(getRowValue(row, ["Marca", "Fabricante", "Brand"]) || '').toUpperCase(),
-          line: String(getRowValue(row, ["Linha", "Colecao", "Line"]) || '').toUpperCase(),
+          status: String(getRowValue(row, ["Status", "Ativo", "Situacao"]) || 'Active').trim(),
+          brand: String(getRowValue(row, ["Marca", "Fabricante", "Brand"]) || '').trim().toUpperCase(),
+          line: String(getRowValue(row, ["Linha", "Colecao", "Line"]) || '').trim().toUpperCase(),
           code: code,
           description: description.toUpperCase(),
           quantityPerBox: safeNumber(getRowValue(row, ["Qtd Caixa", "Embalagem", "Quantity", "Cx", "Qtd/Caixa"])),
-          unit: String(getRowValue(row, ["Unidade", "Und", "Unit", "Un"]) || 'UN').toUpperCase(),
-          ean: String(getRowValue(row, ["EAN", "GTIN", "Barras", "Cod Barras"]) || ''),
-          dun14: String(getRowValue(row, ["DUN14", "DUN-14", "DUN"]) || ''),
-          taxClassification: String(getRowValue(row, ["Classificação Fiscal", "Classificacao", "Tax", "CF"]) || ''),
-          ncm: String(getRowValue(row, ["NCM", "NCM/SH"]) || ''),
-          cest: String(getRowValue(row, ["CEST"]) || ''),
+          unit: String(getRowValue(row, ["Unidade", "Und", "Unit", "Un"]) || 'UN').trim().toUpperCase(),
+          ean: String(getRowValue(row, ["EAN", "GTIN", "Barras", "Cod Barras"]) || '').trim(),
+          dun14: String(getRowValue(row, ["DUN14", "DUN-14", "DUN"]) || '').trim(),
+          taxClassification: String(getRowValue(row, ["Classificação Fiscal", "Classificacao", "Tax", "CF"]) || '').trim(),
+          ncm: String(getRowValue(row, ["NCM", "NCM/SH"]) || '').trim(),
+          cest: String(getRowValue(row, ["CEST"]) || '').trim(),
           unitNetWeightKg: safeNumber(getRowValue(row, ["Peso Liq Unit", "Peso Líquido", "Weight", "Peso Liq", "Peso Líq. Unit"])),
           boxWeightKg: safeNumber(getRowValue(row, ["Peso Caixa", "Peso Bruto", "Peso Cx", "Peso Caixa (Kg)"])),
-          st: String(getRowValue(row, ["ST", "Substituicao", "Imposto"]) || '0%'),
-          factoryId: '', 
-          catalogProductId: '', 
+          st: String(getRowValue(row, ["ST", "Substituicao", "Imposto"]) || '0%').trim(),
+          factoryId: 'none', 
+          catalogProductId: 'none', 
           customSurchargeValue: 0,
           customSurchargeType: 'fixed',
           createdAt: serverTimestamp(),
@@ -152,14 +152,16 @@ export default function ImportRegisteredProductsPage() {
   return (
     <div className="container mx-auto px-4 py-12 max-w-2xl">
       <div className="mb-8 flex items-center gap-3">
-        <Link href="/admin/products" className="text-muted-foreground hover:text-primary"><ChevronLeft size={28} /></Link>
-        <h1 className="text-2xl font-black uppercase text-primary">Importar Produtos ({orgId || '...'})</h1>
+        <Link href="/admin/products" className="text-muted-foreground hover:text-primary transition-colors">
+          <ChevronLeft size={28} />
+        </Link>
+        <h1 className="text-2xl font-black uppercase text-primary tracking-tight">Importar Produtos ({orgId || '...'})</h1>
       </div>
 
       {!orgId && (
         <div className="mb-6 p-4 bg-destructive/10 border border-destructive/20 rounded-lg flex items-center gap-3 text-destructive">
           <AlertTriangle size={20} />
-          <p className="text-xs font-bold uppercase">Aviso: Sua conta não possui empresa vinculada. Os dados não serão salvos corretamente.</p>
+          <p className="text-xs font-bold uppercase">Erro: Usuário não vinculado a uma organização.</p>
         </div>
       )}
 
@@ -171,7 +173,7 @@ export default function ImportRegisteredProductsPage() {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <Button onClick={handleDownloadTemplate} variant="outline" className="w-full gap-2 border-primary text-primary font-bold">
+            <Button onClick={handleDownloadTemplate} variant="outline" className="w-full gap-2 border-primary text-primary font-bold hover:bg-primary/10">
               <FileSpreadsheet size={18} /> Baixar Modelo para Importação
             </Button>
           </CardContent>
@@ -179,20 +181,20 @@ export default function ImportRegisteredProductsPage() {
 
         <Card className="shadow-2xl border-none">
           <CardHeader className="bg-slate-100">
-            <CardTitle className="text-sm font-black uppercase flex items-center gap-2">
+            <CardTitle className="text-sm font-black uppercase flex items-center gap-2 text-slate-700">
               <UploadCloud className="text-primary" size={18} /> Upload da Planilha
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-6 pt-6">
             <div className="grid w-full items-center gap-2">
-              <Label className="text-xs font-bold uppercase">Arquivo XLSX</Label>
-              <Input type="file" accept=".xlsx" onChange={handleFileChange} disabled={isLoading} className="h-12 border-dashed border-2" />
+              <Label className="text-[10px] font-black uppercase text-muted-foreground">Selecione o arquivo XLSX</Label>
+              <Input type="file" accept=".xlsx" onChange={handleFileChange} disabled={isLoading} className="h-12 border-dashed border-2 cursor-pointer" />
             </div>
             {isSuccess && (
-              <div className="p-4 bg-accent/10 rounded-lg border border-accent/20 flex items-start gap-3">
-                <CheckCircle2 className="text-accent shrink-0" size={20} />
-                <p className="text-[10px] text-muted-foreground uppercase font-bold">
-                  Importação concluída com sucesso para <strong>{orgId}</strong>! Vá para a lista para configurar os vínculos de preço.
+              <div className="p-4 bg-emerald-50 rounded-lg border border-emerald-200 flex items-start gap-3">
+                <CheckCircle2 className="text-emerald-600 shrink-0" size={20} />
+                <p className="text-[10px] text-emerald-800 uppercase font-bold leading-relaxed">
+                  Importação concluída para <strong>{orgId}</strong>! Vá para a lista para realizar a amarração de preços.
                 </p>
               </div>
             )}
@@ -204,7 +206,7 @@ export default function ImportRegisteredProductsPage() {
               </Button>
             ) : (
               <Link href="/admin/products" className="w-full">
-                <Button variant="outline" className="w-full h-14 font-black uppercase text-accent border-accent">Ver Lista de Produtos</Button>
+                <Button variant="outline" className="w-full h-14 font-black uppercase text-emerald-700 border-emerald-600 hover:bg-emerald-50">Ver Lista de Produtos</Button>
               </Link>
             )}
           </CardFooter>
