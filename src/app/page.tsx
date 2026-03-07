@@ -11,7 +11,7 @@ import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/com
 import { 
   ShoppingCart, ListChecks, Zap, History, Users, LogOut, 
   Package, FileSpreadsheet, FileDown, Loader2, LayoutGrid, 
-  DollarSign, TrendingUp, Settings, ChevronDown, ChevronUp, ShieldCheck, UploadCloud, Lock
+  DollarSign, TrendingUp, Settings, ChevronDown, ChevronUp, ShieldCheck, UploadCloud, Lock, Info
 } from "lucide-react";
 import {
   Dialog,
@@ -62,10 +62,10 @@ export default function Home() {
   , [db, orgId]);
   const { data: factories } = useCollection(factoriesQuery);
 
-  const productsQuery = useMemoFirebase(() => 
+  const registeredProductsQuery = useMemoFirebase(() => 
     orgId ? query(collection(db, 'organizations', orgId, 'products'), orderBy('description')) : null
   , [db, orgId]);
-  const { data: registeredProducts } = useCollection(productsQuery);
+  const { data: registeredProducts } = useCollection(registeredProductsQuery);
 
   const catalogQuery = useMemoFirebase(() => 
     orgId ? query(collection(db, 'organizations', orgId, 'productFactoryPrices')) : null
@@ -99,6 +99,7 @@ export default function Home() {
   };
 
   const handleUnlockConfigs = () => {
+    // SENHA PADRÃO: admin123
     if (inputPassword === 'admin123') {
       setIsConfigsUnlocked(true);
       setShowConfigs(true);
@@ -373,18 +374,26 @@ export default function Home() {
               Digite a senha de administrador para acessar as configurações do sistema.
             </DialogDescription>
           </DialogHeader>
-          <div className="py-4">
-            <Label htmlFor="admin-password">Senha de Administrador</Label>
-            <Input 
-              id="admin-password"
-              type="password" 
-              placeholder="Digite a senha..." 
-              value={inputPassword} 
-              onChange={(e) => setInputPassword(e.target.value)}
-              onKeyDown={(e) => e.key === 'Enter' && handleUnlockConfigs()}
-              className="mt-2"
-              autoFocus
-            />
+          <div className="py-4 space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="admin-password">Senha de Administrador</Label>
+              <Input 
+                id="admin-password"
+                type="password" 
+                placeholder="Digite a senha..." 
+                value={inputPassword} 
+                onChange={(e) => setInputPassword(e.target.value)}
+                onKeyDown={(e) => e.key === 'Enter' && handleUnlockConfigs()}
+                className="mt-2"
+                autoFocus
+              />
+            </div>
+            <div className="p-3 bg-slate-50 border rounded-lg flex gap-2 items-start">
+              <Info size={14} className="text-primary shrink-0 mt-0.5" />
+              <p className="text-[10px] text-muted-foreground leading-tight">
+                Dica: A senha padrão é <strong>admin123</strong>.
+              </p>
+            </div>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setShowPasswordDialog(false)}>Cancelar</Button>

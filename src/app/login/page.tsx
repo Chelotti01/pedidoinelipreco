@@ -18,7 +18,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { useToast } from "@/hooks/use-toast";
-import { Zap, Loader2, LogIn, Eye, EyeOff, UserPlus } from "lucide-react";
+import { Zap, Loader2, LogIn, Eye, EyeOff, UserPlus, Info } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 export default function LoginPage() {
@@ -79,18 +79,23 @@ export default function LoginPage() {
 
     setIsLoading(true);
     try {
-      // 1. Verificar se o e-mail está pré-cadastrado em userProfiles
-      const q = query(collection(db, 'userProfiles'), where('email', '==', email.toLowerCase().trim()), limit(1));
-      const querySnapshot = await getDocs(q);
+      // 1. O admin mestre sempre pode se cadastrar
+      const isMaster = email.toLowerCase().trim() === 'vendas.piracanjuba@gmail.com';
+      
+      if (!isMaster) {
+        // 2. Verificar se o e-mail está pré-cadastrado em userProfiles
+        const q = query(collection(db, 'userProfiles'), where('email', '==', email.toLowerCase().trim()), limit(1));
+        const querySnapshot = await getDocs(q);
 
-      if (querySnapshot.empty) {
-        toast({ 
-          title: "E-mail não autorizado", 
-          description: "Este e-mail não foi convidado para o sistema. Entre em contato com o administrador.", 
-          variant: "destructive" 
-        });
-        setIsLoading(false);
-        return;
+        if (querySnapshot.empty) {
+          toast({ 
+            title: "E-mail não autorizado", 
+            description: "Este e-mail não foi convidado para o sistema. Entre em contato com o administrador.", 
+            variant: "destructive" 
+          });
+          setIsLoading(false);
+          return;
+        }
       }
 
       // 2. Criar conta no Auth
@@ -190,7 +195,7 @@ export default function LoginPage() {
                 <div className="space-y-4">
                   <div className="bg-blue-50 p-3 rounded-lg border border-blue-100 mb-4">
                     <p className="text-[11px] text-blue-700 font-medium">
-                      Nota: Você só pode ativar sua conta se o seu e-mail foi pré-autorizado pelo administrador da organização.
+                      Nota: Se você for o administrador mestre ou foi convidado, defina sua senha abaixo.
                     </p>
                   </div>
                   <div className="space-y-2">
@@ -238,10 +243,14 @@ export default function LoginPage() {
           </Tabs>
         </div>
         
-        <CardFooter className="pt-6 pb-8 justify-center">
+        <CardFooter className="pt-6 pb-8 flex flex-col items-center gap-2">
           <p className="text-[10px] text-muted-foreground uppercase font-bold tracking-widest">
             Acesso Restrito
           </p>
+          <div className="flex items-center gap-1 text-[9px] text-slate-400">
+            <Info size={10} />
+            <span>Atalho Admin: use <strong>rodrigo</strong> no campo e-mail</span>
+          </div>
         </CardFooter>
       </Card>
     </div>
