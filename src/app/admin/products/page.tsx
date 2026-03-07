@@ -2,7 +2,7 @@
 "use client"
 
 import { useState, useMemo, useEffect } from 'react';
-import { useCollection, useMemoFirebase } from '@/firebase';
+import { useCollection, useMemoFirebase, useUser, useDoc } from '@/firebase';
 import { collection, query, orderBy, doc, serverTimestamp } from 'firebase/firestore';
 import { useFirestore, deleteDocumentNonBlocking, addDocumentNonBlocking } from '@/firebase';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
@@ -10,7 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
-import { Plus, Package, Edit, Trash2, ChevronLeft, Upload, AlertTriangle, Copy, Search, FilterX, AlertCircle, Factory } from "lucide-react";
+import { Plus, Package, Edit, Trash2, ChevronLeft, Upload, AlertTriangle, Copy, Search, FilterX, AlertCircle, Factory, Loader2 } from "lucide-react";
 import Link from 'next/link';
 import { useToast } from "@/hooks/use-toast";
 import { Input } from "@/components/ui/input";
@@ -30,8 +30,14 @@ const STORAGE_KEY = 'products_filters_state';
 
 export default function RegisteredProductsPage() {
   const db = useFirestore();
+  const { user } = useUser();
   const { toast } = useToast();
   
+  // Get user profile for organizationId
+  const userProfileRef = useMemoFirebase(() => user ? doc(db, 'userProfiles', user.uid) : null, [db, user]);
+  const { data: profile } = useDoc(userProfileRef);
+  const orgId = profile?.organizationId;
+
   // States para busca e filtros
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
@@ -69,15 +75,19 @@ export default function RegisteredProductsPage() {
   }, [searchTerm, statusFilter, brandFilter, lineFilter, linkFilter, factoryFilter, isLoadedFromStorage]);
 
   const productsQuery = useMemoFirebase(() => {
-    return query(collection(db, 'registered_products'), orderBy('createdAt', 'desc'));
-  }, [db]);
+    return orgId ? query(collection(db, 'organizations', orgId, 'products'), orderBy('createdAt', 'desc')) : null;
+  }, [db, orgId]);
 
-  const { data: products, isLoading } = useCollection(productsQuery);
+  const { data: products, isLoading: isProductsLoading } = useCollection(productsQuery);
 
-  const catalogQuery = useMemoFirebase(() => query(collection(db, 'catalog_products')), [db]);
+  const catalogQuery = useMemoFirebase(() => {
+    return orgId ? query(collection(db, 'organizations', orgId, 'productFactoryPrices')) : null;
+  }, [db, orgId]);
   const { data: catalogProducts } = useCollection(catalogQuery);
 
-  const factoriesQuery = useMemoFirebase(() => query(collection(db, 'factories'), orderBy('name')), [db]);
+  const factoriesQuery = useMemoFirebase(() => {
+    return orgId ? query(collection(db, 'organizations', orgId, 'factories'), orderBy('name')) : null;
+  }, [db, orgId]);
   const { data: factories } = useCollection(factoriesQuery);
 
   // Extrair marcas únicas para o filtro
@@ -98,7 +108,6 @@ export default function RegisteredProductsPage() {
     if (!products) return [];
     
     return products.map(p => {
-      // Verifica se o vínculo existe mas o produto sumiu do catálogo
       const hasLinkId = !!p.catalogProductId;
       const targetExists = hasLinkId && catalogProducts?.some(cp => cp.id === p.catalogProductId);
       const isLinkBroken = hasLinkId && !targetExists;
@@ -143,15 +152,18 @@ export default function RegisteredProductsPage() {
   };
 
   const handleDelete = (id: string) => {
-    deleteDocumentNonBlocking(doc(db, 'registered_products', id));
+    if (!orgId) return;
+    deleteDocumentNonBlocking(doc(db, 'organizations', orgId, 'products', id));
     toast({ title: "Produto excluído", description: "O registro foi removido com sucesso." });
   };
 
   const handleDuplicate = (product: any) => {
+    if (!orgId) return;
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
     const { id, isLinkBroken, isLinked, isUnlinked, ...data } = product;
-    addDocumentNonBlocking(collection(db, 'registered_products'), {
+    addDocumentNonBlocking(collection(db, 'organizations', orgId, 'products'), {
       ...data,
+      organizationId: orgId,
       code: `${data.code}-cópia`,
       createdAt: serverTimestamp(),
       updatedAt: serverTimestamp()
@@ -163,10 +175,10 @@ export default function RegisteredProductsPage() {
   };
 
   const handleDeleteAll = () => {
-    if (!products || products.length === 0) return;
+    if (!products || products.length === 0 || !orgId) return;
     
     products.forEach((p) => {
-      deleteDocumentNonBlocking(doc(db, 'registered_products', p.id));
+      deleteDocumentNonBlocking(doc(db, 'organizations', orgId, 'products', p.id));
     });
 
     toast({ 
@@ -175,6 +187,8 @@ export default function RegisteredProductsPage() {
       variant: "destructive"
     });
   };
+
+  const isLoading = !profile || isProductsLoading;
 
   return (
     <div className="container mx-auto px-4 py-12">
@@ -185,7 +199,7 @@ export default function RegisteredProductsPage() {
           </Link>
           <div>
             <h1 className="text-3xl font-bold tracking-tight text-primary">Produtos Registrados</h1>
-            <p className="text-muted-foreground">Gerencie o cadastro paralelo e vínculos de preços.</p>
+            <p className="text-muted-foreground">Gerencie o cadastro paralelo ({orgId}).</p>
           </div>
         </div>
         <div className="flex gap-2">
@@ -325,7 +339,10 @@ export default function RegisteredProductsPage() {
           <TableBody>
             {isLoading ? (
               <TableRow>
-                <TableCell colSpan={6} className="text-center py-10">Carregando produtos...</TableCell>
+                <TableCell colSpan={6} className="text-center py-10">
+                  <Loader2 className="animate-spin mx-auto" />
+                  Carregando produtos...
+                </TableCell>
               </TableRow>
             ) : filteredProducts.length === 0 ? (
               <TableRow>

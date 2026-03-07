@@ -1,8 +1,9 @@
+
 "use client"
 
 import { useState, useMemo } from 'react';
-import { useFirestore, useCollection, useMemoFirebase } from '@/firebase';
-import { collection, query, orderBy } from 'firebase/firestore';
+import { useFirestore, useCollection, useMemoFirebase, useUser, useDoc } from '@/firebase';
+import { collection, query, orderBy, doc } from 'firebase/firestore';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -16,14 +17,24 @@ import { ptBR } from 'date-fns/locale';
 
 export default function CatalogPage() {
   const db = useFirestore();
+  const { user } = useUser();
   const [searchTerm, setSearchTerm] = useState("");
   const [factoryFilter, setFactoryFilter] = useState("all");
 
-  // Busca dados diretamente do Firestore
-  const factoriesQuery = useMemoFirebase(() => query(collection(db, 'factories'), orderBy('name')), [db]);
+  // Get user profile for organizationId
+  const userProfileRef = useMemoFirebase(() => user ? doc(db, 'userProfiles', user.uid) : null, [db, user]);
+  const { data: profile } = useDoc(userProfileRef);
+  const orgId = profile?.organizationId;
+
+  // Busca dados dentro da organização
+  const factoriesQuery = useMemoFirebase(() => {
+    return orgId ? query(collection(db, 'organizations', orgId, 'factories'), orderBy('name')) : null;
+  }, [db, orgId]);
   const { data: factories, isLoading: isFactoriesLoading } = useCollection(factoriesQuery);
 
-  const productsQuery = useMemoFirebase(() => query(collection(db, 'catalog_products'), orderBy('name')), [db]);
+  const productsQuery = useMemoFirebase(() => {
+    return orgId ? query(collection(db, 'organizations', orgId, 'productFactoryPrices'), orderBy('name')) : null;
+  }, [db, orgId]);
   const { data: catalogProducts, isLoading: isProductsLoading } = useCollection(productsQuery);
 
   const filteredProducts = useMemo(() => {
@@ -41,7 +52,7 @@ export default function CatalogPage() {
     return factories?.find(f => f.id === id)?.name || id;
   };
 
-  const isLoading = isFactoriesLoading || isProductsLoading;
+  const isLoading = !profile || isFactoriesLoading || isProductsLoading;
 
   return (
     <div className="container mx-auto px-4 py-12">
@@ -54,7 +65,7 @@ export default function CatalogPage() {
           </Link>
           <div>
             <h1 className="text-3xl font-bold tracking-tight">Catálogo de Produtos</h1>
-            <p className="text-muted-foreground">Visualize itens importados sincronizados no banco de dados.</p>
+            <p className="text-muted-foreground">Visualize itens importados sincronizados ({orgId}).</p>
           </div>
         </div>
         <div className="flex gap-3">

@@ -1,23 +1,30 @@
+
 "use client"
 
 import { useState, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
-import { useFirestore, useCollection, useMemoFirebase, addDocumentNonBlocking } from '@/firebase';
-import { collection, query, orderBy, serverTimestamp } from 'firebase/firestore';
+import { useFirestore, useCollection, useMemoFirebase, addDocumentNonBlocking, useUser, useDoc } from '@/firebase';
+import { collection, query, orderBy, serverTimestamp, doc } from 'firebase/firestore';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
-import { Save, ChevronLeft, Search, Tag, DollarSign, Percent } from "lucide-react";
+import { Save, ChevronLeft, Search, Tag, DollarSign, Percent, Loader2 } from "lucide-react";
 import Link from 'next/link';
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 export default function NewRegisteredProductPage() {
   const db = useFirestore();
+  const { user } = useUser();
   const router = useRouter();
   const { toast } = useToast();
+
+  // Get user profile for organizationId
+  const userProfileRef = useMemoFirebase(() => user ? doc(db, 'userProfiles', user.uid) : null, [db, user]);
+  const { data: profile } = useDoc(userProfileRef);
+  const orgId = profile?.organizationId;
 
   const [formData, setFormData] = useState({
     status: 'Active',
@@ -38,15 +45,19 @@ export default function NewRegisteredProductPage() {
     factoryId: '',
     catalogProductId: '',
     customSurchargeValue: '0',
-    customSurchargeType: 'fixed' // 'fixed' ou 'percentage'
+    customSurchargeType: 'fixed'
   });
 
   // Fetch factories and products for binding
-  const factoriesQuery = useMemoFirebase(() => query(collection(db, 'factories'), orderBy('name')), [db]);
-  const { data: factories } = useCollection(factoriesQuery);
+  const factoriesQuery = useMemoFirebase(() => {
+    return orgId ? query(collection(db, 'organizations', orgId, 'factories'), orderBy('name')) : null;
+  }, [db, orgId]);
+  const { data: factories, isLoading: isFactoriesLoading } = useCollection(factoriesQuery);
 
-  const catalogQuery = useMemoFirebase(() => query(collection(db, 'catalog_products'), orderBy('name')), [db]);
-  const { data: catalogProducts } = useCollection(catalogQuery);
+  const catalogQuery = useMemoFirebase(() => {
+    return orgId ? query(collection(db, 'organizations', orgId, 'productFactoryPrices'), orderBy('name')) : null;
+  }, [db, orgId]);
+  const { data: catalogProducts, isLoading: isCatalogLoading } = useCollection(catalogQuery);
 
   const filteredCatalog = useMemo(() => {
     if (!formData.factoryId) return [];
@@ -55,18 +66,20 @@ export default function NewRegisteredProductPage() {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    if (!orgId) return;
+    
     if (!formData.catalogProductId) {
       toast({ title: "Vínculo obrigatório", description: "Selecione um produto do catálogo para vincular o preço.", variant: "destructive" });
       return;
     }
 
-    addDocumentNonBlocking(collection(db, 'registered_products'), {
+    addDocumentNonBlocking(collection(db, 'organizations', orgId, 'products'), {
       ...formData,
-      quantityPerBox: Number(formData.quantityPerBox),
-      unitNetWeightKg: Number(formData.unitNetWeightKg),
-      boxWeightKg: Number(formData.boxWeightKg),
+      organizationId: orgId,
+      quantityPerBox: Number(formData.quantityPerBox) || 0,
+      unitNetWeightKg: Number(formData.unitNetWeightKg) || 0,
+      boxWeightKg: Number(formData.boxWeightKg) || 0,
       customSurchargeValue: Number(formData.customSurchargeValue) || 0,
-      // Para retrocompatibilidade caso necessário, mas agora usamos customSurchargeValue + Type
       customSurchargeR$: formData.customSurchargeType === 'fixed' ? Number(formData.customSurchargeValue) : 0,
       createdAt: serverTimestamp(),
       updatedAt: serverTimestamp()
@@ -75,6 +88,14 @@ export default function NewRegisteredProductPage() {
     toast({ title: "Produto cadastrado", description: "O produto paralelo foi registrado com sucesso." });
     router.push('/admin/products');
   };
+
+  if (!profile || isFactoriesLoading || isCatalogLoading) {
+    return (
+      <div className="flex h-screen items-center justify-center">
+        <Loader2 className="animate-spin text-primary" size={48} />
+      </div>
+    );
+  }
 
   return (
     <div className="container mx-auto px-4 py-12 max-w-4xl">
@@ -168,11 +189,6 @@ export default function NewRegisteredProductPage() {
                       className="h-12 text-lg font-bold text-primary pl-10"
                     />
                   </div>
-                  <p className="text-[10px] text-muted-foreground italic">
-                    {formData.customSurchargeType === 'fixed' 
-                      ? "Este valor será somado diretamente ao preço unitário." 
-                      : "Esta porcentagem será aplicada sobre o preço líquido do item."}
-                  </p>
                 </div>
               </CardContent>
             </Card>
@@ -246,13 +262,6 @@ export default function NewRegisteredProductPage() {
                     </SelectContent>
                   </Select>
                 </div>
-
-                {formData.catalogProductId && (
-                  <div className="p-3 bg-muted rounded-md text-xs space-y-1">
-                    <p className="font-bold text-primary flex items-center gap-1"><Search size={12} /> Item vinculado com sucesso</p>
-                    <p>O preço deste cadastro mudará automaticamente quando uma nova planilha da fábrica for enviada.</p>
-                  </div>
-                )}
               </CardContent>
             </Card>
 

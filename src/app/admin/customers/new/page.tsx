@@ -3,8 +3,8 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { useFirestore, addDocumentNonBlocking } from '@/firebase';
-import { collection, serverTimestamp } from 'firebase/firestore';
+import { useFirestore, addDocumentNonBlocking, useUser, useDoc, useMemoFirebase } from '@/firebase';
+import { collection, serverTimestamp, doc } from 'firebase/firestore';
 import { Card, CardHeader, CardTitle, CardContent, CardFooter } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -12,13 +12,19 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
-import { Save, ChevronLeft, UserPlus } from "lucide-react";
+import { Save, ChevronLeft, UserPlus, Loader2 } from "lucide-react";
 import Link from 'next/link';
 
 export default function NewCustomerPage() {
   const db = useFirestore();
+  const { user } = useUser();
   const router = useRouter();
   const { toast } = useToast();
+
+  // Get user profile for organizationId
+  const userProfileRef = useMemoFirebase(() => user ? doc(db, 'userProfiles', user.uid) : null, [db, user]);
+  const { data: profile } = useDoc(userProfileRef);
+  const orgId = profile?.organizationId;
 
   const [formData, setFormData] = useState({
     name: '',
@@ -30,14 +36,16 @@ export default function NewCustomerPage() {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    if (!orgId) return;
     
     if (!formData.name || !formData.cnpj) {
       toast({ title: "Erro no cadastro", description: "Nome e CNPJ são obrigatórios.", variant: "destructive" });
       return;
     }
 
-    addDocumentNonBlocking(collection(db, 'customers'), {
+    addDocumentNonBlocking(collection(db, 'organizations', orgId, 'clients'), {
       ...formData,
+      organizationId: orgId,
       createdAt: serverTimestamp(),
       updatedAt: serverTimestamp()
     });
@@ -45,6 +53,14 @@ export default function NewCustomerPage() {
     toast({ title: "Cliente cadastrado", description: "O cliente foi registrado com sucesso." });
     router.push('/admin/customers');
   };
+
+  if (!profile) {
+    return (
+      <div className="flex h-screen items-center justify-center">
+        <Loader2 className="animate-spin text-primary" size={48} />
+      </div>
+    );
+  }
 
   return (
     <div className="container mx-auto px-4 py-12 max-w-2xl">
@@ -114,7 +130,7 @@ export default function NewCustomerPage() {
             </div>
           </CardContent>
           <CardFooter className="pt-6">
-            <Button type="submit" className="w-full gap-2 h-12 text-lg font-bold">
+            <Button type="submit" className="w-full gap-2 h-12 text-lg font-bold" disabled={!orgId}>
               <Save size={20} /> Salvar Cliente
             </Button>
           </CardFooter>

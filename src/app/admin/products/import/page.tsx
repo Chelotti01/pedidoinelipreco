@@ -3,8 +3,8 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { useFirestore, addDocumentNonBlocking } from '@/firebase';
-import { collection, serverTimestamp } from 'firebase/firestore';
+import { useFirestore, addDocumentNonBlocking, useUser, useDoc, useMemoFirebase } from '@/firebase';
+import { collection, serverTimestamp, doc } from 'firebase/firestore';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -21,6 +21,12 @@ export default function ImportRegisteredProductsPage() {
   const { toast } = useToast();
   const router = useRouter();
   const db = useFirestore();
+  const { user } = useUser();
+
+  // Get user profile for organizationId
+  const userProfileRef = useMemoFirebase(() => user ? doc(db, 'userProfiles', user.uid) : null, [db, user]);
+  const { data: profile } = useDoc(userProfileRef);
+  const orgId = profile?.organizationId;
 
   const handleDownloadTemplate = () => {
     const templateData = [
@@ -55,9 +61,6 @@ export default function ImportRegisteredProductsPage() {
     }
   };
 
-  /**
-   * Busca valor de forma flexível, aceitando qualquer variação de nome de coluna.
-   */
   const getRowValue = (row: any, keys: string[]) => {
     for (const key of keys) {
       if (row[key] !== undefined && row[key] !== null && row[key] !== '') return row[key];
@@ -81,8 +84,8 @@ export default function ImportRegisteredProductsPage() {
   };
 
   const handleUpload = async () => {
-    if (!file) {
-      toast({ title: "Arquivo não selecionado", variant: "destructive" });
+    if (!file || !orgId) {
+      toast({ title: "Arquivo ou Organização não identificados", variant: "destructive" });
       return;
     }
 
@@ -100,17 +103,17 @@ export default function ImportRegisteredProductsPage() {
         return;
       }
 
-      const colRef = collection(db, 'registered_products');
+      const colRef = collection(db, 'organizations', orgId, 'products');
       
       let count = 0;
       for (const row of data as any[]) {
         const code = String(getRowValue(row, ["Código", "Codigo", "Cód", "Ref", "Code"]) || '');
         const description = String(getRowValue(row, ["Descrição", "Descricao", "Produto", "Item", "Description"]) || '');
 
-        // Ignorar linhas que não têm pelo menos código ou descrição
         if (!code && !description) continue;
 
         const productData = {
+          organizationId: orgId,
           status: String(getRowValue(row, ["Status", "Ativo", "Situacao"]) || 'Active'),
           brand: String(getRowValue(row, ["Marca", "Fabricante", "Brand"]) || ''),
           line: String(getRowValue(row, ["Linha", "Colecao", "Line"]) || ''),
@@ -180,7 +183,7 @@ export default function ImportRegisteredProductsPage() {
               <UploadCloud className="text-primary" size={20} /> Upload da Planilha
             </CardTitle>
             <CardDescription>
-              Selecione sua planilha preenchida. O sistema importará os novos cadastros.
+              Selecione sua planilha preenchida. ({orgId})
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-6">
@@ -207,7 +210,7 @@ export default function ImportRegisteredProductsPage() {
               <Button 
                 className="w-full h-12 text-lg font-semibold gap-2" 
                 onClick={handleUpload}
-                disabled={isLoading || !file}
+                disabled={isLoading || !file || !orgId}
               >
                 {isLoading ? <Loader2 className="animate-spin" /> : <UploadCloud size={20} />}
                 Processar Importação
