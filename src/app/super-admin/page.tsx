@@ -1,9 +1,8 @@
-
 "use client"
 
-import { useState } from 'react';
-import { useFirestore, useCollection, useMemoFirebase, addDocumentNonBlocking, deleteDocumentNonBlocking } from '@/firebase';
-import { collection, query, orderBy, serverTimestamp, doc } from 'firebase/firestore';
+import { useState, useMemo } from 'react';
+import { useFirestore, useCollection, useMemoFirebase, addDocumentNonBlocking, deleteDocumentNonBlocking, useUser } from '@/firebase';
+import { collection, query, orderBy, serverTimestamp, doc, where, limit } from 'firebase/firestore';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -13,16 +12,28 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
 import { 
   ShieldCheck, Building2, UserPlus, Trash2, 
-  Plus, Loader2, ChevronLeft, CheckCircle2, Building 
+  Plus, Loader2, ChevronLeft, Building 
 } from "lucide-react";
 import Link from 'next/link';
 import { useToast } from "@/hooks/use-toast";
 
 export default function SuperAdminPage() {
   const db = useFirestore();
+  const { user } = useUser();
   const { toast } = useToast();
 
-  const organizationsQuery = useMemoFirebase(() => query(collection(db, 'organizations'), orderBy('name')), [db]);
+  // Verificar se o usuário atual é super admin para carregar os dados
+  const userProfileQuery = useMemoFirebase(() => 
+    user?.email ? query(collection(db, 'userProfiles'), where('email', '==', user.email), limit(1)) : null
+  , [db, user]);
+  const { data: profiles } = useCollection(userProfileQuery);
+  const profile = profiles?.[0];
+
+  const isSuperAdmin = profile?.role === 'superAdmin' || user?.email === 'vendas.piracanjuba@gmail.com';
+
+  const organizationsQuery = useMemoFirebase(() => 
+    isSuperAdmin ? query(collection(db, 'organizations'), orderBy('name')) : null
+  , [db, isSuperAdmin]);
   const { data: organizations, isLoading: isOrgsLoading } = useCollection(organizationsQuery);
 
   const [newOrg, setNewOrg] = useState({ id: '', name: '' });
@@ -34,7 +45,7 @@ export default function SuperAdminPage() {
     if (!newOrg.id || !newOrg.name) return;
     setIsSubmitting(true);
     try {
-      await addDocumentNonBlocking(collection(db, 'organizations'), {
+      await addDocumentNonBlocking(doc(db, 'organizations', newOrg.id), {
         ...newOrg,
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp()
@@ -51,8 +62,7 @@ export default function SuperAdminPage() {
     if (!newUser.email || !newUser.organizationId) return;
     setIsSubmitting(true);
     try {
-      // Nota: Em um sistema real, aqui você usaria Firebase Admin ou uma Server Action para criar o Auth User.
-      // Neste MVP, estamos apenas criando o perfil que será vinculado no próximo login.
+      // Criar o perfil de usuário. O sistema buscará pelo e-mail no login.
       await addDocumentNonBlocking(collection(db, 'userProfiles'), {
         ...newUser,
         createdAt: serverTimestamp(),
@@ -64,6 +74,19 @@ export default function SuperAdminPage() {
       setIsSubmitting(false);
     }
   };
+
+  if (!isSuperAdmin) {
+    return (
+      <div className="flex h-screen items-center justify-center p-6 text-center">
+        <div className="max-w-md space-y-4">
+          <ShieldCheck size={64} className="mx-auto text-destructive opacity-20" />
+          <h1 className="text-2xl font-black">ACESSO NEGADO</h1>
+          <p className="text-muted-foreground">Você não tem permissões de Super Administrador para acessar esta área.</p>
+          <Link href="/"><Button variant="outline">Voltar ao Início</Button></Link>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="container mx-auto px-4 py-12 max-w-6xl">

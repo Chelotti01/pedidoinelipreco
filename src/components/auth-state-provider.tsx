@@ -1,11 +1,10 @@
-
 'use client';
 
-import { useEffect, useState } from 'react';
-import { useUser, useFirestore, useDoc, useMemoFirebase, useAuth } from '@/firebase';
+import { useEffect } from 'react';
+import { useUser, useFirestore, useCollection, useMemoFirebase, useAuth } from '@/firebase';
 import { useRouter, usePathname } from 'next/navigation';
 import { Loader2, ShieldAlert } from 'lucide-react';
-import { doc } from 'firebase/firestore';
+import { collection, query, where, limit } from 'firebase/firestore';
 import { Button } from '@/components/ui/button';
 
 export function AuthStateProvider({ children }: { children: React.ReactNode }) {
@@ -15,9 +14,13 @@ export function AuthStateProvider({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const pathname = usePathname();
 
-  // Buscar perfil para verificar organizationId
-  const userProfileRef = useMemoFirebase(() => user ? doc(db, 'userProfiles', user.uid) : null, [db, user]);
-  const { data: profile, isLoading: isProfileLoading } = useDoc(userProfileRef);
+  // Buscar perfil pelo e-mail do usuário para suportar pré-cadastro
+  const userProfileQuery = useMemoFirebase(() => 
+    user?.email ? query(collection(db, 'userProfiles'), where('email', '==', user.email), limit(1)) : null
+  , [db, user]);
+  
+  const { data: profiles, isLoading: isProfileLoading } = useCollection(userProfileQuery);
+  const profile = profiles?.[0];
 
   useEffect(() => {
     if (!isUserLoading) {
@@ -38,9 +41,8 @@ export function AuthStateProvider({ children }: { children: React.ReactNode }) {
     );
   }
 
-  // Se logado mas sem perfil/organização, e não for super admin
+  // Se logado mas sem perfil/organização, e não for super admin hardcoded
   if (user && !profile && pathname !== '/login' && pathname !== '/super-admin') {
-    // Verificar se é um e-mail de super admin hardcoded
     const isHardcodedSuper = ['vendas.piracanjuba@gmail.com'].includes(user.email || '');
     if (!isHardcodedSuper) {
       return (
@@ -48,10 +50,10 @@ export function AuthStateProvider({ children }: { children: React.ReactNode }) {
           <ShieldAlert className="h-16 w-16 text-destructive mb-4" />
           <h1 className="text-2xl font-black text-slate-800 mb-2">ACESSO NÃO VINCULADO</h1>
           <p className="text-muted-foreground max-w-md">
-            Seu usuário ainda não foi vinculado a uma organização. 
+            Seu usuário ({user.email}) ainda não foi vinculado a uma organização. 
             Entre em contato com o administrador do sistema.
           </p>
-          <Button variant="link" onClick={() => auth.signOut()} className="mt-4">Sair do Sistema</Button>
+          <Button variant="outline" onClick={() => auth.signOut()} className="mt-4">Sair do Sistema</Button>
         </div>
       );
     }
