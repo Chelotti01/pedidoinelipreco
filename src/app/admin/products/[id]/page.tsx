@@ -1,17 +1,16 @@
-
 "use client"
 
 import { useState, useMemo, useEffect } from 'react';
 import { useRouter, useParams } from 'next/navigation';
-import { useFirestore, useCollection, useDoc, useMemoFirebase, updateDocumentNonBlocking, addDocumentNonBlocking, useUser } from '@/firebase';
-import { collection, query, orderBy, serverTimestamp, doc } from 'firebase/firestore';
+import { useFirestore, useCollection, useDoc, useMemoFirebase, updateDocumentNonBlocking, useUser } from '@/firebase';
+import { collection, query, orderBy, serverTimestamp, doc, where } from 'firebase/firestore';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
-import { Save, ChevronLeft, Search, Tag, Loader2, AlertCircle, Copy, DollarSign, Percent } from "lucide-react";
+import { Save, ChevronLeft, Tag, Loader2, DollarSign, Percent } from "lucide-react";
 import Link from 'next/link';
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
@@ -24,13 +23,18 @@ export default function EditRegisteredProductPage() {
   
   const id = Array.isArray(params.id) ? params.id[0] : params.id;
 
-  // Get user profile for organizationId
-  const userProfileRef = useMemoFirebase(() => user ? doc(db, 'userProfiles', user.uid) : null, [db, user]);
-  const { data: profile } = useDoc(userProfileRef);
+  // Obter organização do perfil
+  const userProfileQuery = useMemoFirebase(() => 
+    user?.email ? query(collection(db, 'userProfiles'), where('email', '==', user.email), limit(1)) : null
+  , [db, user]);
+  const { data: profiles } = useCollection(userProfileQuery);
+  const profile = profiles?.[0];
   const orgId = profile?.organizationId;
 
-  // CAMINHO CORRIGIDO: organizations/{orgId}/products/{id}
-  const productRef = useMemoFirebase(() => (id && orgId) ? doc(db, 'organizations', orgId, 'products', id) : null, [db, id, orgId]);
+  // Documento dentro da sub-coleção products da organização
+  const productRef = useMemoFirebase(() => 
+    (id && orgId) ? doc(db, 'organizations', orgId, 'products', id) : null
+  , [db, id, orgId]);
   const { data: product, isLoading: isProductLoading } = useDoc(productRef);
 
   const [formData, setFormData] = useState({
@@ -77,17 +81,21 @@ export default function EditRegisteredProductPage() {
         st: product.st || '',
         factoryId: product.factoryId || '',
         catalogProductId: product.catalogProductId || '',
-        customSurchargeValue: product.customSurchargeValue !== undefined ? String(product.customSurchargeValue) : (product.customSurchargeR$ !== undefined ? String(product.customSurchargeR$) : '0'),
+        customSurchargeValue: product.customSurchargeValue !== undefined ? String(product.customSurchargeValue) : '0',
         customSurchargeType: product.customSurchargeType || 'fixed'
       });
       setHasPopulated(true);
     }
   }, [product, hasPopulated]);
 
-  const factoriesQuery = useMemoFirebase(() => orgId ? query(collection(db, 'organizations', orgId, 'factories'), orderBy('name')) : null, [db, orgId]);
+  const factoriesQuery = useMemoFirebase(() => 
+    orgId ? query(collection(db, 'organizations', orgId, 'factories'), orderBy('name')) : null
+  , [db, orgId]);
   const { data: factories } = useCollection(factoriesQuery);
 
-  const catalogQuery = useMemoFirebase(() => orgId ? query(collection(db, 'organizations', orgId, 'productFactoryPrices'), orderBy('name')) : null, [db, orgId]);
+  const catalogQuery = useMemoFirebase(() => 
+    orgId ? query(collection(db, 'organizations', orgId, 'productFactoryPrices'), orderBy('name')) : null
+  , [db, orgId]);
   const { data: catalogProducts } = useCollection(catalogQuery);
 
   const filteredCatalog = useMemo(() => {
@@ -97,16 +105,8 @@ export default function EditRegisteredProductPage() {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!productRef || !orgId || !hasPopulated) {
-      toast({ title: "Erro ao salvar", description: "Os dados ainda não foram carregados.", variant: "destructive" });
-      return;
-    }
+    if (!productRef || !orgId) return;
     
-    if (!formData.code || !formData.description) {
-      toast({ title: "Erro ao salvar", description: "Código e Descrição são obrigatórios.", variant: "destructive" });
-      return;
-    }
-
     updateDocumentNonBlocking(productRef, {
       ...formData,
       organizationId: orgId,
@@ -114,32 +114,24 @@ export default function EditRegisteredProductPage() {
       unitNetWeightKg: Number(formData.unitNetWeightKg) || 0,
       boxWeightKg: Number(formData.boxWeightKg) || 0,
       customSurchargeValue: Number(formData.customSurchargeValue) || 0,
-      customSurchargeR$: formData.customSurchargeType === 'fixed' ? Number(formData.customSurchargeValue) : 0,
       updatedAt: serverTimestamp()
     });
 
-    toast({ title: "Produto atualizado", description: "As alterações foram salvas com sucesso." });
+    toast({ title: "Produto atualizado" });
     router.push('/admin/products');
   };
 
-  if (isProductLoading || !profile || (id && !hasPopulated)) {
-    return (
-      <div className="flex h-[80vh] items-center justify-center flex-col gap-4">
-        <Loader2 className="animate-spin text-primary" size={48} />
-        <p className="text-muted-foreground font-medium animate-pulse">Buscando ficha técnica...</p>
-      </div>
-    );
+  if (isProductLoading || !orgId) {
+    return <div className="flex h-screen items-center justify-center"><Loader2 className="animate-spin text-primary" size={48} /></div>;
   }
 
   return (
     <div className="container mx-auto px-4 py-12 max-w-4xl">
-      <div className="mb-8 flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <Link href="/admin/products" className="text-muted-foreground hover:text-primary">
-            <ChevronLeft size={28} />
-          </Link>
-          <h1 className="text-3xl font-bold tracking-tight">Editar Produto Registrado</h1>
-        </div>
+      <div className="mb-8 flex items-center gap-3">
+        <Link href="/admin/products" className="text-muted-foreground hover:text-primary">
+          <ChevronLeft size={28} />
+        </Link>
+        <h1 className="text-3xl font-bold tracking-tight">Editar Produto</h1>
       </div>
 
       <form onSubmit={handleSubmit}>
@@ -162,141 +154,85 @@ export default function EditRegisteredProductPage() {
                     </Select>
                   </div>
                   <div className="space-y-2">
-                    <Label>Código Interno</Label>
+                    <Label>Código</Label>
                     <Input required value={formData.code} onChange={(e) => setFormData({...formData, code: e.target.value})} />
                   </div>
                 </div>
                 <div className="space-y-2">
-                  <Label>Descrição Completa</Label>
+                  <Label>Descrição</Label>
                   <Input required value={formData.description} onChange={(e) => setFormData({...formData, description: e.target.value})} />
                 </div>
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <Label>Marca</Label>
-                    <Input required value={formData.brand} onChange={(e) => setFormData({...formData, brand: e.target.value})} />
+                    <Input value={formData.brand} onChange={(e) => setFormData({...formData, brand: e.target.value})} />
                   </div>
                   <div className="space-y-2">
                     <Label>Linha</Label>
-                    <Input required value={formData.line} onChange={(e) => setFormData({...formData, line: e.target.value})} />
+                    <Input value={formData.line} onChange={(e) => setFormData({...formData, line: e.target.value})} />
                   </div>
                 </div>
               </CardContent>
             </Card>
 
-            <Card className="shadow-lg border-primary/20 bg-primary/5">
+            <Card className="shadow-lg bg-primary/5 border-primary/20">
               <CardHeader>
-                <CardTitle className="text-lg flex items-center gap-2">
+                <CardTitle className="text-base flex items-center gap-2">
                   <DollarSign size={18} className="text-primary" /> Aditivo de Margem (Oculto)
                 </CardTitle>
               </CardHeader>
               <CardContent className="space-y-4">
-                <div className="space-y-3">
-                  <Label className="text-xs uppercase font-bold text-muted-foreground">Tipo de Aditivo</Label>
-                  <Tabs 
-                    value={formData.customSurchargeType} 
-                    onValueChange={(val) => setFormData({...formData, customSurchargeType: val})}
-                    className="w-full"
-                  >
-                    <TabsList className="grid w-full grid-cols-2 h-11">
-                      <TabsTrigger value="fixed" className="gap-2">
-                        <DollarSign size={14} /> Fixo (R$)
-                      </TabsTrigger>
-                      <TabsTrigger value="percentage" className="gap-2">
-                        <Percent size={14} /> Percentual (%)
-                      </TabsTrigger>
-                    </TabsList>
-                  </Tabs>
-                </div>
-                
-                <div className="space-y-2">
-                  <Label>{formData.customSurchargeType === 'fixed' ? 'Valor Fixo (R$)' : 'Porcentagem (%)'}</Label>
-                  <div className="relative">
-                    <div className="absolute left-3 top-1/2 -translate-y-1/2 text-primary font-bold">
-                      {formData.customSurchargeType === 'fixed' ? 'R$' : '%'}
-                    </div>
-                    <Input 
-                      type="number" 
-                      step="0.01" 
-                      value={formData.customSurchargeValue} 
-                      onChange={(e) => setFormData({...formData, customSurchargeValue: e.target.value})} 
-                      className="h-12 text-lg font-bold text-primary pl-10"
-                    />
-                  </div>
+                <Tabs value={formData.customSurchargeType} onValueChange={(val) => setFormData({...formData, customSurchargeType: val})}>
+                  <TabsList className="grid w-full grid-cols-2 h-10">
+                    <TabsTrigger value="fixed" className="text-xs">Fixo (R$)</TabsTrigger>
+                    <TabsTrigger value="percentage" className="text-xs">Percentual (%)</TabsTrigger>
+                  </TabsList>
+                </Tabs>
+                <div className="relative">
+                  <span className="absolute left-3 top-1/2 -translate-y-1/2 font-bold text-primary">
+                    {formData.customSurchargeType === 'fixed' ? 'R$' : '%'}
+                  </span>
+                  <Input 
+                    type="number" 
+                    step="0.01" 
+                    value={formData.customSurchargeValue} 
+                    onChange={(e) => setFormData({...formData, customSurchargeValue: e.target.value})} 
+                    className="pl-10 h-12 text-lg font-bold"
+                  />
                 </div>
               </CardContent>
             </Card>
           </div>
 
           <div className="space-y-6">
-            <Card className="shadow-lg border-primary/20">
-              <CardHeader className="bg-primary/10">
+            <Card className="shadow-lg border-accent/20">
+              <CardHeader className="bg-accent/5">
                 <CardTitle className="text-lg flex items-center gap-2">
-                  <Tag size={18} className="text-primary" /> Vínculo com Catálogo
+                  <Tag size={18} className="text-accent" /> Amarração de Preço
                 </CardTitle>
               </CardHeader>
               <CardContent className="pt-6 space-y-4">
                 <div className="space-y-2">
-                  <Label>Selecionar Fábrica</Label>
+                  <Label>Fábrica de Origem</Label>
                   <Select value={formData.factoryId} onValueChange={(val) => setFormData({...formData, factoryId: val, catalogProductId: ''})}>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Escolha a fábrica" />
-                    </SelectTrigger>
+                    <SelectTrigger><SelectValue placeholder="Selecione..." /></SelectTrigger>
                     <SelectContent>
-                      {factories?.map(f => (
-                        <SelectItem key={f.id} value={f.id}>{f.name}</SelectItem>
-                      ))}
+                      {factories?.map(f => (<SelectItem key={f.id} value={f.id}>{f.name}</SelectItem>))}
                     </SelectContent>
                   </Select>
                 </div>
-
                 <div className="space-y-2">
-                  <Label>Produto do Catálogo (Preço)</Label>
+                  <Label>Item do Catálogo (Preço Bruto)</Label>
                   <Select value={formData.catalogProductId} onValueChange={(val) => setFormData({...formData, catalogProductId: val})} disabled={!formData.factoryId}>
-                    <SelectTrigger>
-                      <SelectValue placeholder={formData.factoryId ? "Selecione o produto" : "Selecione uma fábrica"} />
-                    </SelectTrigger>
+                    <SelectTrigger><SelectValue placeholder="Selecione o item..." /></SelectTrigger>
                     <SelectContent>
-                      {filteredCatalog.map(p => (
-                        <SelectItem key={p.id} value={p.id}>{p.name} ({p.unit})</SelectItem>
-                      ))}
+                      {filteredCatalog.map(p => (<SelectItem key={p.id} value={p.id}>{p.name} ({p.unit})</SelectItem>))}
                     </SelectContent>
                   </Select>
-                </div>
-              </CardContent>
-            </Card>
-
-            <Card className="shadow-lg">
-              <CardHeader className="bg-muted/30">
-                <CardTitle className="text-lg">Dados Logísticos e Fiscais</CardTitle>
-              </CardHeader>
-              <CardContent className="pt-6 space-y-4">
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label>EAN (GTIN)</Label>
-                    <Input value={formData.ean} onChange={(e) => setFormData({...formData, ean: e.target.value})} />
-                  </div>
-                  <div className="space-y-2">
-                    <Label>DUN-14</Label>
-                    <Input value={formData.dun14} onChange={(e) => setFormData({...formData, dun14: e.target.value})} />
-                  </div>
-                </div>
-                <div className="grid grid-cols-3 gap-4">
-                  <div className="space-y-2">
-                    <Label>Unidade</Label>
-                    <Input required value={formData.unit} onChange={(e) => setFormData({...formData, unit: e.target.value})} />
-                  </div>
-                  <div className="space-y-2">
-                    <Label>Qtd/Cx</Label>
-                    <Input type="number" required value={formData.quantityPerBox} onChange={(e) => setFormData({...formData, quantityPerBox: e.target.value})} />
-                  </div>
-                  <div className="space-y-2">
-                    <Label>ST (%)</Label>
-                    <Input placeholder="ex: 0%" value={formData.st} onChange={(e) => setFormData({...formData, st: e.target.value})} />
-                  </div>
                 </div>
               </CardContent>
               <CardFooter className="pt-6">
-                <Button type="submit" className="w-full gap-2 h-12 text-lg font-bold">
+                <Button type="submit" className="w-full h-12 font-bold text-lg gap-2">
                   <Save size={20} /> Salvar Alterações
                 </Button>
               </CardFooter>
