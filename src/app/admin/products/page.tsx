@@ -33,8 +33,10 @@ export default function RegisteredProductsPage() {
   const { user } = useUser();
   const { toast } = useToast();
   
-  // Get user profile for organizationId
-  const userProfileRef = useMemoFirebase(() => user ? doc(db, 'userProfiles', user.uid) : null, [db, user]);
+  // Get user profile for organizationId via Email
+  const userProfileRef = useMemoFirebase(() => 
+    user?.email ? doc(db, 'userProfiles', user.email.toLowerCase().trim()) : null
+  , [db, user]);
   const { data: profile } = useDoc(userProfileRef);
   const orgId = profile?.organizationId;
 
@@ -75,7 +77,7 @@ export default function RegisteredProductsPage() {
   }, [searchTerm, statusFilter, brandFilter, lineFilter, linkFilter, factoryFilter, isLoadedFromStorage]);
 
   const productsQuery = useMemoFirebase(() => {
-    return orgId ? query(collection(db, 'organizations', orgId, 'products'), orderBy('createdAt', 'desc')) : null;
+    return orgId ? query(collection(db, 'organizations', orgId, 'products'), orderBy('description')) : null;
   }, [db, orgId]);
 
   const { data: products, isLoading: isProductsLoading } = useCollection(productsQuery);
@@ -199,7 +201,7 @@ export default function RegisteredProductsPage() {
           </Link>
           <div>
             <h1 className="text-3xl font-bold tracking-tight text-primary">Produtos Registrados</h1>
-            <p className="text-muted-foreground">Gerencie o cadastro paralelo ({orgId}).</p>
+            <p className="text-muted-foreground">Gerencie o cadastro paralelo ({orgId || 'Carregando...'}).</p>
           </div>
         </div>
         <div className="flex gap-2">

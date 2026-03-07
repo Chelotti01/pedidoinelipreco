@@ -21,8 +21,10 @@ export default function NewCustomerPage() {
   const router = useRouter();
   const { toast } = useToast();
 
-  // Get user profile for organizationId
-  const userProfileRef = useMemoFirebase(() => user ? doc(db, 'userProfiles', user.uid) : null, [db, user]);
+  // Get user profile for organizationId via Email
+  const userProfileRef = useMemoFirebase(() => 
+    user?.email ? doc(db, 'userProfiles', user.email.toLowerCase().trim()) : null
+  , [db, user]);
   const { data: profile } = useDoc(userProfileRef);
   const orgId = profile?.organizationId;
 

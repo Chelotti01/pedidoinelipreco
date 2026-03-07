@@ -31,8 +31,10 @@ export default function CustomersPage() {
   const { toast } = useToast();
   const [searchTerm, setSearchTerm] = useState("");
 
-  // Get user profile for organizationId
-  const userProfileRef = useMemoFirebase(() => user ? doc(db, 'userProfiles', user.uid) : null, [db, user]);
+  // Get user profile for organizationId via Email
+  const userProfileRef = useMemoFirebase(() => 
+    user?.email ? doc(db, 'userProfiles', user.email.toLowerCase().trim()) : null
+  , [db, user]);
   const { data: profile, isLoading: isProfileLoading } = useDoc(userProfileRef);
   const orgId = profile?.organizationId;
 
@@ -72,7 +74,7 @@ export default function CustomersPage() {
           </Link>
           <div>
             <h1 className="text-3xl font-bold tracking-tight">Clientes</h1>
-            <p className="text-muted-foreground">Gerencie sua base de clientes ({orgId}).</p>
+            <p className="text-muted-foreground">Gerencie sua base de clientes ({orgId || 'Carregando...'}).</p>
           </div>
         </div>
         <div className="flex gap-2">
