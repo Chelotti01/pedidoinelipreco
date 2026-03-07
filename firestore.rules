@@ -1,67 +1,170 @@
-
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // --- Funções Auxiliares ---
+    /**
+     * MULTI-TENANT SAAS SECURITY MODEL
+     * 
+     * Core Philosophy:
+     * This ruleset implements a robust multi-tenant architecture where data isolation is enforced 
+     * primarily through an `organizationId`. Every tenant-specific document must contain this ID.
+     * 
+     * Data Structure:
+     * - /superAdmins: Global platform administrators.
+     * - /userProfiles: User metadata, roles (admin, seller), and organization linkage.
+     * - /organizations/{orgId}: Root of tenant data including branding and settings.
+     * - /organizations/{orgId}/[subcollections]: All business entities (products, orders, etc.) 
+     *   are nested under the organization and carry the organizationId for query safety.
+     * 
+     * Key Security Decisions:
+     * 1. Authorization Independence: Rules rely on data denormalized onto the documents (like organizationId) 
+     *    to avoid recursive or expensive get() calls.
+     * 2. Role-Based Access: Logic distinguishes between 'superAdmin' (platform-wide), 
+     *    'admin' (tenant-wide), and 'seller' (limited tenant access).
+     * 3. Prototyping Flexibility: Schema validation is skipped for general content, focusing 
+     *    strictly on relational integrity (matching IDs and ownership).
+     */
+
+    // --- HELPER FUNCTIONS ---
 
     function isSignedIn() {
       return request.auth != null;
     }
 
-    // Rodrigo (Admin) e Demo - Acesso Total
-    function isAdmin() {
-      return isSignedIn() && (
-        request.auth.token.email == 'vendas.piracanjuba@gmail.com' || 
-        request.auth.token.email == 'rodrigo@inteli-preco.com' ||
-        request.auth.token.email == 'demo@inteli-preco.com'
-      );
+    function isSuperAdmin() {
+      return isSignedIn() && exists(/databases/$(database)/documents/superAdmins/$(request.auth.uid));
     }
 
-    // --- Regras por Coleção ---
+    function getUserData() {
+      return get(/databases/$(database)/documents/userProfiles/$(request.auth.uid)).data;
+    }
 
-    match /userProfiles/{userId} {
+    // Checks if the user belongs to the specified organization or is a global super admin
+    function hasOrgAccess(orgId) {
+      return isSignedIn() && (isSuperAdmin() || getUserData().organizationId == orgId);
+    }
+
+    // Checks if the user is an admin of the specified organization
+    function isOrgAdmin(orgId) {
+      return isSignedIn() && (isSuperAdmin() || (getUserData().organizationId == orgId && getUserData().role == 'admin'));
+    }
+
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    // Helper for destructive operations to ensure document exists and user has permission
+    function canUpdateEntity(orgId) {
+      return resource != null && isOrgAdmin(orgId);
+    }
+
+    // --- COLLECTION RULES ---
+
+    /**
+     * @description Explicit identifier for platform-level Super Admins.
+     * @path /superAdmins/{userId}
+     * @allow (get) Any signed-in user to check super admin status.
+     * @deny (write) Anyone except existing Super Admins.
+     * @principle Existence-based global authorization.
+     */
+    match /superAdmins/{userId} {
       allow get: if isSignedIn();
-      allow create, update: if isAdmin();
+      allow list: if isSuperAdmin();
+      allow create, update, delete: if isSuperAdmin();
     }
 
-    match /factories/{factoryId} {
-      allow get, list: if isSignedIn();
-      allow write: if isAdmin();
+    /**
+     * @description User profile management, defining roles and organization membership.
+     * @path /userProfiles/{userId}
+     * @allow (create) User registering themselves or an Admin creating a profile for their org.
+     * @deny (update) Changing organizationId to prevent tenant-hopping.
+     * @principle User-ownership and role-based management.
+     */
+    match /userProfiles/{userId} {
+      allow get: if isOwner(userId) || isSuperAdmin();
+      allow list: if isSuperAdmin(); 
+      allow create: if isOwner(userId) || (isSignedIn() && isOrgAdmin(request.resource.data.organizationId));
+      allow update: if (isOwner(userId) || isOrgAdmin(resource.data.organizationId)) && (request.resource.data.organizationId == resource.data.organizationId);
+      allow delete: if isSuperAdmin();
     }
 
-    match /catalog_products/{productId} {
-      allow get, list: if isSignedIn();
-      allow write: if isAdmin();
+    /**
+     * @description Root organization settings, branding, and configuration.
+     * @path /organizations/{organizationId}
+     * @allow (get) Members of the organization to see branding/settings.
+     * @deny (delete) Deletion is restricted to Super Admins.
+     * @principle Multi-tenant root isolation.
+     */
+    match /organizations/{organizationId} {
+      allow get: if hasOrgAccess(organizationId);
+      allow list: if isSuperAdmin();
+      allow create: if isSuperAdmin();
+      allow update: if isOrgAdmin(organizationId);
+      allow delete: if isSuperAdmin();
     }
 
-    match /registered_products/{productId} {
-      allow get, list: if isSignedIn();
-      allow write: if isAdmin();
+    /**
+     * @description Business entities (Factories, Products, Prices, Discounts, Clients).
+     * @path /organizations/{organizationId}/[collection]/{id}
+     * @allow (read) All members of the organization.
+     * @allow (write) Organization Admins for configuration; Sellers can manage Clients.
+     * @principle Relational integrity enforced via organizationId matching.
+     */
+    match /organizations/{organizationId}/factories/{factoryId} {
+      allow get, list: if hasOrgAccess(organizationId);
+      allow create: if isOrgAdmin(organizationId) && request.resource.data.organizationId == organizationId;
+      allow update, delete: if canUpdateEntity(organizationId);
     }
 
-    match /customers/{customerId} {
-      allow get, list: if isSignedIn();
-      allow write: if isAdmin();
+    match /organizations/{organizationId}/products/{productId} {
+      allow get, list: if hasOrgAccess(organizationId);
+      allow create: if isOrgAdmin(organizationId) && request.resource.data.organizationId == organizationId;
+      allow update, delete: if canUpdateEntity(organizationId);
     }
 
-    match /discounts/{discountId} {
-      allow get, list: if isSignedIn();
-      allow write: if isAdmin();
+    match /organizations/{organizationId}/productFactoryPrices/{priceId} {
+      allow get, list: if hasOrgAccess(organizationId);
+      allow create: if isOrgAdmin(organizationId) && request.resource.data.organizationId == organizationId;
+      allow update, delete: if canUpdateEntity(organizationId);
     }
 
-    match /orders/{orderId} {
-      // Adriana, Rodrigo e Demo podem criar pedidos
-      allow create: if isSignedIn();
-      
-      // Rodrigo e Demo veem tudo. Adriana vê apenas os dela.
-      allow get, list: if isAdmin() || (isSignedIn() && resource.data.userId == request.auth.uid);
-      
-      // Apenas Rodrigo e Demo podem editar ou excluir
-      allow update, delete: if isAdmin();
+    match /organizations/{organizationId}/discounts/{discountId} {
+      allow get, list: if hasOrgAccess(organizationId);
+      allow create: if isOrgAdmin(organizationId) && request.resource.data.organizationId == organizationId;
+      allow update, delete: if canUpdateEntity(organizationId);
+    }
 
+    match /organizations/{organizationId}/clients/{clientId} {
+      allow get, list: if hasOrgAccess(organizationId);
+      allow create: if hasOrgAccess(organizationId) && request.resource.data.organizationId == organizationId;
+      allow update: if resource != null && (isOrgAdmin(organizationId) || (hasOrgAccess(organizationId) && resource.data.organizationId == organizationId));
+      allow delete: if canUpdateEntity(organizationId);
+    }
+
+    /**
+     * @description Customer orders. Sellers manage their own, Admins manage all.
+     * @path /organizations/{organizationId}/orders/{orderId}
+     * @allow (create) Signed-in members setting correct organizationId and sellerUserId.
+     * @deny (update) Attempting to move an order to a different organization.
+     * @principle Seller ownership within tenant isolation.
+     */
+    match /organizations/{organizationId}/orders/{orderId} {
+      allow get, list: if hasOrgAccess(organizationId);
+      allow create: if hasOrgAccess(organizationId) && request.resource.data.organizationId == organizationId && request.resource.data.sellerUserId == request.auth.uid;
+      allow update: if resource != null && (isOrgAdmin(organizationId) || (resource.data.sellerUserId == request.auth.uid)) && (request.resource.data.organizationId == resource.data.organizationId);
+      allow delete: if canUpdateEntity(organizationId);
+
+      /**
+       * @description Line items within an order.
+       * @path /organizations/{organizationId}/orders/{orderId}/orderItems/{itemId}
+       * @allow (write) Same permissions as the parent Order.
+       * @principle Denormalized organizationId for direct item queryability.
+       */
       match /orderItems/{orderItemId} {
-        allow read, write: if isAdmin() || (isSignedIn() && get(/databases/$(database)/documents/orders/$(orderId)).data.userId == request.auth.uid);
+        allow get, list: if hasOrgAccess(organizationId);
+        allow create: if hasOrgAccess(organizationId) && request.resource.data.organizationId == organizationId;
+        allow update: if resource != null && (isOrgAdmin(organizationId) || (get(/databases/$(database)/documents/organizations/$(organizationId)/orders/$(orderId)).data.sellerUserId == request.auth.uid));
+        allow delete: if canUpdateEntity(organizationId);
       }
     }
   }
