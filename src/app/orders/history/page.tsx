@@ -1,6 +1,7 @@
+
 "use client"
 
-import { useFirestore, useCollection, useMemoFirebase, deleteDocumentNonBlocking, useUser } from '@/firebase';
+import { useFirestore, useCollection, useMemoFirebase, deleteDocumentNonBlocking, useUser, useDoc } from '@/firebase';
 import { collection, query, orderBy, doc, where, limit } from 'firebase/firestore';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -16,12 +17,11 @@ export default function OrderHistoryPage() {
   const { user } = useUser();
   const { toast } = useToast();
 
-  // Obter organização do perfil
-  const userProfileQuery = useMemoFirebase(() => 
-    user?.email ? query(collection(db, 'userProfiles'), where('email', '==', user.email), limit(1)) : null
+  // OBRIGATÓRIO: Buscar perfil pelo e-mail para SaaS
+  const userProfileRef = useMemoFirebase(() => 
+    user?.email ? doc(db, 'userProfiles', user.email.toLowerCase().trim()) : null
   , [db, user]);
-  const { data: profiles } = useCollection(userProfileQuery);
-  const profile = profiles?.[0];
+  const { data: profile, isLoading: isProfileLoading } = useDoc(userProfileRef);
   const orgId = profile?.organizationId;
 
   const ordersQuery = useMemoFirebase(() => 
@@ -47,8 +47,18 @@ export default function OrderHistoryPage() {
     }
   };
 
-  if (!orgId || isOrdersLoading) {
+  if (isProfileLoading || isOrdersLoading) {
     return <div className="flex h-screen items-center justify-center"><Loader2 className="animate-spin text-primary" size={48} /></div>;
+  }
+
+  if (!orgId) {
+    return (
+      <div className="container mx-auto px-4 py-20 text-center">
+        <h2 className="text-2xl font-bold">Erro de Vínculo</h2>
+        <p className="text-muted-foreground mt-2">Você não possui uma organização associada.</p>
+        <Link href="/"><Button variant="outline" className="mt-6">Voltar</Button></Link>
+      </div>
+    );
   }
 
   return (

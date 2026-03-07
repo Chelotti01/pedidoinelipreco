@@ -1,3 +1,4 @@
+
 "use client"
 
 import { useState, useMemo, useEffect } from 'react';
@@ -30,12 +31,11 @@ export default function EditOrderPage() {
   const params = useParams();
   const id = Array.isArray(params.id) ? params.id[0] : params.id;
 
-  // Obter organização do perfil
-  const userProfileQuery = useMemoFirebase(() => 
-    user?.email ? query(collection(db, 'userProfiles'), where('email', '==', user.email), limit(1)) : null
+  // OBRIGATÓRIO: Buscar perfil pelo e-mail para SaaS
+  const userProfileRef = useMemoFirebase(() => 
+    user?.email ? doc(db, 'userProfiles', user.email.toLowerCase().trim()) : null
   , [db, user]);
-  const { data: profiles } = useCollection(userProfileQuery);
-  const profile = profiles?.[0];
+  const { data: profile, isLoading: isProfileLoading } = useDoc(userProfileRef);
   const orgId = profile?.organizationId;
 
   // Carregar o pedido existente
@@ -174,7 +174,7 @@ export default function EditOrderPage() {
     }
   };
 
-  if (isOrderLoading || !orgId) return <div className="flex h-screen items-center justify-center"><Loader2 className="animate-spin text-primary" size={48} /></div>;
+  if (isProfileLoading || isOrderLoading || !orgId) return <div className="flex h-screen items-center justify-center"><Loader2 className="animate-spin text-primary" size={48} /></div>;
 
   return (
     <div className="container mx-auto px-4 py-8 max-w-7xl">
@@ -188,7 +188,6 @@ export default function EditOrderPage() {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Lógica de interface similar à NewOrderPage, adaptada para edição */}
         <div className="lg:col-span-1 space-y-6">
           <Card className="shadow-md">
             <CardHeader className="bg-primary/5"><CardTitle className="text-sm uppercase font-bold">Cliente</CardTitle></CardHeader>
@@ -201,7 +200,6 @@ export default function EditOrderPage() {
               </Select>
             </CardContent>
           </Card>
-          {/* ... Restante do formulário de adição de itens ... */}
         </div>
 
         <div className="lg:col-span-2">
