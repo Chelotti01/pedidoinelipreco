@@ -49,8 +49,10 @@ export default function GridOrderPage() {
   const { toast } = useToast();
   const router = useRouter();
 
-  // Get user profile for organizationId
-  const userProfileRef = useMemoFirebase(() => user ? doc(db, 'userProfiles', user.uid) : null, [db, user]);
+  // Get user profile for organizationId via Email (SaaS Pattern)
+  const userProfileRef = useMemoFirebase(() => 
+    user?.email ? doc(db, 'userProfiles', user.email.toLowerCase().trim()) : null
+  , [db, user]);
   const { data: profile, isLoading: isProfileLoading } = useDoc(userProfileRef);
   const orgId = profile?.organizationId;
 
@@ -192,7 +194,7 @@ export default function GridOrderPage() {
           </Link>
           <div>
             <h1 className="text-2xl font-black text-primary flex items-center gap-2">
-              <LayoutGrid size={24} /> Pedido em Grade ({profile?.organizationId})
+              <LayoutGrid size={24} /> Pedido em Grade ({profile?.organizationId || '...'})
             </h1>
           </div>
         </div>
@@ -225,7 +227,7 @@ export default function GridOrderPage() {
             <Select value={lineFilter} onValueChange={(v) => { setLineFilter(v); setGridQuantities({}); }} disabled={selectedFactoryId === "none"}>
               <SelectTrigger className="bg-white"><SelectValue placeholder="Linha" /></SelectTrigger>
               <SelectContent>
-                <SelectItem value="none">Selecione...</SelectItem>
+                <SelectItem value="none">Escolha a Linha...</SelectItem>
                 {availableLines.map(l => <SelectItem key={l} value={l}>{l}</SelectItem>)}
               </SelectContent>
             </Select>

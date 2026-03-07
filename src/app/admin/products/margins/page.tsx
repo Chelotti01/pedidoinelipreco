@@ -19,8 +19,10 @@ export default function MarginsManagementPage() {
   const { user } = useUser();
   const { toast } = useToast();
   
-  // Get user profile for organizationId
-  const userProfileRef = useMemoFirebase(() => user ? doc(db, 'userProfiles', user.uid) : null, [db, user]);
+  // Get user profile for organizationId via Email (SaaS Pattern)
+  const userProfileRef = useMemoFirebase(() => 
+    user?.email ? doc(db, 'userProfiles', user.email.toLowerCase().trim()) : null
+  , [db, user]);
   const { data: profile, isLoading: isProfileLoading } = useDoc(userProfileRef);
   const orgId = profile?.organizationId;
 
@@ -79,7 +81,7 @@ export default function MarginsManagementPage() {
           </Link>
           <div>
             <h1 className="text-3xl font-black tracking-tight text-primary uppercase">Gestão de Margens</h1>
-            <p className="text-muted-foreground">Ajuste o aditivo oculto dos produtos ({orgId}).</p>
+            <p className="text-muted-foreground">Ajuste o aditivo oculto dos produtos ({orgId || 'Carregando...'}).</p>
           </div>
         </div>
       </div>
@@ -166,7 +168,7 @@ export default function MarginsManagementPage() {
 function MarginSurchargeRow({ product, db, orgId }: { product: any, db: any, orgId: string }) {
   const { toast } = useToast();
   const [isSaving, setIsSaving] = useState(false);
-  const [surchargeValue, setSurchargeValue] = useState(product.customSurchargeValue !== undefined ? String(product.customSurchargeValue) : (product.customSurchargeR$ !== undefined ? String(product.customSurchargeR$) : '0'));
+  const [surchargeValue, setSurchargeValue] = useState(product.customSurchargeValue !== undefined ? String(product.customSurchargeValue) : '0');
   const [surchargeType, setSurchargeType] = useState(product.customSurchargeType || 'fixed');
 
   const handleSave = async () => {
@@ -175,7 +177,6 @@ function MarginSurchargeRow({ product, db, orgId }: { product: any, db: any, org
       updateDocumentNonBlocking(doc(db, 'organizations', orgId, 'products', product.id), {
         customSurchargeValue: Number(surchargeValue) || 0,
         customSurchargeType: surchargeType,
-        customSurchargeR$: surchargeType === 'fixed' ? Number(surchargeValue) : 0,
         updatedAt: serverTimestamp()
       });
       toast({ title: "Margem atualizada", description: `${product.code} salvo com sucesso.` });

@@ -23,8 +23,10 @@ export default function ImportRegisteredProductsPage() {
   const db = useFirestore();
   const { user } = useUser();
 
-  // Get user profile for organizationId
-  const userProfileRef = useMemoFirebase(() => user ? doc(db, 'userProfiles', user.uid) : null, [db, user]);
+  // Get user profile for organizationId via Email (SaaS Pattern)
+  const userProfileRef = useMemoFirebase(() => 
+    user?.email ? doc(db, 'userProfiles', user.email.toLowerCase().trim()) : null
+  , [db, user]);
   const { data: profile } = useDoc(userProfileRef);
   const orgId = profile?.organizationId;
 
@@ -183,7 +185,7 @@ export default function ImportRegisteredProductsPage() {
               <UploadCloud className="text-primary" size={20} /> Upload da Planilha
             </CardTitle>
             <CardDescription>
-              Selecione sua planilha preenchida. ({orgId})
+              Selecione sua planilha preenchida. ({orgId || 'Carregando...'})
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-6">
