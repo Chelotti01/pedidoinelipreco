@@ -1,7 +1,7 @@
 
 "use client"
 
-import { useState, useMemo } from 'react';
+import { useState } from 'react';
 import { useFirestore, useCollection, useMemoFirebase, addDocumentNonBlocking, setDocumentNonBlocking, deleteDocumentNonBlocking, useUser } from '@/firebase';
 import { collection, query, orderBy, serverTimestamp, doc, where, limit } from 'firebase/firestore';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
@@ -13,7 +13,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
 import { 
   ShieldCheck, Building2, UserPlus, Trash2, 
-  Plus, Loader2, ChevronLeft, Building 
+  Plus, Loader2, ChevronLeft, Info
 } from "lucide-react";
 import Link from 'next/link';
 import { useToast } from "@/hooks/use-toast";
@@ -36,6 +36,11 @@ export default function SuperAdminPage() {
     isSuperAdmin ? query(collection(db, 'organizations'), orderBy('name')) : null
   , [db, isSuperAdmin]);
   const { data: organizations, isLoading: isOrgsLoading } = useCollection(organizationsQuery);
+
+  const userProfilesQuery = useMemoFirebase(() => 
+    isSuperAdmin ? query(collection(db, 'userProfiles'), orderBy('createdAt', 'desc')) : null
+  , [db, isSuperAdmin]);
+  const { data: allUsers, isLoading: isUsersLoading } = useCollection(userProfilesQuery);
 
   const [newOrg, setNewOrg] = useState({ id: '', name: '' });
   const [newUser, setNewUser] = useState({ email: '', name: '', organizationId: '', role: 'admin' });
@@ -71,13 +76,15 @@ export default function SuperAdminPage() {
     setIsSubmitting(true);
     try {
       // Criar o perfil de usuário na coleção raiz userProfiles
+      // O ID será gerado automaticamente
       addDocumentNonBlocking(collection(db, 'userProfiles'), {
         ...newUser,
+        email: newUser.email.toLowerCase().trim(),
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp()
       });
       
-      toast({ title: "Perfil vinculado!", description: "O usuário terá acesso assim que fizer login." });
+      toast({ title: "Perfil autorizado!", description: "O usuário agora pode ativar sua conta na tela de login." });
       setNewUser({ email: '', name: '', organizationId: '', role: 'admin' });
     } catch (error) {
       console.error(error);
@@ -191,48 +198,92 @@ export default function SuperAdminPage() {
         </TabsContent>
 
         <TabsContent value="users" className="space-y-8">
-          <Card className="shadow-xl border-none">
-            <CardHeader className="bg-primary/5">
-              <CardTitle>Pré-cadastro de Usuários</CardTitle>
-              <CardDescription>Vincule e-mails a organizações e defina cargos.</CardDescription>
-            </CardHeader>
-            <CardContent className="pt-6">
-              <form onSubmit={handleCreateUser} className="grid grid-cols-1 md:grid-cols-4 gap-4 items-end">
-                <div className="space-y-2">
-                  <Label>E-mail</Label>
-                  <Input 
-                    type="email" 
-                    placeholder="vendedor@empresa.com" 
-                    value={newUser.email} 
-                    onChange={(e) => setNewUser({...newUser, email: e.target.value})}
-                    required
-                  />
+          <div className="space-y-6">
+            <Card className="shadow-xl border-none">
+              <CardHeader className="bg-primary/5">
+                <CardTitle>Pré-cadastro de Usuários</CardTitle>
+                <CardDescription>Vincule e-mails a organizações. Eles criarão a senha no primeiro acesso.</CardDescription>
+              </CardHeader>
+              <CardContent className="pt-6">
+                <form onSubmit={handleCreateUser} className="grid grid-cols-1 md:grid-cols-4 gap-4 items-end">
+                  <div className="space-y-2">
+                    <Label>E-mail</Label>
+                    <Input 
+                      type="email" 
+                      placeholder="vendedor@empresa.com" 
+                      value={newUser.email} 
+                      onChange={(e) => setNewUser({...newUser, email: e.target.value})}
+                      required
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Nome Completo</Label>
+                    <Input 
+                      placeholder="João Silva" 
+                      value={newUser.name} 
+                      onChange={(e) => setNewUser({...newUser, name: e.target.value})}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Organização</Label>
+                    <Select value={newUser.organizationId} onValueChange={(val) => setNewUser({...newUser, organizationId: val})}>
+                      <SelectTrigger><SelectValue placeholder="Selecione..." /></SelectTrigger>
+                      <SelectContent>
+                        {organizations?.map(org => (
+                          <SelectItem key={org.id} value={org.id}>{org.name}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <Button type="submit" className="h-10 font-bold" disabled={isSubmitting || organizations?.length === 0}>
+                    Autorizar E-mail
+                  </Button>
+                </form>
+                
+                <div className="mt-6 p-4 bg-amber-50 border border-amber-100 rounded-lg flex gap-3 items-start">
+                  <Info className="text-amber-600 shrink-0 mt-0.5" size={18} />
+                  <div className="text-xs text-amber-800 space-y-1">
+                    <p className="font-bold uppercase tracking-tight">Como funciona o acesso?</p>
+                    <p>1. Você autoriza o e-mail aqui vinculando-o a uma empresa.</p>
+                    <p>2. O usuário acessa a tela de login e clica em <strong>"Ativar Conta"</strong>.</p>
+                    <p>3. Ele define a própria senha. Se o e-mail não estiver nesta lista, o sistema impedirá o cadastro.</p>
+                  </div>
                 </div>
-                <div className="space-y-2">
-                  <Label>Nome Completo</Label>
-                  <Input 
-                    placeholder="João Silva" 
-                    value={newUser.name} 
-                    onChange={(e) => setNewUser({...newUser, name: e.target.value})}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label>Organização</Label>
-                  <Select value={newUser.organizationId} onValueChange={(val) => setNewUser({...newUser, organizationId: val})}>
-                    <SelectTrigger><SelectValue placeholder="Selecione..." /></SelectTrigger>
-                    <SelectContent>
-                      {organizations?.map(org => (
-                        <SelectItem key={org.id} value={org.id}>{org.name}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <Button type="submit" className="h-10 font-bold" disabled={isSubmitting || organizations?.length === 0}>
-                  Vincular Usuário
-                </Button>
-              </form>
-            </CardContent>
-          </Card>
+              </CardContent>
+            </Card>
+
+            <Card className="shadow-xl border-none overflow-hidden">
+              <CardHeader className="bg-slate-50 border-b">
+                <CardTitle className="text-sm uppercase font-black text-slate-600">Usuários Vinculados</CardTitle>
+              </CardHeader>
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>E-mail</TableHead>
+                    <TableHead>Nome</TableHead>
+                    <TableHead>Organização</TableHead>
+                    <TableHead className="text-right">Ações</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {isUsersLoading ? (
+                    <TableRow><TableCell colSpan={4} className="text-center py-10">Carregando...</TableCell></TableRow>
+                  ) : allUsers?.map(u => (
+                    <TableRow key={u.id}>
+                      <TableCell className="font-medium">{u.email}</TableCell>
+                      <TableCell>{u.name}</TableCell>
+                      <TableCell><Badge variant="outline">{u.organizationId}</Badge></TableCell>
+                      <TableCell className="text-right">
+                        <Button variant="ghost" size="icon" className="text-destructive" onClick={() => deleteDocumentNonBlocking(doc(db, 'userProfiles', u.id))}>
+                          <Trash2 size={16} />
+                        </Button>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </Card>
+          </div>
         </TabsContent>
       </Tabs>
     </div>
