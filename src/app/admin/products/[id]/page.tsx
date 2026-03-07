@@ -23,14 +23,14 @@ export default function EditRegisteredProductPage() {
   
   const id = Array.isArray(params.id) ? params.id[0] : params.id;
 
-  // Busca perfil pelo e-mail (Padrao SaaS Multi-tenant)
+  // OBRIGATÓRIO: Buscar perfil pelo e-mail para suporte Multi-usuário (SaaS)
   const userProfileRef = useMemoFirebase(() => 
     user?.email ? doc(db, 'userProfiles', user.email.toLowerCase().trim()) : null
   , [db, user]);
   const { data: profile, isLoading: isProfileLoading } = useDoc(userProfileRef);
   const orgId = profile?.organizationId;
 
-  // Referência do produto vinculada à organização
+  // Referência do produto vinculada à organização (Amarrado ao Usuário)
   const productRef = useMemoFirebase(() => 
     (id && orgId) ? doc(db, 'organizations', orgId, 'products', id) : null
   , [db, id, orgId]);
@@ -52,13 +52,13 @@ export default function EditRegisteredProductPage() {
     unitNetWeightKg: '0',
     boxWeightKg: '0',
     st: '0%',
-    factoryId: '',
-    catalogProductId: '',
+    factoryId: 'none',
+    catalogProductId: 'none',
     customSurchargeValue: '0',
     customSurchargeType: 'fixed'
   });
 
-  // PREENCHIMENTO DA FICHA: Sincronização automática quando os dados do banco chegam
+  // SINCRONIZAÇÃO DA FICHA: Carrega os dados assim que o banco responde
   useEffect(() => {
     if (product) {
       setFormData({
@@ -77,15 +77,15 @@ export default function EditRegisteredProductPage() {
         unitNetWeightKg: String(product.unitNetWeightKg ?? '0'),
         boxWeightKg: String(product.boxWeightKg ?? '0'),
         st: String(product.st || '0%'),
-        factoryId: String(product.factoryId || ''),
-        catalogProductId: String(product.catalogProductId || ''),
+        factoryId: product.factoryId || 'none',
+        catalogProductId: product.catalogProductId || 'none',
         customSurchargeValue: String(product.customSurchargeValue ?? '0'),
         customSurchargeType: String(product.customSurchargeType || 'fixed')
       });
     }
   }, [product]);
 
-  // Listas auxiliares para vínculo de preço
+  // Listas auxiliares para vínculo de preço (Catálogo da Organização)
   const factoriesQuery = useMemoFirebase(() => 
     orgId ? query(collection(db, 'organizations', orgId, 'factories'), orderBy('name')) : null
   , [db, orgId]);
@@ -97,7 +97,7 @@ export default function EditRegisteredProductPage() {
   const { data: catalogProducts } = useCollection(catalogQuery);
 
   const filteredCatalog = useMemo(() => {
-    if (!formData.factoryId) return [];
+    if (!formData.factoryId || formData.factoryId === 'none') return [];
     return catalogProducts?.filter(p => p.factoryId === formData.factoryId) || [];
   }, [formData.factoryId, catalogProducts]);
 
@@ -108,6 +108,8 @@ export default function EditRegisteredProductPage() {
     updateDocumentNonBlocking(productRef, {
       ...formData,
       organizationId: orgId,
+      factoryId: formData.factoryId === 'none' ? '' : formData.factoryId,
+      catalogProductId: formData.catalogProductId === 'none' ? '' : formData.catalogProductId,
       quantityPerBox: Number(formData.quantityPerBox) || 0,
       unitNetWeightKg: Number(formData.unitNetWeightKg) || 0,
       boxWeightKg: Number(formData.boxWeightKg) || 0,
@@ -115,7 +117,7 @@ export default function EditRegisteredProductPage() {
       updatedAt: serverTimestamp()
     });
 
-    toast({ title: "Ficha técnica salva!", description: "Os dados foram atualizados com sucesso." });
+    toast({ title: "Ficha técnica salva!", description: "Dados sincronizados com sucesso." });
     router.push('/admin/products');
   };
 
@@ -123,7 +125,7 @@ export default function EditRegisteredProductPage() {
     return (
       <div className="flex h-screen items-center justify-center flex-col gap-4">
         <Loader2 className="animate-spin text-primary" size={48} />
-        <p className="text-muted-foreground font-black uppercase tracking-[0.2em] text-[10px]">Carregando Ficha Técnica...</p>
+        <p className="text-muted-foreground font-black uppercase tracking-[0.2em] text-[10px]">Identificando Organização e Carregando Ficha...</p>
       </div>
     );
   }
@@ -132,8 +134,8 @@ export default function EditRegisteredProductPage() {
     return (
       <div className="container mx-auto px-4 py-20 text-center">
         <AlertCircle size={64} className="mx-auto text-destructive opacity-20 mb-4" />
-        <h2 className="text-2xl font-bold">Organização não identificada</h2>
-        <p className="text-muted-foreground mt-2">Seu login não possui vínculo SaaS ativo.</p>
+        <h2 className="text-2xl font-bold uppercase tracking-tighter">Acesso Não Vinculado</h2>
+        <p className="text-muted-foreground mt-2">Seu e-mail ({user?.email}) não possui organização ativa.</p>
         <Link href="/"><Button variant="outline" className="mt-6">Voltar</Button></Link>
       </div>
     );
@@ -143,8 +145,8 @@ export default function EditRegisteredProductPage() {
     return (
       <div className="container mx-auto px-4 py-20 text-center">
         <AlertCircle size={64} className="mx-auto text-destructive opacity-20 mb-4" />
-        <h2 className="text-2xl font-bold">Produto não encontrado</h2>
-        <p className="text-muted-foreground mt-2">O item solicitado não existe na sua organização.</p>
+        <h2 className="text-2xl font-bold uppercase tracking-tighter">Item Inexistente</h2>
+        <p className="text-muted-foreground mt-2">O produto solicitado não foi encontrado na base da empresa {orgId}.</p>
         <Link href="/admin/products"><Button variant="outline" className="mt-6">Voltar para a Lista</Button></Link>
       </div>
     );
@@ -159,7 +161,7 @@ export default function EditRegisteredProductPage() {
           </Link>
           <div>
             <h1 className="text-3xl font-black tracking-tight text-primary uppercase">Editar Ficha Técnica</h1>
-            <p className="text-muted-foreground text-[10px] font-bold uppercase tracking-widest">Empresa: {orgId} | ID: {id}</p>
+            <p className="text-muted-foreground text-[10px] font-bold uppercase tracking-widest">Organização: {orgId} | Usuário: {user?.email}</p>
           </div>
         </div>
       </div>
@@ -197,11 +199,11 @@ export default function EditRegisteredProductPage() {
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <Label className="text-[10px] font-black uppercase">Marca</Label>
-                    <Input value={formData.brand} onChange={(e) => setFormData({...formData, brand: e.target.value.toUpperCase()})} className="h-11 font-semibold uppercase" />
+                    <Input required value={formData.brand} onChange={(e) => setFormData({...formData, brand: e.target.value.toUpperCase()})} className="h-11 font-semibold uppercase" />
                   </div>
                   <div className="space-y-2">
                     <Label className="text-[10px] font-black uppercase">Linha</Label>
-                    <Input value={formData.line} onChange={(e) => setFormData({...formData, line: e.target.value.toUpperCase()})} className="h-11 uppercase" />
+                    <Input required value={formData.line} onChange={(e) => setFormData({...formData, line: e.target.value.toUpperCase()})} className="h-11 uppercase" />
                   </div>
                 </div>
               </CardContent>
@@ -248,25 +250,25 @@ export default function EditRegisteredProductPage() {
                 <CardTitle className="text-sm font-black uppercase flex items-center gap-2">
                   <Tag size={18} className="text-primary" /> Amarração de Preço
                 </CardTitle>
-                <CardDescription className="text-[9px] font-bold uppercase">Vincule este item ao catálogo de preços brutos importados.</CardDescription>
+                <CardDescription className="text-[9px] font-bold uppercase">Configure de qual item do catálogo este produto puxará o preço.</CardDescription>
               </CardHeader>
               <CardContent className="pt-6 space-y-4">
                 <div className="space-y-2">
                   <Label className="text-[10px] font-black uppercase">Fábrica de Origem</Label>
-                  <Select value={formData.factoryId} onValueChange={(val) => setFormData({...formData, factoryId: val, catalogProductId: ''})}>
-                    <SelectTrigger className="h-11 bg-white"><SelectValue placeholder="Selecione..." /></SelectTrigger>
+                  <Select value={formData.factoryId} onValueChange={(val) => setFormData({...formData, factoryId: val, catalogProductId: 'none'})}>
+                    <SelectTrigger className="h-11 bg-white"><SelectValue placeholder="Selecione a Fábrica..." /></SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="">Selecione a Fábrica...</SelectItem>
+                      <SelectItem value="none">Selecione a Fábrica...</SelectItem>
                       {factories?.map(f => (<SelectItem key={f.id} value={f.id}>{f.name}</SelectItem>))}
                     </SelectContent>
                   </Select>
                 </div>
                 <div className="space-y-2">
                   <Label className="text-[10px] font-black uppercase">Item do Catálogo (Preço)</Label>
-                  <Select value={formData.catalogProductId} onValueChange={(val) => setFormData({...formData, catalogProductId: val})} disabled={!formData.factoryId}>
+                  <Select value={formData.catalogProductId} onValueChange={(val) => setFormData({...formData, catalogProductId: val})} disabled={formData.factoryId === 'none'}>
                     <SelectTrigger className="h-11 bg-white"><SelectValue placeholder="Escolha o item..." /></SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="">Selecione o Item...</SelectItem>
+                      <SelectItem value="none">Selecione o Item...</SelectItem>
                       {filteredCatalog.map(p => (<SelectItem key={p.id} value={p.id}>{p.name} ({p.unit})</SelectItem>))}
                     </SelectContent>
                   </Select>
