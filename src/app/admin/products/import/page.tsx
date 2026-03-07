@@ -10,7 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
-import { FileSpreadsheet, Download, UploadCloud, Loader2, CheckCircle2, ChevronLeft, Info, AlertTriangle } from "lucide-react";
+import { FileSpreadsheet, Download, UploadCloud, Loader2, CheckCircle2, ChevronLeft, AlertTriangle } from "lucide-react";
 import Link from 'next/link';
 import * as XLSX from 'xlsx';
 
@@ -23,11 +23,11 @@ export default function ImportRegisteredProductsPage() {
   const db = useFirestore();
   const { user } = useUser();
 
-  // Busca perfil pelo e-mail (Padrao SaaS Multi-tenant)
+  // Busca perfil pelo e-mail (Padrão SaaS Multi-tenant)
   const userProfileRef = useMemoFirebase(() => 
     user?.email ? doc(db, 'userProfiles', user.email.toLowerCase().trim()) : null
   , [db, user]);
-  const { data: profile } = useDoc(userProfileRef);
+  const { data: profile, isLoading: isProfileLoading } = useDoc(userProfileRef);
   const orgId = profile?.organizationId;
 
   const handleDownloadTemplate = () => {
@@ -86,7 +86,7 @@ export default function ImportRegisteredProductsPage() {
 
   const handleUpload = async () => {
     if (!file || !orgId) {
-      toast({ title: "Erro de Organização", description: "Sua empresa não foi identificada. Verifique seu vínculo no Super Admin.", variant: "destructive" });
+      toast({ title: "Organização não identificada", variant: "destructive" });
       return;
     }
 
@@ -109,12 +109,12 @@ export default function ImportRegisteredProductsPage() {
         const productData = {
           organizationId: orgId,
           status: String(getRowValue(row, ["Status", "Ativo", "Situacao"]) || 'Active'),
-          brand: String(getRowValue(row, ["Marca", "Fabricante", "Brand"]) || ''),
-          line: String(getRowValue(row, ["Linha", "Colecao", "Line"]) || ''),
-          code: code || `ID-${count}`,
-          description: description || 'Sem Descrição',
+          brand: String(getRowValue(row, ["Marca", "Fabricante", "Brand"]) || '').toUpperCase(),
+          line: String(getRowValue(row, ["Linha", "Colecao", "Line"]) || '').toUpperCase(),
+          code: code,
+          description: description.toUpperCase(),
           quantityPerBox: safeNumber(getRowValue(row, ["Qtd Caixa", "Embalagem", "Quantity", "Cx", "Qtd/Caixa"])),
-          unit: String(getRowValue(row, ["Unidade", "Und", "Unit", "Un"]) || 'UN'),
+          unit: String(getRowValue(row, ["Unidade", "Und", "Unit", "Un"]) || 'UN').toUpperCase(),
           ean: String(getRowValue(row, ["EAN", "GTIN", "Barras", "Cod Barras"]) || ''),
           dun14: String(getRowValue(row, ["DUN14", "DUN-14", "DUN"]) || ''),
           taxClassification: String(getRowValue(row, ["Classificação Fiscal", "Classificacao", "Tax", "CF"]) || ''),
@@ -136,7 +136,7 @@ export default function ImportRegisteredProductsPage() {
       }
 
       setIsSuccess(true);
-      toast({ title: "Importação concluída", description: `${count} produtos técnicos processados para a organização ${orgId}.` });
+      toast({ title: "Importação concluída", description: `${count} produtos importados para ${orgId}.` });
       setIsLoading(false);
     } catch (error) {
       console.error(error);
@@ -145,17 +145,21 @@ export default function ImportRegisteredProductsPage() {
     }
   };
 
+  if (isProfileLoading) {
+    return <div className="flex h-screen items-center justify-center"><Loader2 className="animate-spin text-primary" size={48} /></div>;
+  }
+
   return (
     <div className="container mx-auto px-4 py-12 max-w-2xl">
       <div className="mb-8 flex items-center gap-3">
         <Link href="/admin/products" className="text-muted-foreground hover:text-primary"><ChevronLeft size={28} /></Link>
-        <h1 className="text-2xl font-black uppercase text-primary">Importar Ficha Técnica ({orgId || '...'})</h1>
+        <h1 className="text-2xl font-black uppercase text-primary">Importar Produtos ({orgId || '...'})</h1>
       </div>
 
-      {!orgId && !isLoading && (
+      {!orgId && (
         <div className="mb-6 p-4 bg-destructive/10 border border-destructive/20 rounded-lg flex items-center gap-3 text-destructive">
           <AlertTriangle size={20} />
-          <p className="text-xs font-bold uppercase">Aviso: Você não está vinculado a nenhuma organização. A importação pode falhar.</p>
+          <p className="text-xs font-bold uppercase">Aviso: Sua conta não possui empresa vinculada. Os dados não serão salvos corretamente.</p>
         </div>
       )}
 
@@ -168,7 +172,7 @@ export default function ImportRegisteredProductsPage() {
           </CardHeader>
           <CardContent>
             <Button onClick={handleDownloadTemplate} variant="outline" className="w-full gap-2 border-primary text-primary font-bold">
-              <FileSpreadsheet size={18} /> Baixar Modelo para Ficha Técnica
+              <FileSpreadsheet size={18} /> Baixar Modelo para Importação
             </Button>
           </CardContent>
         </Card>
@@ -187,18 +191,20 @@ export default function ImportRegisteredProductsPage() {
             {isSuccess && (
               <div className="p-4 bg-accent/10 rounded-lg border border-accent/20 flex items-start gap-3">
                 <CheckCircle2 className="text-accent shrink-0" size={20} />
-                <p className="text-[10px] text-muted-foreground uppercase font-bold">Produtos importados com sucesso para <strong>{orgId}</strong>! Agora você deve editá-los para fazer a amarração de preços.</p>
+                <p className="text-[10px] text-muted-foreground uppercase font-bold">
+                  Importação concluída com sucesso para <strong>{orgId}</strong>! Vá para a lista para configurar os vínculos de preço.
+                </p>
               </div>
             )}
           </CardContent>
           <CardFooter className="flex flex-col gap-3">
             {!isSuccess ? (
               <Button className="w-full h-14 text-lg font-black uppercase gap-2 shadow-lg" onClick={handleUpload} disabled={isLoading || !file || !orgId}>
-                {isLoading ? <Loader2 className="animate-spin" /> : <UploadCloud size={20} />} Processar Ficha Técnica
+                {isLoading ? <Loader2 className="animate-spin" /> : <UploadCloud size={20} />} Processar Planilha
               </Button>
             ) : (
               <Link href="/admin/products" className="w-full">
-                <Button variant="outline" className="w-full h-14 font-black uppercase text-accent border-accent">Voltar para Produtos</Button>
+                <Button variant="outline" className="w-full h-14 font-black uppercase text-accent border-accent">Ver Lista de Produtos</Button>
               </Link>
             )}
           </CardFooter>

@@ -11,7 +11,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
-import { Save, ChevronLeft, Tag, Loader2, DollarSign, Package, Calculator, Barcode, AlertCircle } from "lucide-react";
+import { Save, ChevronLeft, Tag, Loader2, Package, Calculator, Barcode, AlertCircle } from "lucide-react";
 import Link from 'next/link';
 
 export default function EditRegisteredProductPage() {
@@ -23,14 +23,14 @@ export default function EditRegisteredProductPage() {
   
   const id = Array.isArray(params.id) ? params.id[0] : params.id;
 
-  // Busca perfil pelo e-mail (OBRIGATÓRIO para SaaS)
+  // Busca perfil pelo e-mail (Padrao SaaS Multi-tenant)
   const userProfileRef = useMemoFirebase(() => 
     user?.email ? doc(db, 'userProfiles', user.email.toLowerCase().trim()) : null
   , [db, user]);
   const { data: profile, isLoading: isProfileLoading } = useDoc(userProfileRef);
   const orgId = profile?.organizationId;
 
-  // Referência do produto no Firestore vinculada à organização
+  // Referência do produto vinculada à organização
   const productRef = useMemoFirebase(() => 
     (id && orgId) ? doc(db, 'organizations', orgId, 'products', id) : null
   , [db, id, orgId]);
@@ -42,50 +42,50 @@ export default function EditRegisteredProductPage() {
     line: '',
     code: '',
     description: '',
-    quantityPerBox: '',
+    quantityPerBox: '0',
     unit: '',
     ean: '',
     dun14: '',
     taxClassification: '',
     ncm: '',
     cest: '',
-    unitNetWeightKg: '',
-    boxWeightKg: '',
-    st: '',
+    unitNetWeightKg: '0',
+    boxWeightKg: '0',
+    st: '0%',
     factoryId: '',
     catalogProductId: '',
     customSurchargeValue: '0',
     customSurchargeType: 'fixed'
   });
 
-  // Preenchimento automático assim que os dados do banco chegarem
+  // PREENCHIMENTO DA FICHA: Sincronização automática quando os dados do banco chegam
   useEffect(() => {
     if (product) {
       setFormData({
         status: product.status || 'Active',
-        brand: product.brand || '',
-        line: product.line || '',
-        code: product.code || '',
-        description: product.description || '',
-        quantityPerBox: product.quantityPerBox !== undefined ? String(product.quantityPerBox) : '0',
-        unit: product.unit || '',
-        ean: product.ean || '',
-        dun14: product.dun14 || '',
-        taxClassification: product.taxClassification || '',
-        ncm: product.ncm || '',
-        cest: product.cest || '',
-        unitNetWeightKg: product.unitNetWeightKg !== undefined ? String(product.unitNetWeightKg) : '0',
-        boxWeightKg: product.boxWeightKg !== undefined ? String(product.boxWeightKg) : '0',
-        st: product.st || '0%',
-        factoryId: product.factoryId || '',
-        catalogProductId: product.catalogProductId || '',
-        customSurchargeValue: product.customSurchargeValue !== undefined ? String(product.customSurchargeValue) : '0',
-        customSurchargeType: product.customSurchargeType || 'fixed'
+        brand: String(product.brand || '').toUpperCase(),
+        line: String(product.line || '').toUpperCase(),
+        code: String(product.code || ''),
+        description: String(product.description || '').toUpperCase(),
+        quantityPerBox: String(product.quantityPerBox ?? '0'),
+        unit: String(product.unit || '').toUpperCase(),
+        ean: String(product.ean || ''),
+        dun14: String(product.dun14 || ''),
+        taxClassification: String(product.taxClassification || ''),
+        ncm: String(product.ncm || ''),
+        cest: String(product.cest || ''),
+        unitNetWeightKg: String(product.unitNetWeightKg ?? '0'),
+        boxWeightKg: String(product.boxWeightKg ?? '0'),
+        st: String(product.st || '0%'),
+        factoryId: String(product.factoryId || ''),
+        catalogProductId: String(product.catalogProductId || ''),
+        customSurchargeValue: String(product.customSurchargeValue ?? '0'),
+        customSurchargeType: String(product.customSurchargeType || 'fixed')
       });
     }
   }, [product]);
 
-  // Listas auxiliares para amarração
+  // Listas auxiliares para vínculo de preço
   const factoriesQuery = useMemoFirebase(() => 
     orgId ? query(collection(db, 'organizations', orgId, 'factories'), orderBy('name')) : null
   , [db, orgId]);
@@ -115,7 +115,7 @@ export default function EditRegisteredProductPage() {
       updatedAt: serverTimestamp()
     });
 
-    toast({ title: "Ficha técnica atualizada!" });
+    toast({ title: "Ficha técnica salva!", description: "Os dados foram atualizados com sucesso." });
     router.push('/admin/products');
   };
 
@@ -123,7 +123,7 @@ export default function EditRegisteredProductPage() {
     return (
       <div className="flex h-screen items-center justify-center flex-col gap-4">
         <Loader2 className="animate-spin text-primary" size={48} />
-        <p className="text-muted-foreground font-bold animate-pulse uppercase tracking-widest text-[10px]">Carregando Dados...</p>
+        <p className="text-muted-foreground font-black uppercase tracking-[0.2em] text-[10px]">Carregando Ficha Técnica...</p>
       </div>
     );
   }
@@ -132,9 +132,9 @@ export default function EditRegisteredProductPage() {
     return (
       <div className="container mx-auto px-4 py-20 text-center">
         <AlertCircle size={64} className="mx-auto text-destructive opacity-20 mb-4" />
-        <h2 className="text-2xl font-bold">Erro de Vínculo</h2>
-        <p className="text-muted-foreground mt-2">Seu e-mail não está associado a nenhuma organização.</p>
-        <Link href="/"><Button variant="outline" className="mt-6">Voltar ao Início</Button></Link>
+        <h2 className="text-2xl font-bold">Organização não identificada</h2>
+        <p className="text-muted-foreground mt-2">Seu login não possui vínculo SaaS ativo.</p>
+        <Link href="/"><Button variant="outline" className="mt-6">Voltar</Button></Link>
       </div>
     );
   }
@@ -144,7 +144,7 @@ export default function EditRegisteredProductPage() {
       <div className="container mx-auto px-4 py-20 text-center">
         <AlertCircle size={64} className="mx-auto text-destructive opacity-20 mb-4" />
         <h2 className="text-2xl font-bold">Produto não encontrado</h2>
-        <p className="text-muted-foreground mt-2">O item não existe ou pertence a outra empresa.</p>
+        <p className="text-muted-foreground mt-2">O item solicitado não existe na sua organização.</p>
         <Link href="/admin/products"><Button variant="outline" className="mt-6">Voltar para a Lista</Button></Link>
       </div>
     );
@@ -158,8 +158,8 @@ export default function EditRegisteredProductPage() {
             <ChevronLeft size={28} />
           </Link>
           <div>
-            <h1 className="text-3xl font-black tracking-tight text-primary uppercase">Ficha Técnica do Produto</h1>
-            <p className="text-muted-foreground text-xs font-bold uppercase">Empresa: {orgId} | Cód: {formData.code}</p>
+            <h1 className="text-3xl font-black tracking-tight text-primary uppercase">Editar Ficha Técnica</h1>
+            <p className="text-muted-foreground text-[10px] font-bold uppercase tracking-widest">Empresa: {orgId} | ID: {id}</p>
           </div>
         </div>
       </div>
@@ -170,13 +170,13 @@ export default function EditRegisteredProductPage() {
             <Card className="shadow-lg border-none">
               <CardHeader className="bg-primary/5 py-4">
                 <CardTitle className="text-sm font-black uppercase flex items-center gap-2">
-                  <Package size={18} className="text-primary" /> Dados Principais
+                  <Package size={18} className="text-primary" /> Identificação do Produto
                 </CardTitle>
               </CardHeader>
               <CardContent className="pt-6 space-y-4">
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">
-                    <Label className="text-xs font-bold uppercase">Status</Label>
+                    <Label className="text-[10px] font-black uppercase">Status</Label>
                     <Select value={formData.status} onValueChange={(val) => setFormData({...formData, status: val})}>
                       <SelectTrigger className="h-11"><SelectValue /></SelectTrigger>
                       <SelectContent>
@@ -186,22 +186,22 @@ export default function EditRegisteredProductPage() {
                     </Select>
                   </div>
                   <div className="space-y-2">
-                    <Label className="text-xs font-bold uppercase">Código Interno</Label>
+                    <Label className="text-[10px] font-black uppercase">Código Interno</Label>
                     <Input required value={formData.code} onChange={(e) => setFormData({...formData, code: e.target.value})} className="h-11 font-bold" />
                   </div>
                 </div>
                 <div className="space-y-2">
-                  <Label className="text-xs font-bold uppercase">Descrição Completa</Label>
-                  <Input required value={formData.description} onChange={(e) => setFormData({...formData, description: e.target.value})} className="h-11 uppercase" />
+                  <Label className="text-[10px] font-black uppercase">Descrição Completa</Label>
+                  <Input required value={formData.description} onChange={(e) => setFormData({...formData, description: e.target.value.toUpperCase()})} className="h-11 uppercase" />
                 </div>
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">
-                    <Label className="text-xs font-bold uppercase">Marca</Label>
-                    <Input value={formData.brand} onChange={(e) => setFormData({...formData, brand: e.target.value})} className="h-11 font-semibold uppercase" />
+                    <Label className="text-[10px] font-black uppercase">Marca</Label>
+                    <Input value={formData.brand} onChange={(e) => setFormData({...formData, brand: e.target.value.toUpperCase()})} className="h-11 font-semibold uppercase" />
                   </div>
                   <div className="space-y-2">
-                    <Label className="text-xs font-bold uppercase">Linha</Label>
-                    <Input value={formData.line} onChange={(e) => setFormData({...formData, line: e.target.value})} className="h-11 uppercase" />
+                    <Label className="text-[10px] font-black uppercase">Linha</Label>
+                    <Input value={formData.line} onChange={(e) => setFormData({...formData, line: e.target.value.toUpperCase()})} className="h-11 uppercase" />
                   </div>
                 </div>
               </CardContent>
@@ -216,25 +216,25 @@ export default function EditRegisteredProductPage() {
               <CardContent className="pt-6 space-y-4">
                 <div className="grid grid-cols-3 gap-4">
                   <div className="space-y-2">
-                    <Label className="text-xs font-bold uppercase">Unidade</Label>
-                    <Input placeholder="ex: PC" required value={formData.unit} onChange={(e) => setFormData({...formData, unit: e.target.value})} className="h-11 font-bold" />
+                    <Label className="text-[10px] font-black uppercase">Unidade</Label>
+                    <Input placeholder="ex: PC" required value={formData.unit} onChange={(e) => setFormData({...formData, unit: e.target.value.toUpperCase()})} className="h-11 font-bold" />
                   </div>
                   <div className="space-y-2">
-                    <Label className="text-xs font-bold uppercase">Qtd/Caixa</Label>
+                    <Label className="text-[10px] font-black uppercase">Qtd/Caixa</Label>
                     <Input type="number" required value={formData.quantityPerBox} onChange={(e) => setFormData({...formData, quantityPerBox: e.target.value})} className="h-11 font-bold text-center" />
                   </div>
                   <div className="space-y-2">
-                    <Label className="text-xs font-bold uppercase">ST (%)</Label>
+                    <Label className="text-[10px] font-black uppercase">ST (%)</Label>
                     <Input placeholder="0%" value={formData.st} onChange={(e) => setFormData({...formData, st: e.target.value})} className="h-11 font-bold text-destructive" />
                   </div>
                 </div>
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">
-                    <Label className="text-xs font-bold uppercase">Peso Líq. Unit (Kg)</Label>
+                    <Label className="text-[10px] font-black uppercase">Peso Líq. Unit (Kg)</Label>
                     <Input type="number" step="0.001" required value={formData.unitNetWeightKg} onChange={(e) => setFormData({...formData, unitNetWeightKg: e.target.value})} className="h-11" />
                   </div>
                   <div className="space-y-2">
-                    <Label className="text-xs font-bold uppercase">Peso Caixa (Kg)</Label>
+                    <Label className="text-[10px] font-black uppercase">Peso Caixa (Kg)</Label>
                     <Input type="number" step="0.001" required value={formData.boxWeightKg} onChange={(e) => setFormData({...formData, boxWeightKg: e.target.value})} className="h-11" />
                   </div>
                 </div>
@@ -248,23 +248,25 @@ export default function EditRegisteredProductPage() {
                 <CardTitle className="text-sm font-black uppercase flex items-center gap-2">
                   <Tag size={18} className="text-primary" /> Amarração de Preço
                 </CardTitle>
-                <CardDescription className="text-[10px] font-bold uppercase">Vincule este cadastro ao catálogo de preços da {orgId}.</CardDescription>
+                <CardDescription className="text-[9px] font-bold uppercase">Vincule este item ao catálogo de preços brutos importados.</CardDescription>
               </CardHeader>
               <CardContent className="pt-6 space-y-4">
                 <div className="space-y-2">
-                  <Label className="text-xs font-bold uppercase">Fábrica de Origem</Label>
+                  <Label className="text-[10px] font-black uppercase">Fábrica de Origem</Label>
                   <Select value={formData.factoryId} onValueChange={(val) => setFormData({...formData, factoryId: val, catalogProductId: ''})}>
-                    <SelectTrigger className="h-11"><SelectValue placeholder="Selecione..." /></SelectTrigger>
+                    <SelectTrigger className="h-11 bg-white"><SelectValue placeholder="Selecione..." /></SelectTrigger>
                     <SelectContent>
+                      <SelectItem value="">Selecione a Fábrica...</SelectItem>
                       {factories?.map(f => (<SelectItem key={f.id} value={f.id}>{f.name}</SelectItem>))}
                     </SelectContent>
                   </Select>
                 </div>
                 <div className="space-y-2">
-                  <Label className="text-xs font-bold uppercase">Item do Catálogo (Preço Bruto)</Label>
+                  <Label className="text-[10px] font-black uppercase">Item do Catálogo (Preço)</Label>
                   <Select value={formData.catalogProductId} onValueChange={(val) => setFormData({...formData, catalogProductId: val})} disabled={!formData.factoryId}>
-                    <SelectTrigger className="h-11"><SelectValue placeholder="Selecione o item..." /></SelectTrigger>
+                    <SelectTrigger className="h-11 bg-white"><SelectValue placeholder="Escolha o item..." /></SelectTrigger>
                     <SelectContent>
+                      <SelectItem value="">Selecione o Item...</SelectItem>
                       {filteredCatalog.map(p => (<SelectItem key={p.id} value={p.id}>{p.name} ({p.unit})</SelectItem>))}
                     </SelectContent>
                   </Select>
@@ -281,21 +283,21 @@ export default function EditRegisteredProductPage() {
               <CardContent className="pt-6 space-y-4">
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">
-                    <Label className="text-xs font-bold uppercase">EAN (GTIN)</Label>
+                    <Label className="text-[10px] font-black uppercase">EAN (GTIN)</Label>
                     <Input value={formData.ean} onChange={(e) => setFormData({...formData, ean: e.target.value})} className="h-11 font-mono" />
                   </div>
                   <div className="space-y-2">
-                    <Label className="text-xs font-bold uppercase">DUN-14</Label>
+                    <Label className="text-[10px] font-black uppercase">DUN-14</Label>
                     <Input value={formData.dun14} onChange={(e) => setFormData({...formData, dun14: e.target.value})} className="h-11 font-mono" />
                   </div>
                 </div>
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">
-                    <Label className="text-xs font-bold uppercase">NCM</Label>
+                    <Label className="text-[10px] font-black uppercase">NCM</Label>
                     <Input value={formData.ncm} onChange={(e) => setFormData({...formData, ncm: e.target.value})} className="h-11" />
                   </div>
                   <div className="space-y-2">
-                    <Label className="text-xs font-bold uppercase">CEST</Label>
+                    <Label className="text-[10px] font-black uppercase">CEST</Label>
                     <Input value={formData.cest} onChange={(e) => setFormData({...formData, cest: e.target.value})} className="h-11" />
                   </div>
                 </div>
