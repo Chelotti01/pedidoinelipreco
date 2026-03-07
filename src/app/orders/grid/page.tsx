@@ -3,8 +3,8 @@
 
 import { useState, useMemo, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
-import { useFirestore, useCollection, useMemoFirebase, addDocumentNonBlocking, useAuth } from '@/firebase';
-import { collection, query, orderBy, serverTimestamp } from 'firebase/firestore';
+import { useFirestore, useCollection, useMemoFirebase, addDocumentNonBlocking, useAuth, useUser, useDoc } from '@/firebase';
+import { collection, query, orderBy, serverTimestamp, doc } from 'firebase/firestore';
 import { Card, CardHeader, CardTitle, CardContent, CardFooter } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -45,8 +45,14 @@ type OrderItem = {
 export default function GridOrderPage() {
   const db = useFirestore();
   const auth = useAuth();
+  const { user } = useUser();
   const { toast } = useToast();
   const router = useRouter();
+
+  // Get user profile for organizationId
+  const userProfileRef = useMemoFirebase(() => user ? doc(db, 'userProfiles', user.uid) : null, [db, user]);
+  const { data: profile, isLoading: isProfileLoading } = useDoc(userProfileRef);
+  const orgId = profile?.organizationId;
 
   const [selectedCustomerId, setSelectedCustomerId] = useState<string>("none");
   const [selectedFactoryId, setSelectedFactoryId] = useState<string>("none");
@@ -60,33 +66,28 @@ export default function GridOrderPage() {
   const [isFinalizing, setIsFinalizing] = useState(false);
   const [isSavingDraft, setIsSavingDraft] = useState(false);
 
-  // Estados para as quantidades e preços editáveis
   const [gridQuantities, setGridQuantities] = useState<Record<string, number>>({});
   const [gridPricesFinal, setGridPricesFinal] = useState<Record<string, number>>({});
   const [gridPricesNet, setGridPricesNet] = useState<Record<string, number>>({});
   const [gridBonus, setGridBonus] = useState<Record<string, boolean>>({});
 
-  // Refs para rastrear mudanças globais e evitar sobreposição de preços manuais
   const lastParams = useRef({ priceType, contractPercent });
 
-  const factoriesQuery = useMemoFirebase(() => query(collection(db, 'factories'), orderBy('name')), [db]);
+  const factoriesQuery = useMemoFirebase(() => orgId ? query(collection(db, 'organizations', orgId, 'factories'), orderBy('name')) : null, [db, orgId]);
   const { data: factories } = useCollection(factoriesQuery);
 
-  const registeredProductsQuery = useMemoFirebase(() => query(collection(db, 'registered_products'), orderBy('description')), [db]);
+  const registeredProductsQuery = useMemoFirebase(() => orgId ? query(collection(db, 'organizations', orgId, 'products'), orderBy('description')) : null, [db, orgId]);
   const { data: registeredProducts } = useCollection(registeredProductsQuery);
 
-  const catalogProductsQuery = useMemoFirebase(() => query(collection(db, 'catalog_products')), [db]);
+  const catalogProductsQuery = useMemoFirebase(() => orgId ? query(collection(db, 'organizations', orgId, 'productFactoryPrices')) : null, [db, orgId]);
   const { data: catalogProducts } = useCollection(catalogProductsQuery);
 
-  const customersQuery = useMemoFirebase(() => query(collection(db, 'customers'), orderBy('name', 'asc')), [db]);
+  const customersQuery = useMemoFirebase(() => orgId ? query(collection(db, 'organizations', orgId, 'clients'), orderBy('name', 'asc')) : null, [db, orgId]);
   const { data: customers } = useCollection(customersQuery);
 
   const availableLines = useMemo(() => {
     if (selectedFactoryId === "none" || !registeredProducts) return [];
-    const lines = registeredProducts
-      .filter(p => p.factoryId === selectedFactoryId)
-      .map(p => p.line)
-      .filter(Boolean);
+    const lines = registeredProducts.filter(p => p.factoryId === selectedFactoryId).map(p => p.line).filter(Boolean);
     return Array.from(new Set(lines)).sort();
   }, [selectedFactoryId, registeredProducts]);
 
@@ -94,18 +95,10 @@ export default function GridOrderPage() {
     if (selectedFactoryId === "none" || lineFilter === "none" || !registeredProducts) return [];
     const term = searchTerm.toLowerCase();
     return registeredProducts.filter(p => {
-      const matchesSearch = searchTerm === "" || 
-       p.description.toLowerCase().includes(term) || 
-       p.code.toLowerCase().includes(term) ||
-       p.ean?.toLowerCase().includes(term);
-      
+      const matchesSearch = searchTerm === "" || p.description.toLowerCase().includes(term) || p.code.toLowerCase().includes(term) || p.ean?.toLowerCase().includes(term);
       const hasQuantity = (gridQuantities[p.id] || 0) > 0;
       const matchesFilledFilter = !showOnlyFilled || hasQuantity;
-
-      return p.factoryId === selectedFactoryId && 
-             p.line === lineFilter &&
-             matchesSearch &&
-             matchesFilledFilter;
+      return p.factoryId === selectedFactoryId && p.line === lineFilter && matchesSearch && matchesFilledFilter;
     });
   }, [selectedFactoryId, lineFilter, registeredProducts, searchTerm, showOnlyFilled, gridQuantities]);
 
@@ -116,173 +109,79 @@ export default function GridOrderPage() {
     return isNaN(parsed) ? 0 : parsed / 100;
   };
 
-  // Inicialização e Recálculo Automático de Preços
   useEffect(() => {
     if (!registeredProducts || !catalogProducts) return;
-
-    const globalParamsChanged = 
-      lastParams.current.priceType !== priceType || 
-      lastParams.current.contractPercent !== contractPercent;
-    
+    const globalParamsChanged = lastParams.current.priceType !== priceType || lastParams.current.contractPercent !== contractPercent;
     lastParams.current = { priceType, contractPercent };
-
     const newPricesFinal: Record<string, number> = {};
     const newPricesNet: Record<string, number> = {};
-
     registeredProducts.forEach(p => {
       const catalogItem = catalogProducts.find(cp => cp.id === p.catalogProductId);
       if (catalogItem) {
         const basePrice = priceType === 'closed' ? (catalogItem.closedLoadPrice || 0) : (catalogItem.fractionalLoadPrice || 0);
         const afterCatalog = Math.max(0, basePrice - (catalogItem.discountAmount || 0));
-        
         const surchargeValue = p.customSurchargeValue !== undefined ? Number(p.customSurchargeValue) : (p.customSurchargeR$ || 0);
         const surchargeType = p.customSurchargeType || 'fixed';
-        
         let withSurcharge = afterCatalog;
         if (surchargeType === 'percentage') withSurcharge += afterCatalog * (surchargeValue / 100);
         else withSurcharge += surchargeValue;
-        
         const netPrice = withSurcharge * (1 + contractPercent / 100);
         const stRate = parseST(p.st);
         const finalPrice = netPrice * (1 + stRate);
-        
         newPricesFinal[p.id] = Number(finalPrice.toFixed(2));
         newPricesNet[p.id] = Number(netPrice.toFixed(2));
       }
     });
-
     setGridPricesFinal(prev => {
       const updated = { ...prev };
-      Object.keys(newPricesFinal).forEach(id => {
-        // Atualiza se for novo no estado OU se os parâmetros globais mudaram
-        if (updated[id] === undefined || globalParamsChanged) {
-          updated[id] = newPricesFinal[id];
-        }
-      });
+      Object.keys(newPricesFinal).forEach(id => { if (updated[id] === undefined || globalParamsChanged) updated[id] = newPricesFinal[id]; });
       return updated;
     });
-
     setGridPricesNet(prev => {
       const updated = { ...prev };
-      Object.keys(newPricesNet).forEach(id => {
-        if (updated[id] === undefined || globalParamsChanged) {
-          updated[id] = newPricesNet[id];
-        }
-      });
+      Object.keys(newPricesNet).forEach(id => { if (updated[id] === undefined || globalParamsChanged) updated[id] = newPricesNet[id]; });
       return updated;
     });
-
   }, [registeredProducts, catalogProducts, priceType, contractPercent]);
-
-  const handleUpdatePriceFinal = (productId: string, val: number, stRateStr: string) => {
-    const stRate = parseST(stRateStr);
-    const netPrice = Number((val / (1 + stRate)).toFixed(2));
-    const roundedFinal = Number(val.toFixed(2));
-    setGridPricesFinal(prev => ({ ...prev, [productId]: roundedFinal }));
-    setGridPricesNet(prev => ({ ...prev, [productId]: netPrice }));
-  };
-
-  const handleUpdatePriceNet = (productId: string, val: number, stRateStr: string) => {
-    const stRate = parseST(stRateStr);
-    const finalPrice = Number((val * (1 + stRate)).toFixed(2));
-    const roundedNet = Number(val.toFixed(2));
-    setGridPricesNet(prev => ({ ...prev, [productId]: roundedNet }));
-    setGridPricesFinal(prev => ({ ...prev, [productId]: finalPrice }));
-  };
 
   const orderItems = useMemo(() => {
     const items: OrderItem[] = [];
     const factoryName = factories?.find(f => f.id === selectedFactoryId)?.name || "Fábrica";
-
     Object.entries(gridQuantities).forEach(([productId, qty]) => {
       if (qty <= 0) return;
-      
       const p = registeredProducts?.find(rp => rp.id === productId);
       if (!p) return;
-
       const isBonus = gridBonus[productId] || false;
       const finalPrice = gridPricesFinal[productId] || 0;
       const netPrice = gridPricesNet[productId] || 0;
       const qtyPerBox = p.quantityPerBox || 1;
       const stRate = parseST(p.st);
-
       items.push({
-        productId: p.id,
-        catalogProductId: p.catalogProductId || "",
-        factoryName,
-        code: p.code,
-        name: p.description,
-        ean: p.ean || "",
-        unit: p.unit,
-        quantity: qty,
-        priceType,
-        unitPriceNet: netPrice,
-        unitPriceFinal: finalPrice,
-        appliedContract: contractPercent,
-        stRate: stRate * 100,
-        total: isBonus ? 0 : Number((finalPrice * qtyPerBox * qty).toFixed(2)),
-        weight: isBonus ? 0 : Number(((p.boxWeightKg || 0) * qty).toFixed(2)),
-        line: p.line || "",
-        quantityPerBox: qtyPerBox,
-        unitWeight: p.boxWeightKg || 0,
-        isBonus
+        productId: p.id, catalogProductId: p.catalogProductId || "", factoryName, code: p.code, name: p.description, ean: p.ean || "", unit: p.unit, quantity: qty, priceType, unitPriceNet: netPrice, unitPriceFinal: finalPrice, appliedContract: contractPercent, stRate: stRate * 100, total: isBonus ? 0 : Number((finalPrice * qtyPerBox * qty).toFixed(2)), weight: isBonus ? 0 : Number(((p.boxWeightKg || 0) * qty).toFixed(2)), line: p.line || "", quantityPerBox: qtyPerBox, unitWeight: p.boxWeightKg || 0, isBonus
       });
     });
-
     return items;
   }, [gridQuantities, gridPricesFinal, gridPricesNet, gridBonus, registeredProducts, selectedFactoryId, factories, priceType, contractPercent]);
 
-  const orderTotal = useMemo(() => orderItems.reduce((acc, item) => acc + item.total, 0), [orderItems]);
-  const orderTotalWeight = useMemo(() => orderItems.reduce((acc, item) => acc + item.weight, 0), [orderItems]);
-
-  const bonusSummaries = useMemo(() => {
-    if (orderItems.length === 0) return [];
-    const grouped: Record<string, { saleQty: number, bonusQty: number, totalVal: number, name: string, qtyPerBox: number }> = {};
-
-    orderItems.forEach(item => {
-      const key = `${item.productId}-${item.priceType}`;
-      if (!grouped[key]) grouped[key] = { saleQty: 0, bonusQty: 0, totalVal: 0, name: item.name, qtyPerBox: item.quantityPerBox };
-      if (item.isBonus) grouped[key].bonusQty += item.quantity;
-      else { grouped[key].saleQty += item.quantity; grouped[key].totalVal += item.total; }
-    });
-
-    return Object.values(grouped)
-      .filter(g => g.saleQty > 0 && g.bonusQty > 0)
-      .map(g => `• ${g.name}: Preço médio com bônus: R$ ${(g.totalVal / ((g.saleQty + g.bonusQty) * g.qtyPerBox)).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`);
-  }, [orderItems]);
+  const orderTotal = orderItems.reduce((acc, item) => acc + item.total, 0);
+  const orderTotalWeight = orderItems.reduce((acc, item) => acc + item.weight, 0);
 
   const handleProcessOrder = async (status: 'DRAFT' | 'CONFIRMED') => {
-    if (orderItems.length === 0) return;
-    if (selectedCustomerId === "none") {
-      toast({ title: "Cliente obrigatório", variant: "destructive" });
-      return;
-    }
-
+    if (!orgId || orderItems.length === 0 || selectedCustomerId === "none") return;
     status === 'DRAFT' ? setIsSavingDraft(true) : setIsFinalizing(true);
-
-    let finalNotes = manualObservations;
-    if (bonusSummaries.length > 0) finalNotes += `\n\n--- BONIFICAÇÃO ---\n${bonusSummaries.join('\n')}`;
-
     const orderData = {
-      customerId: selectedCustomerId,
-      customerName: customers?.find(c => c.id === selectedCustomerId)?.name || 'Cliente',
-      items: orderItems,
-      notes: finalNotes,
-      totalAmount: orderTotal,
-      totalWeight: orderTotalWeight,
-      status,
-      createdAt: serverTimestamp(),
-      userId: auth.currentUser?.uid || 'anonymous'
+      organizationId: orgId, customerId: selectedCustomerId, customerName: customers?.find(c => c.id === selectedCustomerId)?.name || 'Cliente', items: orderItems, notes: manualObservations, totalAmount: orderTotal, totalWeight: orderTotalWeight, status, createdAt: serverTimestamp(), sellerUserId: user?.uid
     };
-
     try {
-      await addDocumentNonBlocking(collection(db, 'orders'), orderData);
+      await addDocumentNonBlocking(collection(db, 'organizations', orgId, 'orders'), orderData);
       toast({ title: "Sucesso!" });
       router.push('/orders/history');
     } catch (e) {
       status === 'DRAFT' ? setIsSavingDraft(false) : setIsFinalizing(false);
     }
   };
+
+  if (isProfileLoading) return <div className="flex h-screen items-center justify-center"><Loader2 className="animate-spin text-primary" size={48} /></div>;
 
   return (
     <div className="container mx-auto px-4 py-8 max-w-7xl">
@@ -293,7 +192,7 @@ export default function GridOrderPage() {
           </Link>
           <div>
             <h1 className="text-2xl font-black text-primary flex items-center gap-2">
-              <LayoutGrid size={24} /> Pedido em Grade
+              <LayoutGrid size={24} /> Pedido em Grade ({profile?.organizationId})
             </h1>
           </div>
         </div>
@@ -349,13 +248,7 @@ export default function GridOrderPage() {
               </div>
               <div className="space-y-1">
                 <Label className="text-[10px]">Aditivo %</Label>
-                <input 
-                  type="number" 
-                  value={contractPercent} 
-                  onChange={(e) => setContractPercent(Number(e.target.value))} 
-                  onFocus={(e) => e.target.select()}
-                  className="h-9 w-full rounded-md border border-input bg-white px-3 py-1 text-xs font-bold shadow-sm outline-none" 
-                />
+                <input type="number" value={contractPercent} onChange={(e) => setContractPercent(Number(e.target.value))} onFocus={(e) => e.target.select()} className="h-9 w-full rounded-md border border-input bg-white px-3 py-1 text-xs font-bold shadow-sm outline-none" />
               </div>
             </div>
           </CardContent>
@@ -364,41 +257,24 @@ export default function GridOrderPage() {
         <Card className="bg-primary text-white border-none shadow-md">
           <CardContent className="p-6 flex flex-col justify-center h-full">
             <div className="text-2xl font-black">R$ {orderTotal.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</div>
-            <div className="text-xs font-medium opacity-80 mt-2">
-               {orderTotalWeight.toFixed(2)} Kg total
-            </div>
+            <div className="text-xs font-medium opacity-80 mt-2">{orderTotalWeight.toFixed(2)} Kg total</div>
           </CardContent>
         </Card>
       </div>
 
-      {/* Barra de Pesquisa e Filtro de Preenchidos */}
       <div className="mb-6 flex items-center gap-3">
         <div className="relative flex-1 max-w-md">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" size={18} />
-          <Input 
-            placeholder="Pesquisar por código, nome ou EAN..." 
-            className="pl-10 h-11 bg-white shadow-sm"
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            onFocus={(e) => e.target.select()}
-          />
+          <Input placeholder="Pesquisar..." className="pl-10 h-11 bg-white shadow-sm" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} onFocus={(e) => e.target.select()} />
         </div>
-        <Button 
-          variant={showOnlyFilled ? "default" : "outline"} 
-          size="icon" 
-          className={`h-11 w-11 shadow-sm transition-all ${showOnlyFilled ? 'bg-amber-400 hover:bg-amber-500 text-white' : 'bg-white text-muted-foreground'}`}
-          onClick={() => setShowOnlyFilled(!showOnlyFilled)}
-          title={showOnlyFilled ? "Mostrando apenas preenchidos" : "Mostrar apenas preenchidos"}
-        >
+        <Button variant={showOnlyFilled ? "default" : "outline"} size="icon" className={`h-11 w-11 shadow-sm ${showOnlyFilled ? 'bg-amber-400 hover:bg-amber-500 text-white' : 'bg-white text-muted-foreground'}`} onClick={() => setShowOnlyFilled(!showOnlyFilled)}>
           <Crown size={20} fill={showOnlyFilled ? "white" : "none"} />
         </Button>
       </div>
 
       <Card className="border-none shadow-xl overflow-hidden mb-24">
         {selectedFactoryId === "none" || lineFilter === "none" ? (
-          <div className="p-20 text-center text-muted-foreground bg-white">
-            <p className="font-medium">Selecione Fábrica e Linha para carregar a grade.</p>
-          </div>
+          <div className="p-20 text-center text-muted-foreground bg-white">Selecione Fábrica e Linha para carregar a grade.</div>
         ) : (
           <div className="overflow-x-auto">
             <Table>
@@ -416,59 +292,17 @@ export default function GridOrderPage() {
                 {filteredProducts.map((p) => {
                   const isB = gridBonus[p.id] || false;
                   const qty = gridQuantities[p.id] || 0;
-                  const net = gridPricesNet[p.id] || 0;
-                  const fin = gridPricesFinal[p.id] || 0;
-                  const subtotal = isB ? 0 : (fin * (p.quantityPerBox || 1) * qty);
-
+                  const subtotal = isB ? 0 : ((gridPricesFinal[p.id] || 0) * (p.quantityPerBox || 1) * qty);
                   return (
                     <TableRow key={p.id} className={qty > 0 ? "bg-primary/5" : ""}>
                       <TableCell className="text-center">
-                        <button 
-                          onClick={() => setGridBonus(prev => ({ ...prev, [p.id]: !isB }))}
-                          className={`w-8 h-8 rounded-lg flex items-center justify-center border-2 ${isB ? "bg-accent border-accent text-white" : "bg-white border-slate-200 text-slate-300"}`}
-                        >
-                          <Gift size={16} />
-                        </button>
+                        <button onClick={() => setGridBonus(prev => ({ ...prev, [p.id]: !isB }))} className={`w-8 h-8 rounded-lg flex items-center justify-center border-2 ${isB ? "bg-accent border-accent text-white" : "bg-white border-slate-200 text-slate-300"}`}><Gift size={16} /></button>
                       </TableCell>
-                      <TableCell>
-                        <div className="font-bold text-xs">{p.code}</div>
-                        <div className="text-[10px] text-muted-foreground uppercase">{p.description}</div>
-                        <div className="text-[9px] text-muted-foreground/60 font-mono">{p.ean}</div>
-                      </TableCell>
-                      <TableCell className="text-right">
-                        <input 
-                          type="number" 
-                          step="0.01" 
-                          className="w-20 h-8 text-right text-[11px] font-bold border rounded bg-slate-50 outline-none focus:border-primary" 
-                          value={net || ""}
-                          onChange={(e) => handleUpdatePriceNet(p.id, Number(e.target.value), p.st)}
-                          onFocus={(e) => e.target.select()}
-                          disabled={isB}
-                        />
-                      </TableCell>
-                      <TableCell className="text-right">
-                        <input 
-                          type="number" 
-                          step="0.01" 
-                          className={`w-20 h-8 text-right text-[11px] font-bold border rounded outline-none focus:border-primary ${isB ? "opacity-50" : "text-primary bg-primary/5 border-primary/20"}`}
-                          value={fin || ""}
-                          onChange={(e) => handleUpdatePriceFinal(p.id, Number(e.target.value), p.st)}
-                          onFocus={(e) => e.target.select()}
-                          disabled={isB}
-                        />
-                      </TableCell>
-                      <TableCell className="text-center">
-                        <input 
-                          type="number" 
-                          className="w-20 h-8 text-center font-black border rounded bg-slate-50 outline-none focus:border-primary"
-                          value={qty || ""}
-                          onChange={(e) => setGridQuantities(prev => ({ ...prev, [p.id]: Number(e.target.value) }))}
-                          onFocus={(e) => e.target.select()}
-                        />
-                      </TableCell>
-                      <TableCell className="text-right font-black">
-                        {isB ? "0,00" : `R$ ${subtotal.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`}
-                      </TableCell>
+                      <TableCell><div className="font-bold text-xs">{p.code}</div><div className="text-[10px] text-muted-foreground uppercase">{p.description}</div></TableCell>
+                      <TableCell className="text-right"><input type="number" step="0.01" className="w-20 h-8 text-right text-[11px] font-bold border rounded bg-slate-50" value={gridPricesNet[p.id] || ""} onChange={(e) => { const v = Number(e.target.value); const st = parseST(p.st); setGridPricesNet(prev => ({ ...prev, [p.id]: v })); setGridPricesFinal(prev => ({ ...prev, [p.id]: Number((v * (1 + st)).toFixed(2)) })); }} onFocus={(e) => e.target.select()} disabled={isB}/></TableCell>
+                      <TableCell className="text-right"><input type="number" step="0.01" className="w-20 h-8 text-right text-[11px] font-bold border rounded bg-slate-50" value={gridPricesFinal[p.id] || ""} onChange={(e) => { const v = Number(e.target.value); const st = parseST(p.st); setGridPricesFinal(prev => ({ ...prev, [p.id]: v })); setGridPricesNet(prev => ({ ...prev, [p.id]: Number((v / (1 + st)).toFixed(2)) })); }} onFocus={(e) => e.target.select()} disabled={isB}/></TableCell>
+                      <TableCell className="text-center"><input type="number" className="w-20 h-8 text-center font-black border rounded bg-slate-50" value={qty || ""} onChange={(e) => setGridQuantities(prev => ({ ...prev, [p.id]: Number(e.target.value) }))} onFocus={(e) => e.target.select()}/></TableCell>
+                      <TableCell className="text-right font-black">{isB ? "0,00" : `R$ ${subtotal.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`}</TableCell>
                     </TableRow>
                   );
                 })}
