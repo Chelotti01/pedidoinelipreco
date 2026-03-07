@@ -10,7 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
-import { FileSpreadsheet, Download, UploadCloud, Loader2, CheckCircle2, ChevronLeft } from "lucide-react";
+import { FileSpreadsheet, Download, UploadCloud, Loader2, CheckCircle2, ChevronLeft, Info } from "lucide-react";
 import Link from 'next/link';
 import * as XLSX from 'xlsx';
 
@@ -23,7 +23,7 @@ export default function ImportRegisteredProductsPage() {
   const db = useFirestore();
   const { user } = useUser();
 
-  // Get user profile for organizationId via Email (SaaS Pattern)
+  // Busca perfil pelo e-mail do usuário
   const userProfileRef = useMemoFirebase(() => 
     user?.email ? doc(db, 'userProfiles', user.email.toLowerCase().trim()) : null
   , [db, user]);
@@ -70,7 +70,7 @@ export default function ImportRegisteredProductsPage() {
       const foundKey = Object.keys(row).find(k => {
         const normalizedK = k.toLowerCase().trim().normalize('NFD').replace(/[\u0300-\u036f]/g, "");
         const normalizedTarget = key.toLowerCase().trim().normalize('NFD').replace(/[\u0300-\u036f]/g, "");
-        return normalizedK === normalizedTarget || normalizedK.includes(normalizedTarget);
+        return normalizedK === normalizedTarget || normalizedK.includes(normalizedTarget) || normalizedTarget.includes(normalizedK);
       });
       if (foundKey) return row[foundKey];
     }
@@ -87,7 +87,7 @@ export default function ImportRegisteredProductsPage() {
 
   const handleUpload = async () => {
     if (!file || !orgId) {
-      toast({ title: "Arquivo ou Organização não identificados", variant: "destructive" });
+      toast({ title: "Organização não identificada", variant: "destructive" });
       return;
     }
 
@@ -119,20 +119,22 @@ export default function ImportRegisteredProductsPage() {
           status: String(getRowValue(row, ["Status", "Ativo", "Situacao"]) || 'Active'),
           brand: String(getRowValue(row, ["Marca", "Fabricante", "Brand"]) || ''),
           line: String(getRowValue(row, ["Linha", "Colecao", "Line"]) || ''),
-          code: code || `TEMP-${Date.now()}-${count}`,
+          code: code || `ID-${Date.now()}-${count}`,
           description: description || 'Sem Descrição',
-          quantityPerBox: safeNumber(getRowValue(row, ["Qtd Caixa", "Embalagem", "Quantity"])),
-          unit: String(getRowValue(row, ["Unidade", "Und", "Unit"]) || 'UN'),
-          ean: String(getRowValue(row, ["EAN", "GTIN", "Barras"]) || ''),
+          quantityPerBox: safeNumber(getRowValue(row, ["Qtd Caixa", "Embalagem", "Quantity", "Cx"])),
+          unit: String(getRowValue(row, ["Unidade", "Und", "Unit", "Un"]) || 'UN'),
+          ean: String(getRowValue(row, ["EAN", "GTIN", "Barras", "Cod Barras"]) || ''),
           dun14: String(getRowValue(row, ["DUN14", "DUN-14", "DUN"]) || ''),
-          taxClassification: String(getRowValue(row, ["Classificação Fiscal", "Classificacao", "Tax"]) || ''),
+          taxClassification: String(getRowValue(row, ["Classificação Fiscal", "Classificacao", "Tax", "CF"]) || ''),
           ncm: String(getRowValue(row, ["NCM"]) || ''),
           cest: String(getRowValue(row, ["CEST"]) || ''),
-          unitNetWeightKg: safeNumber(getRowValue(row, ["Peso Liq Unit", "Peso Líquido", "Weight"])),
-          boxWeightKg: safeNumber(getRowValue(row, ["Peso Caixa", "Peso Bruto"])),
+          unitNetWeightKg: safeNumber(getRowValue(row, ["Peso Liq Unit", "Peso Líquido", "Weight", "Peso Liq"])),
+          boxWeightKg: safeNumber(getRowValue(row, ["Peso Caixa", "Peso Bruto", "Peso Cx"])),
           st: String(getRowValue(row, ["ST", "Substituicao", "Imposto"]) || '0%'),
           factoryId: '', 
           catalogProductId: '', 
+          customSurchargeValue: 0,
+          customSurchargeType: 'fixed',
           createdAt: serverTimestamp(),
           updatedAt: serverTimestamp()
         };
@@ -142,7 +144,7 @@ export default function ImportRegisteredProductsPage() {
       }
 
       setIsSuccess(true);
-      toast({ title: "Importação concluída", description: `${count} itens processados com sucesso.` });
+      toast({ title: "Importação concluída", description: `${count} itens processados para ${orgId}.` });
       setIsLoading(false);
     } catch (error) {
       console.error(error);
@@ -155,62 +157,66 @@ export default function ImportRegisteredProductsPage() {
     <div className="container mx-auto px-4 py-12 max-w-2xl">
       <div className="mb-8 flex items-center justify-between">
         <div className="flex items-center gap-3">
-          <Link href="/admin/products" className="text-muted-foreground hover:text-primary">
+          <Link href="/admin/products" className="text-muted-foreground hover:text-primary transition-colors">
             <ChevronLeft size={28} />
           </Link>
-          <h1 className="text-2xl font-bold">Importação de Produtos</h1>
+          <div>
+            <h1 className="text-2xl font-black uppercase tracking-tight text-primary">Importação de Produtos</h1>
+            <p className="text-muted-foreground text-xs font-bold">Empresa: {orgId || 'Carregando...'}</p>
+          </div>
         </div>
       </div>
 
       <div className="grid gap-6">
         <Card className="border-primary/20 bg-primary/5">
           <CardHeader>
-            <CardTitle className="text-lg flex items-center gap-2">
-              <Download className="text-primary" size={20} /> Modelo de Referência
+            <CardTitle className="text-sm font-black uppercase flex items-center gap-2">
+              <Download className="text-primary" size={18} /> Modelo de Referência
             </CardTitle>
-            <CardDescription>
+            <CardDescription className="text-xs">
               Baixe o modelo para garantir que os dados sejam importados corretamente.
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <Button onClick={handleDownloadTemplate} variant="outline" className="w-full gap-2 border-primary text-primary">
+            <Button onClick={handleDownloadTemplate} variant="outline" className="w-full gap-2 border-primary text-primary font-bold">
               <FileSpreadsheet size={18} /> Baixar Modelo Excel
             </Button>
           </CardContent>
         </Card>
 
-        <Card className="shadow-xl">
-          <CardHeader>
-            <CardTitle className="text-lg flex items-center gap-2">
-              <UploadCloud className="text-primary" size={20} /> Upload da Planilha
+        <Card className="shadow-2xl border-none">
+          <CardHeader className="bg-slate-100 rounded-t-xl">
+            <CardTitle className="text-sm font-black uppercase flex items-center gap-2">
+              <UploadCloud className="text-primary" size={18} /> Upload da Planilha
             </CardTitle>
-            <CardDescription>
-              Selecione sua planilha preenchida. ({orgId || 'Carregando...'})
-            </CardDescription>
           </CardHeader>
-          <CardContent className="space-y-6">
+          <CardContent className="space-y-6 pt-6">
             <div className="grid w-full items-center gap-2">
-              <Label htmlFor="import-file">Arquivo XLSX</Label>
+              <Label htmlFor="import-file" className="text-xs font-bold uppercase">Arquivo XLSX</Label>
               <Input 
                 id="import-file" 
                 type="file" 
                 accept=".xlsx" 
                 onChange={handleFileChange}
                 disabled={isLoading}
+                className="h-12 border-dashed border-2"
               />
             </div>
 
             {isSuccess && (
-              <div className="p-4 bg-accent/10 rounded-lg border border-accent/20">
-                <p className="font-bold text-accent">Sucesso!</p>
-                <p className="text-sm">Os produtos foram importados. Agora você pode editá-los e vincular ao catálogo.</p>
+              <div className="p-4 bg-accent/10 rounded-lg border border-accent/20 flex items-start gap-3">
+                <CheckCircle2 className="text-accent shrink-0" size={20} />
+                <div>
+                  <p className="font-black text-accent text-xs uppercase">Processamento OK!</p>
+                  <p className="text-[10px] text-muted-foreground uppercase font-bold mt-1">Os produtos foram importados. Agora você deve editá-los para fazer a "Amarração" com o catálogo de preços.</p>
+                </div>
               </div>
             )}
           </CardContent>
-          <CardFooter>
+          <CardFooter className="flex flex-col gap-3">
             {!isSuccess ? (
               <Button 
-                className="w-full h-12 text-lg font-semibold gap-2" 
+                className="w-full h-14 text-lg font-black uppercase gap-2 shadow-lg" 
                 onClick={handleUpload}
                 disabled={isLoading || !file || !orgId}
               >
@@ -219,11 +225,14 @@ export default function ImportRegisteredProductsPage() {
               </Button>
             ) : (
               <Link href="/admin/products" className="w-full">
-                <Button variant="outline" className="w-full h-12">
-                  Ver Produtos Importados
+                <Button variant="outline" className="w-full h-14 font-black uppercase text-accent border-accent hover:bg-accent/5">
+                  Ver Produtos e Fazer Amarração
                 </Button>
               </Link>
             )}
+            <div className="flex items-center gap-2 text-[9px] text-muted-foreground font-bold uppercase">
+              <Info size={12} /> Somente arquivos .xlsx são permitidos
+            </div>
           </CardFooter>
         </Card>
       </div>
