@@ -11,7 +11,7 @@ import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/com
 import { 
   ShoppingCart, ListChecks, Zap, History, Users, LogOut, 
   Package, FileSpreadsheet, FileDown, Loader2, LayoutGrid, 
-  DollarSign, TrendingUp, Settings, ChevronDown, ChevronUp, ShieldCheck, UploadCloud, Lock, Info
+  DollarSign, TrendingUp, Settings, ChevronDown, ChevronUp, ShieldCheck, UploadCloud, Lock, Info, Eye, EyeOff
 } from "lucide-react";
 import {
   Dialog,
@@ -44,6 +44,7 @@ export default function Home() {
   const [showPasswordDialog, setShowPasswordDialog] = useState(false);
   const [inputPassword, setInputPassword] = useState("");
   const [isConfigsUnlocked, setIsConfigsUnlocked] = useState(false);
+  const [showAdminPassword, setShowAdminPassword] = useState(false);
 
   // Perfil do Usuário para obter a Organização
   const userProfileRef = useMemoFirebase(() => user ? doc(db, 'userProfiles', user.uid) : null, [db, user]);
@@ -377,22 +378,25 @@ export default function Home() {
           <div className="py-4 space-y-4">
             <div className="space-y-2">
               <Label htmlFor="admin-password">Senha de Administrador</Label>
-              <Input 
-                id="admin-password"
-                type="password" 
-                placeholder="Digite a senha..." 
-                value={inputPassword} 
-                onChange={(e) => setInputPassword(e.target.value)}
-                onKeyDown={(e) => e.key === 'Enter' && handleUnlockConfigs()}
-                className="mt-2"
-                autoFocus
-              />
-            </div>
-            <div className="p-3 bg-slate-50 border rounded-lg flex gap-2 items-start">
-              <Info size={14} className="text-primary shrink-0 mt-0.5" />
-              <p className="text-[10px] text-muted-foreground leading-tight">
-                Dica: A senha padrão é <strong>admin123</strong>.
-              </p>
+              <div className="relative">
+                <Input 
+                  id="admin-password"
+                  type={showAdminPassword ? "text" : "password"} 
+                  placeholder="Digite a senha..." 
+                  value={inputPassword} 
+                  onChange={(e) => setInputPassword(e.target.value)}
+                  onKeyDown={(e) => e.key === 'Enter' && handleUnlockConfigs()}
+                  className="pr-10"
+                  autoFocus
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowAdminPassword(!showAdminPassword)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-primary transition-colors"
+                >
+                  {showAdminPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                </button>
+              </div>
             </div>
           </div>
           <DialogFooter>
