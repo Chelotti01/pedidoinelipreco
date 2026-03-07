@@ -50,6 +50,15 @@ export default function ViewOrderPage() {
         useCORS: true,
         backgroundColor: '#ffffff',
         logging: false,
+        windowWidth: 1200, // Simula largura de desktop para evitar cortes responsivos do mobile
+        onclone: (clonedDoc) => {
+          // Garante que containers com scroll fiquem visíveis no clone para a captura
+          const scrollables = clonedDoc.querySelectorAll('.overflow-x-auto');
+          scrollables.forEach((el: any) => {
+            el.style.overflow = 'visible';
+            el.style.display = 'block';
+          });
+        }
       });
 
       const imgData = canvas.toDataURL('image/png');
