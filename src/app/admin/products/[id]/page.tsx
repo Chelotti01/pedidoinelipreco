@@ -11,7 +11,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
-import { Save, ChevronLeft, Tag, Loader2, DollarSign, Percent, Package, Calculator, ShieldCheck, Barcode } from "lucide-react";
+import { Save, ChevronLeft, Tag, Loader2, DollarSign, Package, Calculator, Barcode, AlertCircle } from "lucide-react";
 import Link from 'next/link';
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
@@ -24,13 +24,14 @@ export default function EditRegisteredProductPage() {
   
   const id = Array.isArray(params.id) ? params.id[0] : params.id;
 
-  // Busca perfil pelo e-mail
+  // Busca perfil pelo e-mail do usuário logado para garantir multi-tenancy
   const userProfileRef = useMemoFirebase(() => 
     user?.email ? doc(db, 'userProfiles', user.email.toLowerCase().trim()) : null
   , [db, user]);
-  const { data: profile } = useDoc(userProfileRef);
+  const { data: profile, isLoading: isProfileLoading } = useDoc(userProfileRef);
   const orgId = profile?.organizationId;
 
+  // Referência do produto no Firestore seguindo o padrão /organizations/{orgId}/products/{id}
   const productRef = useMemoFirebase(() => 
     (id && orgId) ? doc(db, 'organizations', orgId, 'products', id) : null
   , [db, id, orgId]);
@@ -60,6 +61,7 @@ export default function EditRegisteredProductPage() {
 
   const [hasPopulated, setHasPopulated] = useState(false);
 
+  // Popula o formulário assim que os dados do produto são carregados
   useEffect(() => {
     if (product && !hasPopulated) {
       setFormData({
@@ -87,16 +89,19 @@ export default function EditRegisteredProductPage() {
     }
   }, [product, hasPopulated]);
 
+  // Carrega fábricas para o seletor de "Amarração"
   const factoriesQuery = useMemoFirebase(() => 
     orgId ? query(collection(db, 'organizations', orgId, 'factories'), orderBy('name')) : null
   , [db, orgId]);
   const { data: factories } = useCollection(factoriesQuery);
 
+  // Carrega catálogo de preços importados
   const catalogQuery = useMemoFirebase(() => 
     orgId ? query(collection(db, 'organizations', orgId, 'productFactoryPrices'), orderBy('name')) : null
   , [db, orgId]);
   const { data: catalogProducts } = useCollection(catalogQuery);
 
+  // Filtra o catálogo pela fábrica selecionada
   const filteredCatalog = useMemo(() => {
     if (!formData.factoryId) return [];
     return catalogProducts?.filter(p => p.factoryId === formData.factoryId) || [];
@@ -120,11 +125,26 @@ export default function EditRegisteredProductPage() {
     router.push('/admin/products');
   };
 
-  if (isProductLoading || !orgId) {
+  const isLoading = isProfileLoading || isProductLoading;
+
+  if (isLoading) {
     return (
       <div className="flex h-screen items-center justify-center flex-col gap-4">
         <Loader2 className="animate-spin text-primary" size={48} />
-        <p className="text-muted-foreground font-bold animate-pulse uppercase tracking-widest text-[10px]">Carregando Ficha Técnica...</p>
+        <p className="text-muted-foreground font-bold animate-pulse uppercase tracking-widest text-[10px]">Sincronizando Ficha Técnica...</p>
+      </div>
+    );
+  }
+
+  if (!product && !isProductLoading) {
+    return (
+      <div className="container mx-auto px-4 py-20 text-center space-y-4">
+        <AlertCircle size={64} className="mx-auto text-destructive opacity-20" />
+        <h2 className="text-2xl font-bold">Produto não encontrado</h2>
+        <p className="text-muted-foreground">O item solicitado não existe ou você não tem permissão para acessá-lo.</p>
+        <Link href="/admin/products">
+          <Button variant="outline">Voltar para a Lista</Button>
+        </Link>
       </div>
     );
   }
@@ -137,8 +157,8 @@ export default function EditRegisteredProductPage() {
             <ChevronLeft size={28} />
           </Link>
           <div>
-            <h1 className="text-3xl font-black tracking-tight text-primary uppercase">Ficha Técnica do Produto</h1>
-            <p className="text-muted-foreground text-xs font-bold uppercase">Editando ID: {id?.slice(-6).toUpperCase()}</p>
+            <h1 className="text-3xl font-black tracking-tight text-primary uppercase">Editar Ficha Técnica</h1>
+            <p className="text-muted-foreground text-xs font-bold uppercase">Empresa: {orgId} | ID: {id?.slice(-6).toUpperCase()}</p>
           </div>
         </div>
       </div>
