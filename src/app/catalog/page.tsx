@@ -21,8 +21,11 @@ export default function CatalogPage() {
   const [searchTerm, setSearchTerm] = useState("");
   const [factoryFilter, setFactoryFilter] = useState("all");
 
-  // Get user profile for organizationId
-  const userProfileRef = useMemoFirebase(() => user ? doc(db, 'userProfiles', user.uid) : null, [db, user]);
+  // Perfil pelo e-mail
+  const userProfileRef = useMemoFirebase(() => 
+    user?.email ? doc(db, 'userProfiles', user.email.toLowerCase().trim()) : null
+  , [db, user]);
+  
   const { data: profile } = useDoc(userProfileRef);
   const orgId = profile?.organizationId;
 
@@ -65,7 +68,7 @@ export default function CatalogPage() {
           </Link>
           <div>
             <h1 className="text-3xl font-bold tracking-tight">Catálogo de Produtos</h1>
-            <p className="text-muted-foreground">Visualize itens importados sincronizados ({orgId}).</p>
+            <p className="text-muted-foreground">Visualize itens importados sincronizados ({orgId || '...'}).</p>
           </div>
         </div>
         <div className="flex gap-3">

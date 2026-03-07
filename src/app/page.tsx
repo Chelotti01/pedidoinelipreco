@@ -1,7 +1,7 @@
 
 "use client"
 
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useMemo } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useAuth, useUser, useFirestore, useDoc, useMemoFirebase, useCollection } from '@/firebase';
@@ -24,10 +24,8 @@ import {
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
-import { Switch } from "@/components/ui/switch";
 import { useToast } from "@/hooks/use-toast";
 import { format } from 'date-fns';
-import { ptBR } from 'date-fns/locale';
 
 export default function Home() {
   const auth = useAuth();
@@ -46,11 +44,14 @@ export default function Home() {
   const [isConfigsUnlocked, setIsConfigsUnlocked] = useState(false);
   const [showAdminPassword, setShowAdminPassword] = useState(false);
 
-  // Perfil do Usuário para obter a Organização
-  const userProfileRef = useMemoFirebase(() => user ? doc(db, 'userProfiles', user.uid) : null, [db, user]);
+  // Perfil do Usuário pelo E-mail
+  const userProfileRef = useMemoFirebase(() => 
+    user?.email ? doc(db, 'userProfiles', user.email.toLowerCase().trim()) : null
+  , [db, user]);
+  
   const { data: profile, isLoading: isProfileLoading } = useDoc(userProfileRef);
 
-  // Verificação de Super Admin (Seu email ou role superAdmin)
+  // Verificação de Super Admin
   const isSuperAdmin = useMemo(() => {
     return user?.email === 'vendas.piracanjuba@gmail.com' || profile?.role === 'superAdmin';
   }, [user, profile]);
@@ -100,7 +101,6 @@ export default function Home() {
   };
 
   const handleUnlockConfigs = () => {
-    // SENHA PADRÃO: admin123
     if (inputPassword === 'admin123') {
       setIsConfigsUnlocked(true);
       setShowConfigs(true);
@@ -108,11 +108,7 @@ export default function Home() {
       setInputPassword("");
       toast({ title: "Acesso liberado" });
     } else {
-      toast({ 
-        title: "Senha incorreta", 
-        description: "A senha digitada não confere.", 
-        variant: "destructive" 
-      });
+      toast({ title: "Senha incorreta", variant: "destructive" });
     }
   };
 
@@ -168,7 +164,8 @@ export default function Home() {
               if (!catalogItem) return '';
               const basePrice = exportPriceType === 'closed' ? (catalogItem.closedLoadPrice || 0) : (catalogItem.fractionalLoadPrice || 0);
               const netPrice = (basePrice - (catalogItem.discountAmount || 0)) * (1 + exportContractPercent / 100);
-              const finalPrice = netPrice * (1 + (p.st ? parseFloat(p.st) / 100 : 0));
+              const stRate = p.st ? parseFloat(p.st.replace('%', '').replace(',', '.')) / 100 : 0;
+              const finalPrice = netPrice * (1 + stRate);
               return `
                 <tr style="border-bottom: 1px solid #E0E0E0;">
                   <td style="padding: 8px; font-weight: bold;">${p.code}</td>
@@ -186,7 +183,7 @@ export default function Home() {
       const canvas = await html2canvas(container, { scale: 2 });
       const pdf = new jsPDF('p', 'mm', 'a4');
       pdf.addImage(canvas.toDataURL('image/png'), 'PNG', 0, 0, 210, (canvas.height * 210) / canvas.width);
-      pdf.save(`tabela_${factoryName.toLowerCase()}.pdf`);
+      pdf.save(`tabela_${factoryName.toLowerCase().replace(/\s+/g, '_')}.pdf`);
       document.body.removeChild(container);
       setShowExportConfigDialog(false);
     } catch (e) {
