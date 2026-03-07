@@ -10,7 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
-import { FileSpreadsheet, Download, UploadCloud, Loader2, CheckCircle2, ChevronLeft, Info } from "lucide-react";
+import { FileSpreadsheet, Download, UploadCloud, Loader2, CheckCircle2, ChevronLeft, Info, AlertTriangle } from "lucide-react";
 import Link from 'next/link';
 import * as XLSX from 'xlsx';
 
@@ -23,6 +23,7 @@ export default function ImportRegisteredProductsPage() {
   const db = useFirestore();
   const { user } = useUser();
 
+  // Busca perfil pelo e-mail (Padrao SaaS Multi-tenant)
   const userProfileRef = useMemoFirebase(() => 
     user?.email ? doc(db, 'userProfiles', user.email.toLowerCase().trim()) : null
   , [db, user]);
@@ -85,7 +86,7 @@ export default function ImportRegisteredProductsPage() {
 
   const handleUpload = async () => {
     if (!file || !orgId) {
-      toast({ title: "Organização não identificada", variant: "destructive" });
+      toast({ title: "Erro de Organização", description: "Sua empresa não foi identificada. Verifique seu vínculo no Super Admin.", variant: "destructive" });
       return;
     }
 
@@ -135,7 +136,7 @@ export default function ImportRegisteredProductsPage() {
       }
 
       setIsSuccess(true);
-      toast({ title: "Importação concluída", description: `${count} produtos técnicos processados.` });
+      toast({ title: "Importação concluída", description: `${count} produtos técnicos processados para a organização ${orgId}.` });
       setIsLoading(false);
     } catch (error) {
       console.error(error);
@@ -148,8 +149,15 @@ export default function ImportRegisteredProductsPage() {
     <div className="container mx-auto px-4 py-12 max-w-2xl">
       <div className="mb-8 flex items-center gap-3">
         <Link href="/admin/products" className="text-muted-foreground hover:text-primary"><ChevronLeft size={28} /></Link>
-        <h1 className="text-2xl font-black uppercase text-primary">Importar Ficha Técnica</h1>
+        <h1 className="text-2xl font-black uppercase text-primary">Importar Ficha Técnica ({orgId || '...'})</h1>
       </div>
+
+      {!orgId && !isLoading && (
+        <div className="mb-6 p-4 bg-destructive/10 border border-destructive/20 rounded-lg flex items-center gap-3 text-destructive">
+          <AlertTriangle size={20} />
+          <p className="text-xs font-bold uppercase">Aviso: Você não está vinculado a nenhuma organização. A importação pode falhar.</p>
+        </div>
+      )}
 
       <div className="grid gap-6">
         <Card className="border-primary/20 bg-primary/5">
@@ -179,7 +187,7 @@ export default function ImportRegisteredProductsPage() {
             {isSuccess && (
               <div className="p-4 bg-accent/10 rounded-lg border border-accent/20 flex items-start gap-3">
                 <CheckCircle2 className="text-accent shrink-0" size={20} />
-                <p className="text-[10px] text-muted-foreground uppercase font-bold">Produtos importados com sucesso! Agora você deve editá-los para vincular ao catálogo de preços.</p>
+                <p className="text-[10px] text-muted-foreground uppercase font-bold">Produtos importados com sucesso para <strong>{orgId}</strong>! Agora você deve editá-los para fazer a amarração de preços.</p>
               </div>
             )}
           </CardContent>

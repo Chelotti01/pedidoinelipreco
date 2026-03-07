@@ -24,11 +24,11 @@ export default function EditRegisteredProductPage() {
   
   const id = Array.isArray(params.id) ? params.id[0] : params.id;
 
-  // Busca perfil pelo e-mail para garantir o orgId correto
+  // Busca perfil pelo e-mail (Padrão SaaS Multi-tenant)
   const userProfileRef = useMemoFirebase(() => 
     user?.email ? doc(db, 'userProfiles', user.email.toLowerCase().trim()) : null
   , [db, user]);
-  const { data: profile } = useDoc(userProfileRef);
+  const { data: profile, isLoading: isProfileLoading } = useDoc(userProfileRef);
   const orgId = profile?.organizationId;
 
   // Referência do produto no Firestore
@@ -59,7 +59,7 @@ export default function EditRegisteredProductPage() {
     customSurchargeType: 'fixed'
   });
 
-  // Efeito para preencher o formulário assim que o produto for carregado
+  // Sincroniza os dados do banco com o formulário assim que carregarem
   useEffect(() => {
     if (product) {
       setFormData({
@@ -122,7 +122,7 @@ export default function EditRegisteredProductPage() {
     router.push('/admin/products');
   };
 
-  if (isProductLoading || !orgId) {
+  if (isProfileLoading || isProductLoading || !orgId) {
     return (
       <div className="flex h-screen items-center justify-center flex-col gap-4">
         <Loader2 className="animate-spin text-primary" size={48} />
@@ -135,7 +135,7 @@ export default function EditRegisteredProductPage() {
     return (
       <div className="container mx-auto px-4 py-20 text-center space-y-4">
         <AlertCircle size={64} className="mx-auto text-destructive opacity-20" />
-        <h2 className="text-2xl font-bold">Produto não encontrado</h2>
+        <h2 className="text-2xl font-bold">Produto não encontrado na organização {orgId}</h2>
         <Link href="/admin/products"><Button variant="outline">Voltar para a Lista</Button></Link>
       </div>
     );
