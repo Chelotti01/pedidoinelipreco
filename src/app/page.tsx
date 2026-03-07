@@ -11,7 +11,7 @@ import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/com
 import { 
   ShoppingCart, ListChecks, Zap, History, Users, LogOut, 
   Package, FileSpreadsheet, FileDown, Loader2, LayoutGrid, 
-  DollarSign, TrendingUp, Settings, ChevronDown, ChevronUp, ShieldCheck, UploadCloud
+  DollarSign, TrendingUp, Settings, ChevronDown, ChevronUp, ShieldCheck, UploadCloud, Lock
 } from "lucide-react";
 import {
   Dialog,
@@ -40,6 +40,11 @@ export default function Home() {
   const [isExporting, setIsExporting] = useState(false);
   const [showExportConfigDialog, setShowExportConfigDialog] = useState(false);
   
+  // Segurança das Configurações
+  const [showPasswordDialog, setShowPasswordDialog] = useState(false);
+  const [inputPassword, setInputPassword] = useState("");
+  const [isConfigsUnlocked, setIsConfigsUnlocked] = useState(false);
+
   // Perfil do Usuário para obter a Organização
   const userProfileRef = useMemoFirebase(() => user ? doc(db, 'userProfiles', user.uid) : null, [db, user]);
   const { data: profile, isLoading: isProfileLoading } = useDoc(userProfileRef);
@@ -79,6 +84,34 @@ export default function Home() {
   const handleLogout = async () => {
     await auth.signOut();
     router.push('/login');
+  };
+
+  const handleToggleConfigs = () => {
+    if (showConfigs) {
+      setShowConfigs(false);
+    } else {
+      if (isConfigsUnlocked) {
+        setShowConfigs(true);
+      } else {
+        setShowPasswordDialog(true);
+      }
+    }
+  };
+
+  const handleUnlockConfigs = () => {
+    if (inputPassword === 'admin123') {
+      setIsConfigsUnlocked(true);
+      setShowConfigs(true);
+      setShowPasswordDialog(false);
+      setInputPassword("");
+      toast({ title: "Acesso liberado" });
+    } else {
+      toast({ 
+        title: "Senha incorreta", 
+        description: "A senha digitada não confere.", 
+        variant: "destructive" 
+      });
+    }
   };
 
   const handleExportPDF = async () => {
@@ -203,7 +236,6 @@ export default function Home() {
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-          {/* Novo Pedido - Card Principal */}
           <Link href="/orders/new" className="group">
             <Card className="h-full border-none shadow-md hover:shadow-xl transition-all hover:-translate-y-1 bg-primary text-white">
               <CardHeader>
@@ -216,7 +248,6 @@ export default function Home() {
             </Card>
           </Link>
 
-          {/* Pedido em Grade */}
           <Link href="/orders/grid" className="group">
             <Card className="h-full border-none shadow-md hover:shadow-xl transition-all hover:-translate-y-1 bg-slate-800 text-white">
               <CardHeader>
@@ -229,7 +260,6 @@ export default function Home() {
             </Card>
           </Link>
 
-          {/* Gerar PDF */}
           <div onClick={() => setShowExportConfigDialog(true)} className="group cursor-pointer">
             <Card className="h-full border-none shadow-md hover:shadow-xl transition-all hover:-translate-y-1 bg-white border-l-4 border-l-blue-500">
               <CardHeader>
@@ -242,7 +272,6 @@ export default function Home() {
             </Card>
           </div>
 
-          {/* Histórico */}
           <Link href="/orders/history" className="group">
             <Card className="h-full border-none shadow-md hover:shadow-xl transition-all hover:-translate-y-1">
               <CardHeader>
@@ -259,7 +288,7 @@ export default function Home() {
         {/* SEÇÃO DE CONFIGURAÇÕES AGRUPADA */}
         <div className="mt-12">
           <button 
-            onClick={() => setShowConfigs(!showConfigs)}
+            onClick={handleToggleConfigs}
             className="w-full flex items-center justify-between p-6 bg-white rounded-xl shadow-sm border border-slate-100 hover:bg-slate-50 transition-colors"
           >
             <div className="flex items-center gap-4">
@@ -267,7 +296,10 @@ export default function Home() {
                 <Settings size={24} />
               </div>
               <div className="text-left">
-                <h3 className="text-xl font-black text-slate-800">Configurações do Sistema</h3>
+                <div className="flex items-center gap-2">
+                  <h3 className="text-xl font-black text-slate-800">Configurações do Sistema</h3>
+                  {!isConfigsUnlocked && <Lock size={16} className="text-muted-foreground" />}
+                </div>
                 <p className="text-sm text-muted-foreground">Gerencie cadastros, produtos e base de clientes.</p>
               </div>
             </div>
@@ -329,6 +361,37 @@ export default function Home() {
           )}
         </div>
       </main>
+
+      {/* Password Dialog */}
+      <Dialog open={showPasswordDialog} onOpenChange={setShowPasswordDialog}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Lock size={20} className="text-primary" /> Acesso Restrito
+            </DialogTitle>
+            <DialogDescription>
+              Digite a senha de administrador para acessar as configurações do sistema.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="py-4">
+            <Label htmlFor="admin-password">Senha de Administrador</Label>
+            <Input 
+              id="admin-password"
+              type="password" 
+              placeholder="Digite a senha..." 
+              value={inputPassword} 
+              onChange={(e) => setInputPassword(e.target.value)}
+              onKeyDown={(e) => e.key === 'Enter' && handleUnlockConfigs()}
+              className="mt-2"
+              autoFocus
+            />
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowPasswordDialog(false)}>Cancelar</Button>
+            <Button onClick={handleUnlockConfigs}>Desbloquear</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Export Dialog */}
       <Dialog open={showExportConfigDialog} onOpenChange={setShowExportConfigDialog}>
