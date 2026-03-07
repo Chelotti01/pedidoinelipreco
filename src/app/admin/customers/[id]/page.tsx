@@ -12,7 +12,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
-import { Save, ChevronLeft, UserCircle, Loader2 } from "lucide-react";
+import { Save, ChevronLeft, UserCircle, Loader2, AlertCircle } from "lucide-react";
 import Link from 'next/link';
 
 export default function EditCustomerPage() {
@@ -24,14 +24,16 @@ export default function EditCustomerPage() {
   
   const id = Array.isArray(params.id) ? params.id[0] : params.id;
 
-  // Get user profile for organizationId
-  const userProfileRef = useMemoFirebase(() => user ? doc(db, 'userProfiles', user.uid) : null, [db, user]);
-  const { data: profile } = useDoc(userProfileRef);
+  // OBRIGATÓRIO: Buscar perfil pelo e-mail para SaaS
+  const userProfileRef = useMemoFirebase(() => 
+    user?.email ? doc(db, 'userProfiles', user.email.toLowerCase().trim()) : null
+  , [db, user]);
+  const { data: profile, isLoading: isProfileLoading } = useDoc(userProfileRef);
   const orgId = profile?.organizationId;
 
-  // CORREÇÃO: Usando caminho estruturado /organizations/{orgId}/clients/{id}
+  // Referência do cliente vinculada à organização
   const customerRef = useMemoFirebase(() => (id && orgId) ? doc(db, 'organizations', orgId, 'clients', id) : null, [db, id, orgId]);
-  const { data: customer, isLoading } = useDoc(customerRef);
+  const { data: customer, isLoading: isCustomerLoading } = useDoc(customerRef);
 
   const [formData, setFormData] = useState({
     name: '',
@@ -72,10 +74,21 @@ export default function EditCustomerPage() {
     router.push('/admin/customers');
   };
 
-  if (isLoading || !profile) {
+  if (isProfileLoading || isCustomerLoading) {
     return (
       <div className="flex h-[80vh] items-center justify-center">
         <Loader2 className="animate-spin text-primary" size={48} />
+      </div>
+    );
+  }
+
+  if (!orgId) {
+    return (
+      <div className="container mx-auto px-4 py-20 text-center">
+        <AlertCircle size={64} className="mx-auto text-destructive opacity-20 mb-4" />
+        <h2 className="text-2xl font-bold">Erro de Vínculo</h2>
+        <p className="text-muted-foreground">Seu perfil não possui uma organização associada.</p>
+        <Link href="/"><Button variant="outline" className="mt-6">Voltar</Button></Link>
       </div>
     );
   }

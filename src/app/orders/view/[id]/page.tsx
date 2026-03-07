@@ -8,7 +8,7 @@ import { doc } from 'firebase/firestore';
 import { Button } from "@/components/ui/button";
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "@/components/ui/table";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
-import { Printer, ChevronLeft, Zap, Calendar, Home, Loader2, Download, MessageSquare, Gift } from "lucide-react";
+import { Printer, ChevronLeft, Zap, Calendar, Home, Loader2, Download, MessageSquare, Gift, AlertCircle } from "lucide-react";
 import Link from 'next/link';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
@@ -24,12 +24,14 @@ export default function ViewOrderPage() {
   const reportRef = useRef<HTMLDivElement>(null);
   const [isGenerating, setIsGenerating] = useState(false);
 
-  // Get user profile for organizationId
-  const userProfileRef = useMemoFirebase(() => user ? doc(db, 'userProfiles', user.uid) : null, [db, user]);
+  // OBRIGATÓRIO: Buscar perfil pelo e-mail para SaaS
+  const userProfileRef = useMemoFirebase(() => 
+    user?.email ? doc(db, 'userProfiles', user.email.toLowerCase().trim()) : null
+  , [db, user]);
   const { data: profile, isLoading: isProfileLoading } = useDoc(userProfileRef);
   const orgId = profile?.organizationId;
 
-  // CORREÇÃO: Adicionado 'orders' para ter segmentos pares (4 segmentos)
+  // Pedido amarrado à organização
   const orderRef = useMemoFirebase(() => 
     (id && orgId) ? doc(db, 'organizations', orgId, 'orders', id) : null
   , [db, id, orgId]);
@@ -109,8 +111,19 @@ export default function ViewOrderPage() {
     </div>
   );
   
+  if (!orgId) {
+    return (
+      <div className="container mx-auto px-4 py-20 text-center">
+        <AlertCircle size={64} className="mx-auto text-destructive opacity-20 mb-4" />
+        <h2 className="text-2xl font-bold">Erro de Vínculo</h2>
+        <Link href="/orders/history"><Button variant="outline" className="mt-6">Voltar</Button></Link>
+      </div>
+    );
+  }
+
   if (!order) return (
     <div className="container mx-auto px-4 py-20 text-center">
+      <AlertCircle size={64} className="mx-auto text-destructive opacity-20 mb-4" />
       <h2 className="text-2xl font-bold mb-4">Pedido não encontrado</h2>
       <Link href="/orders/history">
         <Button>Voltar para o Histórico</Button>

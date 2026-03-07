@@ -18,7 +18,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
 import { 
   ShoppingCart, Plus, Trash2, Calculator, ReceiptText, Zap, 
-  Loader2, Weight, User, AlertTriangle, Search, Settings2, Minus, Gift, LogOut, MessageSquare
+  Loader2, Weight, User, AlertTriangle, Search, Settings2, Minus, Gift, LogOut
 } from "lucide-react";
 import {
   AlertDialog,
@@ -29,7 +29,7 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
-} from "@/components/ui/alert-dialog";
+} from "@/components/ui/dialog";
 
 export type OrderItem = {
   productId: string;
@@ -60,8 +60,10 @@ export default function NewOrderPage() {
   const { toast } = useToast();
   const router = useRouter();
 
-  // Get user profile for organizationId
-  const userProfileRef = useMemoFirebase(() => user ? doc(db, 'userProfiles', user.uid) : null, [db, user]);
+  // OBRIGATÓRIO: Buscar perfil pelo e-mail para SaaS
+  const userProfileRef = useMemoFirebase(() => 
+    user?.email ? doc(db, 'userProfiles', user.email.toLowerCase().trim()) : null
+  , [db, user]);
   const { data: profile, isLoading: isProfileLoading } = useDoc(userProfileRef);
   const orgId = profile?.organizationId;
 
@@ -333,7 +335,7 @@ export default function NewOrderPage() {
         <h1 className="text-2xl md:text-3xl font-extrabold tracking-tight text-primary">Criar Pedido</h1>
         <div className="flex flex-wrap items-center gap-2">
           <div className="bg-primary/10 text-primary px-4 py-2 rounded-lg font-bold flex items-center gap-2 h-10">
-            <Zap size={18} /> {profile?.organizationId}
+            <Zap size={18} /> {profile?.organizationId || 'Visitante'}
           </div>
           <Button variant="ghost" size="sm" onClick={() => auth.signOut()} className="text-muted-foreground hover:text-destructive h-10 px-3">
             <LogOut size={18} />

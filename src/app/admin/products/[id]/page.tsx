@@ -13,7 +13,6 @@ import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@
 import { useToast } from "@/hooks/use-toast";
 import { Save, ChevronLeft, Tag, Loader2, DollarSign, Package, Calculator, Barcode, AlertCircle } from "lucide-react";
 import Link from 'next/link';
-import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 export default function EditRegisteredProductPage() {
   const db = useFirestore();
@@ -24,14 +23,14 @@ export default function EditRegisteredProductPage() {
   
   const id = Array.isArray(params.id) ? params.id[0] : params.id;
 
-  // Busca perfil pelo e-mail (Padrão SaaS Multi-tenant)
+  // Busca perfil pelo e-mail (OBRIGATÓRIO para SaaS)
   const userProfileRef = useMemoFirebase(() => 
     user?.email ? doc(db, 'userProfiles', user.email.toLowerCase().trim()) : null
   , [db, user]);
   const { data: profile, isLoading: isProfileLoading } = useDoc(userProfileRef);
   const orgId = profile?.organizationId;
 
-  // Referência do produto no Firestore
+  // Referência do produto no Firestore vinculada à organização
   const productRef = useMemoFirebase(() => 
     (id && orgId) ? doc(db, 'organizations', orgId, 'products', id) : null
   , [db, id, orgId]);
@@ -59,7 +58,7 @@ export default function EditRegisteredProductPage() {
     customSurchargeType: 'fixed'
   });
 
-  // Sincroniza os dados do banco com o formulário assim que carregarem
+  // Preenchimento automático assim que os dados do banco chegarem
   useEffect(() => {
     if (product) {
       setFormData({
@@ -86,19 +85,17 @@ export default function EditRegisteredProductPage() {
     }
   }, [product]);
 
-  // Carrega fábricas para o seletor de "Amarração"
+  // Listas auxiliares para amarração
   const factoriesQuery = useMemoFirebase(() => 
     orgId ? query(collection(db, 'organizations', orgId, 'factories'), orderBy('name')) : null
   , [db, orgId]);
   const { data: factories } = useCollection(factoriesQuery);
 
-  // Carrega catálogo de preços importados
   const catalogQuery = useMemoFirebase(() => 
     orgId ? query(collection(db, 'organizations', orgId, 'productFactoryPrices'), orderBy('name')) : null
   , [db, orgId]);
   const { data: catalogProducts } = useCollection(catalogQuery);
 
-  // Filtra o catálogo pela fábrica selecionada
   const filteredCatalog = useMemo(() => {
     if (!formData.factoryId) return [];
     return catalogProducts?.filter(p => p.factoryId === formData.factoryId) || [];
@@ -122,21 +119,33 @@ export default function EditRegisteredProductPage() {
     router.push('/admin/products');
   };
 
-  if (isProfileLoading || isProductLoading || !orgId) {
+  if (isProfileLoading || isProductLoading) {
     return (
       <div className="flex h-screen items-center justify-center flex-col gap-4">
         <Loader2 className="animate-spin text-primary" size={48} />
-        <p className="text-muted-foreground font-bold animate-pulse uppercase tracking-widest text-[10px]">Sincronizando Ficha Técnica...</p>
+        <p className="text-muted-foreground font-bold animate-pulse uppercase tracking-widest text-[10px]">Carregando Dados...</p>
       </div>
     );
   }
 
-  if (!product && !isProductLoading) {
+  if (!orgId) {
     return (
-      <div className="container mx-auto px-4 py-20 text-center space-y-4">
-        <AlertCircle size={64} className="mx-auto text-destructive opacity-20" />
-        <h2 className="text-2xl font-bold">Produto não encontrado na organização {orgId}</h2>
-        <Link href="/admin/products"><Button variant="outline">Voltar para a Lista</Button></Link>
+      <div className="container mx-auto px-4 py-20 text-center">
+        <AlertCircle size={64} className="mx-auto text-destructive opacity-20 mb-4" />
+        <h2 className="text-2xl font-bold">Erro de Vínculo</h2>
+        <p className="text-muted-foreground mt-2">Seu e-mail não está associado a nenhuma organização.</p>
+        <Link href="/"><Button variant="outline" className="mt-6">Voltar ao Início</Button></Link>
+      </div>
+    );
+  }
+
+  if (!product) {
+    return (
+      <div className="container mx-auto px-4 py-20 text-center">
+        <AlertCircle size={64} className="mx-auto text-destructive opacity-20 mb-4" />
+        <h2 className="text-2xl font-bold">Produto não encontrado</h2>
+        <p className="text-muted-foreground mt-2">O item não existe ou pertence a outra empresa.</p>
+        <Link href="/admin/products"><Button variant="outline" className="mt-6">Voltar para a Lista</Button></Link>
       </div>
     );
   }
@@ -199,8 +208,8 @@ export default function EditRegisteredProductPage() {
             </Card>
 
             <Card className="shadow-lg border-none">
-              <CardHeader className="bg-accent/5 py-4">
-                <CardTitle className="text-sm font-black uppercase flex items-center gap-2 text-accent">
+              <CardHeader className="bg-emerald-50 py-4">
+                <CardTitle className="text-sm font-black uppercase flex items-center gap-2 text-emerald-700">
                   <Calculator size={18} /> Logística e Pesos
                 </CardTitle>
               </CardHeader>
@@ -239,7 +248,7 @@ export default function EditRegisteredProductPage() {
                 <CardTitle className="text-sm font-black uppercase flex items-center gap-2">
                   <Tag size={18} className="text-primary" /> Amarração de Preço
                 </CardTitle>
-                <CardDescription className="text-[10px] font-bold uppercase">Vincule este cadastro técnico a um item do catálogo de preços.</CardDescription>
+                <CardDescription className="text-[10px] font-bold uppercase">Vincule este cadastro ao catálogo de preços da {orgId}.</CardDescription>
               </CardHeader>
               <CardContent className="pt-6 space-y-4">
                 <div className="space-y-2">
@@ -292,7 +301,7 @@ export default function EditRegisteredProductPage() {
                 </div>
               </CardContent>
               <CardFooter className="pt-6 border-t bg-slate-50">
-                <Button type="submit" className="w-full h-14 font-black text-lg gap-2 shadow-lg hover:bg-primary/90">
+                <Button type="submit" className="w-full h-14 font-black text-lg gap-2 shadow-lg">
                   <Save size={20} /> Salvar Ficha Técnica
                 </Button>
               </CardFooter>
