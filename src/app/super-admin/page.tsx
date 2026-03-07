@@ -8,6 +8,7 @@ import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/com
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Badge } from "@/components/ui/badge";
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "@/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
@@ -54,7 +55,8 @@ export default function SuperAdminPage() {
     try {
       // Usamos setDocumentNonBlocking pois definimos um ID manual (slug)
       setDocumentNonBlocking(doc(db, 'organizations', newOrg.id), {
-        ...newOrg,
+        id: newOrg.id,
+        name: newOrg.name,
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp()
       }, { merge: true });
@@ -76,7 +78,6 @@ export default function SuperAdminPage() {
     setIsSubmitting(true);
     try {
       // Criar o perfil de usuário na coleção raiz userProfiles
-      // O ID será gerado automaticamente
       addDocumentNonBlocking(collection(db, 'userProfiles'), {
         ...newUser,
         email: newUser.email.toLowerCase().trim(),
