@@ -49,10 +49,10 @@ export default function Home() {
   const userProfileRef = useMemoFirebase(() => user ? doc(db, 'userProfiles', user.uid) : null, [db, user]);
   const { data: profile, isLoading: isProfileLoading } = useDoc(userProfileRef);
 
-  // Verificação de Super Admin
-  const superAdminRef = useMemoFirebase(() => user ? doc(db, 'superAdmins', user.uid) : null, [db, user]);
-  const { data: superAdminInfo } = useDoc(superAdminRef);
-  const isSuperAdmin = !!superAdminInfo || profile?.role === 'superAdmin';
+  // Verificação de Super Admin (Seu email ou role superAdmin)
+  const isSuperAdmin = useMemo(() => {
+    return user?.email === 'vendas.piracanjuba@gmail.com' || profile?.role === 'superAdmin';
+  }, [user, profile]);
 
   const orgId = profile?.organizationId;
 
@@ -228,7 +228,7 @@ export default function Home() {
           </div>
           {isSuperAdmin && (
             <Link href="/super-admin">
-              <Button variant="outline" className="gap-2 border-primary text-primary font-bold">
+              <Button variant="outline" className="gap-2 border-primary text-primary font-bold shadow-sm hover:bg-primary/5">
                 <ShieldCheck size={18} /> Área Super Admin
               </Button>
             </Link>
