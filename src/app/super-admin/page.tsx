@@ -1,7 +1,8 @@
+
 "use client"
 
 import { useState, useMemo } from 'react';
-import { useFirestore, useCollection, useMemoFirebase, addDocumentNonBlocking, deleteDocumentNonBlocking, useUser } from '@/firebase';
+import { useFirestore, useCollection, useMemoFirebase, addDocumentNonBlocking, setDocumentNonBlocking, deleteDocumentNonBlocking, useUser } from '@/firebase';
 import { collection, query, orderBy, serverTimestamp, doc, where, limit } from 'firebase/firestore';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -40,36 +41,47 @@ export default function SuperAdminPage() {
   const [newUser, setNewUser] = useState({ email: '', name: '', organizationId: '', role: 'admin' });
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const handleCreateOrg = async (e: React.FormEvent) => {
+  const handleCreateOrg = (e: React.FormEvent) => {
     e.preventDefault();
     if (!newOrg.id || !newOrg.name) return;
+    
     setIsSubmitting(true);
     try {
-      await addDocumentNonBlocking(doc(db, 'organizations', newOrg.id), {
+      // Usamos setDocumentNonBlocking pois definimos um ID manual (slug)
+      setDocumentNonBlocking(doc(db, 'organizations', newOrg.id), {
         ...newOrg,
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp()
-      });
-      toast({ title: "Organização criada!" });
+      }, { merge: true });
+      
+      toast({ title: "Organização criada!", description: "O novo tenant foi registrado no sistema." });
       setNewOrg({ id: '', name: '' });
+    } catch (error) {
+      console.error(error);
+      toast({ title: "Erro ao criar", variant: "destructive" });
     } finally {
       setIsSubmitting(false);
     }
   };
 
-  const handleCreateUser = async (e: React.FormEvent) => {
+  const handleCreateUser = (e: React.FormEvent) => {
     e.preventDefault();
     if (!newUser.email || !newUser.organizationId) return;
+    
     setIsSubmitting(true);
     try {
-      // Criar o perfil de usuário. O sistema buscará pelo e-mail no login.
-      await addDocumentNonBlocking(collection(db, 'userProfiles'), {
+      // Criar o perfil de usuário na coleção raiz userProfiles
+      addDocumentNonBlocking(collection(db, 'userProfiles'), {
         ...newUser,
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp()
       });
-      toast({ title: "Perfil de usuário pré-cadastrado!" });
+      
+      toast({ title: "Perfil vinculado!", description: "O usuário terá acesso assim que fizer login." });
       setNewUser({ email: '', name: '', organizationId: '', role: 'admin' });
+    } catch (error) {
+      console.error(error);
+      toast({ title: "Erro ao vincular", variant: "destructive" });
     } finally {
       setIsSubmitting(false);
     }
