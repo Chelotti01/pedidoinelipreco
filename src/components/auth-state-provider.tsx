@@ -1,44 +1,60 @@
 
 'use client';
 
-import { useEffect } from 'react';
-import { useUser } from '@/firebase';
+import { useEffect, useState } from 'react';
+import { useUser, useFirestore, useDoc, useMemoFirebase } from '@/firebase';
 import { useRouter, usePathname } from 'next/navigation';
-import { Loader2 } from 'lucide-react';
+import { Loader2, ShieldAlert } from 'lucide-react';
+import { doc } from 'firebase/firestore';
 
 export function AuthStateProvider({ children }: { children: React.ReactNode }) {
   const { user, isUserLoading } = useUser();
+  const db = useFirestore();
   const router = useRouter();
   const pathname = usePathname();
+
+  // Buscar perfil para verificar organizationId
+  const userProfileRef = useMemoFirebase(() => user ? doc(db, 'userProfiles', user.uid) : null, [db, user]);
+  const { data: profile, isLoading: isProfileLoading } = useDoc(userProfileRef);
 
   useEffect(() => {
     if (!isUserLoading) {
       if (!user && pathname !== '/login') {
         router.push('/login');
       } else if (user && pathname === '/login') {
-        // Redireciona para a home ou orders se já estiver logado
-        if (user?.email === 'adriana@inteli-preco.com') {
-          router.push('/orders/new');
-        } else {
-          router.push('/');
-        }
-      } else if (user && user.email === 'adriana@inteli-preco.com' && pathname !== '/orders/new') {
-        // Restrição específica da Adriana: ela SÓ pode acessar /orders/new
-        router.push('/orders/new');
+        router.push('/');
       }
     }
   }, [user, isUserLoading, pathname, router]);
 
-  if (isUserLoading) {
+  if (isUserLoading || (user && isProfileLoading)) {
     return (
-      <div className="flex h-screen w-screen items-center justify-center">
-        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      <div className="flex h-screen w-screen flex-col items-center justify-center gap-4 bg-slate-50">
+        <Loader2 className="h-12 w-12 animate-spin text-primary" />
+        <p className="text-xs font-black uppercase tracking-widest text-muted-foreground">Sincronizando Ambiente SaaS...</p>
       </div>
     );
   }
 
-  // Impede a renderização de conteúdo protegido se não estiver logado e não estiver na página de login
-  // Isso evita que hooks de dados (useCollection, useDoc) disparem erros de permissão "auth: null"
+  // Se logado mas sem perfil/organização, e não for super admin
+  if (user && !profile && pathname !== '/login' && pathname !== '/super-admin') {
+    // Verificar se é um e-mail de super admin hardcoded (opcional)
+    const isHardcodedSuper = ['vendas.piracanjuba@gmail.com'].includes(user.email || '');
+    if (!isHardcodedSuper) {
+      return (
+        <div className="flex h-screen w-screen flex-col items-center justify-center p-6 text-center">
+          <ShieldAlert className="h-16 w-16 text-destructive mb-4" />
+          <h1 className="text-2xl font-black text-slate-800 mb-2">ACESSO NÃO VINCULADO</h1>
+          <p className="text-muted-foreground max-w-md">
+            Seu usuário ainda não foi vinculado a uma organização. 
+            Entre em contato com o administrador do sistema.
+          </p>
+          <Button variant="link" onClick={() => auth.signOut()} className="mt-4">Sair do Sistema</Button>
+        </div>
+      );
+    }
+  }
+
   if (!user && pathname !== '/login') {
     return null;
   }
