@@ -11,7 +11,7 @@ import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/com
 import { 
   ShoppingCart, ListChecks, Zap, History, Users, LogOut, 
   Package, FileSpreadsheet, FileDown, Loader2, LayoutGrid, 
-  DollarSign, TrendingUp, Settings, ChevronDown, ChevronUp, ShieldCheck
+  DollarSign, TrendingUp, Settings, ChevronDown, ChevronUp, ShieldCheck, UploadCloud
 } from "lucide-react";
 import {
   Dialog,
@@ -202,7 +202,7 @@ export default function Home() {
           )}
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
           {/* Novo Pedido - Card Principal */}
           <Link href="/orders/new" className="group">
             <Card className="h-full border-none shadow-md hover:shadow-xl transition-all hover:-translate-y-1 bg-primary text-white">
@@ -254,19 +254,6 @@ export default function Home() {
               </CardHeader>
             </Card>
           </Link>
-
-          {/* Importar XLSX */}
-          <Link href="/upload" className="group">
-            <Card className="h-full border-none shadow-md hover:shadow-xl transition-all hover:-translate-y-1 border-2 border-dashed border-primary/20 bg-primary/5">
-              <CardHeader>
-                <div className="w-12 h-12 bg-primary/10 rounded-xl flex items-center justify-center text-primary mb-4">
-                  <FileSpreadsheet size={24} />
-                </div>
-                <CardTitle className="text-xl">Importar Fábrica</CardTitle>
-                <CardDescription>Atualize os preços via planilha XLSX.</CardDescription>
-              </CardHeader>
-            </Card>
-          </Link>
         </div>
 
         {/* SEÇÃO DE CONFIGURAÇÕES AGRUPADA */}
@@ -288,7 +275,17 @@ export default function Home() {
           </button>
 
           {showConfigs && (
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mt-6 animate-in fade-in slide-in-from-top-4 duration-300">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-6 mt-6 animate-in fade-in slide-in-from-top-4 duration-300">
+              <Link href="/upload">
+                <Card className="hover:border-primary transition-colors cursor-pointer h-full border-2 border-dashed bg-primary/5">
+                  <CardHeader>
+                    <UploadCloud size={20} className="text-primary mb-2" />
+                    <CardTitle className="text-lg">Importar Fábrica</CardTitle>
+                    <CardDescription className="text-xs text-muted-foreground">Atualize os preços via planilha XLSX.</CardDescription>
+                  </CardHeader>
+                </Card>
+              </Link>
+
               <Link href="/catalog">
                 <Card className="hover:border-primary transition-colors cursor-pointer h-full">
                   <CardHeader>
