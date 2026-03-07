@@ -2,14 +2,16 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { useUser, useFirestore, useDoc, useMemoFirebase } from '@/firebase';
+import { useUser, useFirestore, useDoc, useMemoFirebase, useAuth } from '@/firebase';
 import { useRouter, usePathname } from 'next/navigation';
 import { Loader2, ShieldAlert } from 'lucide-react';
 import { doc } from 'firebase/firestore';
+import { Button } from '@/components/ui/button';
 
 export function AuthStateProvider({ children }: { children: React.ReactNode }) {
   const { user, isUserLoading } = useUser();
   const db = useFirestore();
+  const auth = useAuth();
   const router = useRouter();
   const pathname = usePathname();
 
@@ -38,7 +40,7 @@ export function AuthStateProvider({ children }: { children: React.ReactNode }) {
 
   // Se logado mas sem perfil/organização, e não for super admin
   if (user && !profile && pathname !== '/login' && pathname !== '/super-admin') {
-    // Verificar se é um e-mail de super admin hardcoded (opcional)
+    // Verificar se é um e-mail de super admin hardcoded
     const isHardcodedSuper = ['vendas.piracanjuba@gmail.com'].includes(user.email || '');
     if (!isHardcodedSuper) {
       return (
