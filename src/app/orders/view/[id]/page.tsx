@@ -254,11 +254,6 @@ export default function ViewOrderPage() {
                       </TableCell>
                       <TableCell className="text-right">
                         <div className={`font-bold text-sm ${item.isBonus ? 'text-accent' : 'text-primary'}`}>{item.isBonus ? 'BONUS' : (item.unitPriceFinal || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
-                        {!item.isBonus && (
-                          <div className="text-[10px] text-destructive font-medium">
-                            +{(item.stRate || 0).toFixed(2).replace('.', ',')}% ST
-                          </div>
-                        )}
                       </TableCell>
                       <TableCell className="text-right font-black text-sm">
                         {item.isBonus ? 'R$ 0,00' : (item.total || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
