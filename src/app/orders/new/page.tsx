@@ -18,8 +18,10 @@ import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
 import { 
   ShoppingCart, Plus, Trash2, Calculator, ReceiptText, Zap, 
-  Loader2, Weight, User, AlertTriangle, Search, Settings2, Minus, Gift, LogOut
+  Loader2, Weight, User, AlertTriangle, Search, Settings2, Minus, Gift, LogOut,
+  ChevronLeft
 } from "lucide-react";
+import Link from 'next/link';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -332,7 +334,12 @@ export default function NewOrderPage() {
       </AlertDialog>
 
       <div className="mb-6 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <h1 className="text-2xl md:text-3xl font-extrabold tracking-tight text-primary">Criar Pedido</h1>
+        <div className="flex items-center gap-3">
+          <Link href="/" className="text-muted-foreground hover:text-primary transition-colors">
+            <ChevronLeft size={32} />
+          </Link>
+          <h1 className="text-2xl md:text-3xl font-extrabold tracking-tight text-primary">Criar Pedido</h1>
+        </div>
         <div className="flex flex-wrap items-center gap-2">
           <div className="bg-primary/10 text-primary px-4 py-2 rounded-lg font-bold flex items-center gap-2 h-10">
             <Zap size={18} /> {profile?.organizationId || 'Visitante'}

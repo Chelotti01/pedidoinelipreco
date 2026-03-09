@@ -201,7 +201,7 @@ export default function ViewOrderPage() {
                   <span className="text-muted-foreground">Valor Total Bruto:</span>
                   <span className="text-2xl sm:text-3xl font-black text-primary">{formatCurrency(order.totalAmount)}</span>
                 </div>
-                <p className="text-[10px] sm:text-xs text-muted-foreground italic">Este valor já inclui todos os aditivos de contrato e substituição tributária (ST).</p>
+                <p className="text-[10px] sm:text-xs text-muted-foreground italic">Este valor já inclui todos os aditivos de contrato.</p>
               </div>
               <div className="p-6 sm:p-8 space-y-4">
                 <h3 className="text-xs font-bold text-muted-foreground uppercase tracking-widest">Resumo Logístico</h3>
@@ -229,7 +229,7 @@ export default function ViewOrderPage() {
                     <TableHead className="font-bold">Código / Descrição</TableHead>
                     <TableHead className="font-bold text-center">Qtd</TableHead>
                     <TableHead className="font-bold text-right">Preço NET</TableHead>
-                    <TableHead className="font-bold text-right text-primary">Preço FINAL (+ST)</TableHead>
+                    <TableHead className="font-bold text-right text-primary">Preço FINAL</TableHead>
                     <TableHead className="font-bold text-right">Total Item</TableHead>
                   </TableRow>
                 </TableHeader>
