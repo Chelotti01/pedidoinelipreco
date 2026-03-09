@@ -92,8 +92,6 @@ export default function NewOrderPage() {
   const [selectedBrand, setSelectedBrand] = useState<string>("all");
   const [productSearch, setProductSearch] = useState<string>("");
   const [lineFilter, setLineFilter] = useState<string>("none");
-  const [categoryFilter, setCategoryFilter] = useState<string>("none");
-  const [isCustomMode, setIsCustomMode] = useState(false);
   const [quantity, setQuantity] = useState<number | "">(1);
   const [priceType, setPriceType] = useState<'closed' | 'fractional'>('closed');
   const [contractPercent, setContractPercent] = useState<number | "">(0);
@@ -102,40 +100,6 @@ export default function NewOrderPage() {
 
   const selectedFactory = useMemo(() => factories?.find(f => f.id === selectedFactoryId), [selectedFactoryId, factories]);
   const selectedCustomer = useMemo(() => customers?.find(c => c.id === selectedCustomerId), [selectedCustomerId, customers]);
-
-  const handleCategoryChange = (val: string) => {
-    setCategoryFilter(val);
-    setSelectedProductId("none");
-    setSelectedBrand("all");
-    setProductSearch("");
-
-    if (val === "none") {
-      setSelectedFactoryId("none");
-      setLineFilter("none");
-      return;
-    }
-
-    let targetFactory = "";
-    let targetLine = "";
-
-    if (val === "leite") {
-      targetFactory = "ARA";
-      targetLine = "SECA UHT";
-    } else if (val === "mix") {
-      targetFactory = "MRV";
-      targetLine = "SECA";
-      setPriceType('fractional');
-    } else if (val === "refrigerados") {
-      targetFactory = "BVG";
-      targetLine = "REFRIGERADA";
-    }
-
-    const foundFactory = factories?.find(f => f.name.toUpperCase().includes(targetFactory));
-    if (foundFactory) {
-      setSelectedFactoryId(foundFactory.id);
-      setLineFilter(targetLine);
-    }
-  };
 
   useEffect(() => {
     const factoryName = selectedFactory?.name?.toUpperCase() || '';
@@ -377,51 +341,33 @@ export default function NewOrderPage() {
             <CardHeader className="bg-primary/5 py-4 px-5">
               <CardTitle className="text-base flex items-center justify-between gap-2">
                 <div className="flex items-center gap-2"><Plus size={18} className="text-primary" /> Item</div>
-                <Button variant="link" size="sm" className="h-auto p-0 text-[10px] font-bold text-primary flex items-center gap-1" onClick={() => { setIsCustomMode(!isCustomMode); setCategoryFilter("none"); setSelectedFactoryId("none"); setLineFilter("none"); }} disabled={orderItems.length > 0}>
-                  <Settings2 size={12} /> {isCustomMode ? "Modo Simples" : "Personalizar"}
-                </Button>
               </CardTitle>
             </CardHeader>
             <CardContent className="pt-4 px-5 space-y-4">
-              {!isCustomMode ? (
+              <div className="space-y-4">
                 <div className="space-y-1.5">
-                  <Label className="text-xs font-bold uppercase">Tipo de Pedido</Label>
-                  <Select value={categoryFilter} onValueChange={handleCategoryChange} disabled={orderItems.length > 0}>
-                    <SelectTrigger className="h-11"><SelectValue placeholder="Selecione..." /></SelectTrigger>
+                  <Label className="text-xs font-bold uppercase">Fábrica</Label>
+                  <Select value={selectedFactoryId} onValueChange={(val) => { setSelectedFactoryId(val); setSelectedProductId("none"); setSelectedBrand("all"); setProductSearch(""); setLineFilter("none"); }} disabled={orderItems.length > 0}>
+                    <SelectTrigger className="h-11"><SelectValue placeholder="Fábrica" /></SelectTrigger>
                     <SelectContent>
                       <SelectItem value="none">Selecione...</SelectItem>
-                      <SelectItem value="leite">Leite (ARA - SECA UHT)</SelectItem>
-                      <SelectItem value="mix">Mix (MRV - SECA)</SelectItem>
-                      <SelectItem value="refrigerados">Refrigerados (BVG - REFRIGERADA)</SelectItem>
+                      {factories?.map(f => (<SelectItem key={f.id} value={f.id}>{f.name}</SelectItem>))}
                     </SelectContent>
                   </Select>
                 </div>
-              ) : (
-                <div className="space-y-4">
+                {selectedFactoryId !== "none" && (
                   <div className="space-y-1.5">
-                    <Label className="text-xs font-bold uppercase">Fábrica</Label>
-                    <Select value={selectedFactoryId} onValueChange={(val) => { setSelectedFactoryId(val); setSelectedProductId("none"); setSelectedBrand("all"); setProductSearch(""); setLineFilter("none"); }} disabled={orderItems.length > 0}>
-                      <SelectTrigger className="h-11"><SelectValue placeholder="Fábrica" /></SelectTrigger>
+                    <Label className="text-xs font-bold uppercase">Linha</Label>
+                    <Select value={lineFilter} onValueChange={(val) => { setLineFilter(val); setSelectedBrand("all"); setSelectedProductId("none"); }} disabled={orderItems.length > 0}>
+                      <SelectTrigger className="h-11"><SelectValue placeholder="Linha" /></SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="none">Selecione...</SelectItem>
-                        {factories?.map(f => (<SelectItem key={f.id} value={f.id}>{f.name}</SelectItem>))}
+                        <SelectItem value="none">Escolha a Linha...</SelectItem>
+                        {availableLines.map(line => (<SelectItem key={line} value={line}>{line}</SelectItem>))}
                       </SelectContent>
                     </Select>
                   </div>
-                  {selectedFactoryId !== "none" && (
-                    <div className="space-y-1.5">
-                      <Label className="text-xs font-bold uppercase">Linha</Label>
-                      <Select value={lineFilter} onValueChange={(val) => { setLineFilter(val); setSelectedBrand("all"); setSelectedProductId("none"); }} disabled={orderItems.length > 0}>
-                        <SelectTrigger className="h-11"><SelectValue placeholder="Linha" /></SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="none">Escolha a Linha...</SelectItem>
-                          {availableLines.map(line => (<SelectItem key={line} value={line}>{line}</SelectItem>))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                  )}
-                </div>
-              )}
+                )}
+              </div>
 
               {selectedFactoryId !== "none" && lineFilter !== "none" && (
                 <>
