@@ -24,6 +24,7 @@ import {
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
+import { Switch } from "@/components/ui/switch";
 import { useToast } from "@/hooks/use-toast";
 import { format } from 'date-fns';
 
@@ -144,15 +145,21 @@ export default function Home() {
 
       const factoryName = factories?.find(f => f.id === exportFactoryId)?.name || 'Fábrica';
       
+      // Geração do código de controle (ex: fe 0,2 ou fr 02)
+      const typeShorthand = exportPriceType === 'closed' ? 'fe' : 'fr';
+      const formattedPercent = exportPriceType === 'closed' 
+        ? (exportContractPercent / 10).toString().replace('.', ',') // fe 0,2 se for 2%
+        : (exportContractPercent < 10 ? `0${exportContractPercent}` : exportContractPercent); // fr 02 se for 2%
+      
+      const footerCode = `${typeShorthand} ${formattedPercent}`;
+
       const rowsHtml = filtered.map(p => {
-        // CORREÇÃO: Busca no catálogo pelo ID do documento (p.catalogProductId)
         const catalogItem = catalogProducts?.find(cp => cp.id === p.catalogProductId);
         if (!catalogItem) return '';
 
         const basePrice = exportPriceType === 'closed' ? (catalogItem.closedLoadPrice || 0) : (catalogItem.fractionalLoadPrice || 0);
         const afterCatalog = Math.max(0, basePrice - (catalogItem.discountAmount || 0));
         
-        // CORREÇÃO: Aplicar aditivos de margem da ficha técnica
         const surchargeValue = p.customSurchargeValue !== undefined ? Number(p.customSurchargeValue) : (p.customSurchargeR$ || 0);
         const surchargeType = p.customSurchargeType || 'fixed';
         
@@ -203,8 +210,9 @@ export default function Home() {
             ${rowsHtml}
           </tbody>
         </table>
-        <div style="margin-top: 30px; border-top: 1px solid #eee; padding-top: 10px; text-align: center;">
-          <p style="font-size: 8px; color: #94a3b8; font-family: sans-serif;">Documento gerado pelo sistema InteliPreço SaaS. Preços sujeitos a alteração sem aviso prévio.</p>
+        <div style="margin-top: 30px; border-top: 1px solid #eee; padding-top: 15px; display: flex; justify-content: space-between; align-items: center;">
+          <p style="font-size: 8px; color: #94a3b8; font-family: sans-serif; margin: 0;">Documento gerado pelo sistema InteliPreço SaaS. Preços sujeitos a alteração sem aviso prévio.</p>
+          <p style="font-size: 10px; font-weight: 900; color: #4582A1; font-family: sans-serif; margin: 0; text-transform: uppercase;">COD: ${footerCode}</p>
         </div>
       `;
 
@@ -319,7 +327,6 @@ export default function Home() {
           </Link>
         </div>
 
-        {/* SEÇÃO DE CONFIGURAÇÕES AGRUPADA */}
         <div className="mt-12">
           <button 
             onClick={handleToggleConfigs}
@@ -445,7 +452,7 @@ export default function Home() {
             <DialogTitle>Configurar Exportação PDF</DialogTitle>
             <DialogDescription>Selecione a fábrica e as colunas de preço.</DialogDescription>
           </DialogHeader>
-          <div className="space-y-4 py-4">
+          <div className="space-y-6 py-4">
             <div className="space-y-2">
               <Label>Fábrica</Label>
               <Select value={exportFactoryId} onValueChange={(val) => { setExportFactoryId(val); setExportLineFilter("none"); }}>
@@ -470,7 +477,7 @@ export default function Home() {
             </div>
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label>Carga</Label>
+                <Label>Tipo de Carga</Label>
                 <Select value={exportPriceType} onValueChange={(val: any) => setExportPriceType(val)}>
                   <SelectTrigger><SelectValue /></SelectTrigger>
                   <SelectContent>
@@ -480,8 +487,28 @@ export default function Home() {
                 </Select>
               </div>
               <div className="space-y-2">
-                <Label>Aditivo %</Label>
+                <Label>Contrato (%)</Label>
                 <Input type="number" value={exportContractPercent} onChange={(e) => setExportContractPercent(Number(e.target.value))} />
+              </div>
+            </div>
+
+            <div className="space-y-4 pt-2">
+              <Label className="text-xs font-black uppercase text-muted-foreground">Colunas no PDF</Label>
+              <div className="grid grid-cols-1 gap-3">
+                <div className="flex items-center justify-between p-3 bg-slate-50 rounded-lg border">
+                  <div className="space-y-0.5">
+                    <Label className="text-sm font-bold">Preço Unitário NET</Label>
+                    <p className="text-[10px] text-muted-foreground">Preço antes da ST</p>
+                  </div>
+                  <Switch checked={exportIncludeNetUnit} onCheckedChange={setExportIncludeNetUnit} />
+                </div>
+                <div className="flex items-center justify-between p-3 bg-slate-50 rounded-lg border">
+                  <div className="space-y-0.5">
+                    <Label className="text-sm font-bold text-primary">Preço Unitário Final (+ST)</Label>
+                    <p className="text-[10px] text-muted-foreground">Preço com impostos inclusos</p>
+                  </div>
+                  <Switch checked={exportIncludeFinalUnit} onCheckedChange={setExportIncludeFinalUnit} />
+                </div>
               </div>
             </div>
           </div>
