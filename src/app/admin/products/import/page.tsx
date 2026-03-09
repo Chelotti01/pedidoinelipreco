@@ -63,11 +63,27 @@ export default function ImportRegisteredProductsPage() {
 
   const getRowValue = (row: any, keys: string[]) => {
     const rowKeys = Object.keys(row);
+    
+    // 1. Tenta correspondência EXATA primeiro (case insensitive e sem acentos)
     for (const key of keys) {
+      const target = key.toLowerCase().trim().normalize('NFD').replace(/[\u0300-\u036f]/g, "");
       const foundKey = rowKeys.find(k => {
         const normalizedK = k.toLowerCase().trim().normalize('NFD').replace(/[\u0300-\u036f]/g, "");
-        const normalizedTarget = key.toLowerCase().trim().normalize('NFD').replace(/[\u0300-\u036f]/g, "");
-        return normalizedK === normalizedTarget || normalizedK.includes(normalizedTarget);
+        return normalizedK === target;
+      });
+      if (foundKey && row[foundKey] !== undefined && row[foundKey] !== null && row[foundKey] !== '') {
+        return row[foundKey];
+      }
+    }
+
+    // 2. Fallback para inclusão parcial (apenas se o termo for longo para evitar colisões como ST -> STATUS)
+    for (const key of keys) {
+      const target = key.toLowerCase().trim().normalize('NFD').replace(/[\u0300-\u036f]/g, "");
+      if (target.length < 3) continue;
+
+      const foundKey = rowKeys.find(k => {
+        const normalizedK = k.toLowerCase().trim().normalize('NFD').replace(/[\u0300-\u036f]/g, "");
+        return normalizedK.includes(target);
       });
       if (foundKey && row[foundKey] !== undefined && row[foundKey] !== null && row[foundKey] !== '') {
         return row[foundKey];
@@ -95,20 +111,42 @@ export default function ImportRegisteredProductsPage() {
       const arrayBuffer = await file.arrayBuffer();
       const workbook = XLSX.read(arrayBuffer);
       const worksheet = workbook.Sheets[workbook.SheetNames[0]];
+      
+      // Lemos como JSON de objetos para usar cabeçalhos, mas também pegamos os dados crus para verificar coluna O
       const data = XLSX.utils.sheet_to_json(worksheet, { defval: '' });
+      const rawData: any[][] = XLSX.utils.sheet_to_json(worksheet, { header: 1, defval: '' });
 
       const colRef = collection(db, 'organizations', orgId, 'products');
       let count = 0;
 
-      for (const row of data as any[]) {
+      for (let i = 0; i < data.length; i++) {
+        const row = data[i] as any;
+        const rowArray = rawData[i + 1] || []; // i+1 porque rawData[0] são os cabeçalhos
+
         const code = String(getRowValue(row, ["Código", "Codigo", "Cód", "Ref"]) || '').trim();
         const description = String(getRowValue(row, ["Descrição", "Descricao", "Produto", "Item"]) || '').trim();
 
         if (!code && !description) continue;
 
+        // Normalização do Status (Mapeia Ativo para Active)
+        const rawStatus = String(getRowValue(row, ["Status", "Ativo", "Situacao"]) || 'Active').trim().toLowerCase();
+        const normalizedStatus = (rawStatus === 'ativo' || rawStatus === 'active') ? 'Active' : 
+                                 (rawStatus === 'inativo' || rawStatus === 'inactive') ? 'Inactive' : 'Active';
+
+        // Busca da ST: Tenta por nome, se vier "Ativo" ou vazio, tenta a coluna O (index 14)
+        let stValue = String(getRowValue(row, ["ST", "Substituicao", "Imposto"]) || '').trim();
+        if (!stValue || stValue.toLowerCase() === 'ativo' || stValue.toLowerCase() === 'inativo') {
+          // Tenta a coluna O (índice 14 se a planilha seguir o padrão)
+          if (rowArray[14] !== undefined && rowArray[14] !== '') {
+            stValue = String(rowArray[14]).trim();
+          } else {
+            stValue = '0%';
+          }
+        }
+
         const productData = {
           organizationId: orgId,
-          status: String(getRowValue(row, ["Status", "Ativo", "Situacao"]) || 'Active').trim(),
+          status: normalizedStatus,
           brand: String(getRowValue(row, ["Marca", "Fabricante", "Brand"]) || '').trim().toUpperCase(),
           line: String(getRowValue(row, ["Linha", "Colecao", "Line"]) || '').trim().toUpperCase(),
           code: code,
@@ -122,7 +160,7 @@ export default function ImportRegisteredProductsPage() {
           cest: String(getRowValue(row, ["CEST"]) || '').trim(),
           unitNetWeightKg: safeNumber(getRowValue(row, ["Peso Liq Unit", "Peso Líquido", "Weight", "Peso Liq", "Peso Líq. Unit"])),
           boxWeightKg: safeNumber(getRowValue(row, ["Peso Caixa", "Peso Bruto", "Peso Cx", "Peso Caixa (Kg)"])),
-          st: String(getRowValue(row, ["ST", "Substituicao", "Imposto"]) || '0%').trim(),
+          st: stValue,
           factoryId: 'none', 
           catalogProductId: 'none', 
           customSurchargeValue: 0,
