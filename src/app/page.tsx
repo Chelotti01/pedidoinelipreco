@@ -113,7 +113,7 @@ export default function Home() {
   };
 
   const handleExportPDF = async () => {
-    if (exportFactoryId === "none" || exportLineFilter === "none") {
+    if (exportFactoryId === "none" || exportLineFilter === "none" || !orgId) {
       toast({ title: "Filtros incompletos", variant: "destructive" });
       return;
     }
@@ -129,6 +129,12 @@ export default function Home() {
         (exportBrand === "all" || p.brand === exportBrand)
       ) || []).sort((a, b) => (a.brand || "").localeCompare(b.brand || "") || (a.code || "").localeCompare(b.code || ""));
 
+      if (filtered.length === 0) {
+        toast({ title: "Nenhum item encontrado", description: "Verifique os filtros selecionados.", variant: "destructive" });
+        setIsExporting(false);
+        return;
+      }
+
       const container = document.createElement('div');
       container.style.position = 'absolute';
       container.style.left = '-9999px';
@@ -138,55 +144,84 @@ export default function Home() {
 
       const factoryName = factories?.find(f => f.id === exportFactoryId)?.name || 'Fábrica';
       
+      const rowsHtml = filtered.map(p => {
+        // CORREÇÃO: Busca no catálogo pelo ID do documento (p.catalogProductId)
+        const catalogItem = catalogProducts?.find(cp => cp.id === p.catalogProductId);
+        if (!catalogItem) return '';
+
+        const basePrice = exportPriceType === 'closed' ? (catalogItem.closedLoadPrice || 0) : (catalogItem.fractionalLoadPrice || 0);
+        const afterCatalog = Math.max(0, basePrice - (catalogItem.discountAmount || 0));
+        
+        // CORREÇÃO: Aplicar aditivos de margem da ficha técnica
+        const surchargeValue = p.customSurchargeValue !== undefined ? Number(p.customSurchargeValue) : (p.customSurchargeR$ || 0);
+        const surchargeType = p.customSurchargeType || 'fixed';
+        
+        let withSurcharge = afterCatalog;
+        if (surchargeType === 'percentage') {
+          withSurcharge += afterCatalog * (surchargeValue / 100);
+        } else {
+          withSurcharge += surchargeValue;
+        }
+
+        const netPrice = withSurcharge * (1 + exportContractPercent / 100);
+        const stRate = p.st ? parseFloat(p.st.replace('%', '').replace(',', '.')) / 100 : 0;
+        const finalPrice = netPrice * (1 + stRate);
+
+        return `
+          <tr style="border-bottom: 1px solid #E0E0E0;">
+            <td style="padding: 8px; font-weight: bold; width: 80px;">${p.code}</td>
+            <td style="padding: 8px; font-size: 9px; text-transform: uppercase;">${p.description}</td>
+            <td style="padding: 8px; text-align: center; width: 40px;">${p.unit}</td>
+            ${exportIncludeNetUnit ? `<td style="padding: 8px; text-align: right; width: 90px;">R$ ${netPrice.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>` : ''}
+            ${exportIncludeFinalUnit ? `<td style="padding: 8px; text-align: right; font-weight: bold; color: #4582A1; width: 90px;">R$ ${finalPrice.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>` : ''}
+          </tr>
+        `;
+      }).join('');
+
       container.innerHTML = `
-        <div style="border-bottom: 3px solid #4582A1; padding-bottom: 10px; margin-bottom: 20px; display: flex; justify-content: space-between;">
+        <div style="border-bottom: 3px solid #4582A1; padding-bottom: 10px; margin-bottom: 20px; display: flex; justify-content: space-between; align-items: flex-end;">
           <div>
-            <h1 style="margin: 0; color: #4582A1; font-size: 24px; font-weight: 900;">TABELA DE PREÇOS</h1>
-            <p style="margin: 5px 0 0 0; color: #64748b;">${factoryName} - ${exportLineFilter}</p>
+            <h1 style="margin: 0; color: #4582A1; font-size: 24px; font-weight: 900; font-family: sans-serif;">TABELA DE PREÇOS</h1>
+            <p style="margin: 5px 0 0 0; color: #64748b; font-family: sans-serif; font-size: 14px; font-weight: bold;">${factoryName} - ${exportLineFilter}</p>
           </div>
-          <div style="text-align: right;">
-            <p style="margin: 0; font-weight: bold; font-size: 12px;">InteliPreço SaaS</p>
-            <p style="margin: 2px 0 0 0; font-size: 10px; color: #94a3b8;">Emissão: ${format(new Date(), "dd/MM/yyyy")}</p>
+          <div style="text-align: right; font-family: sans-serif;">
+            <p style="margin: 0; font-weight: bold; font-size: 12px; color: #4582A1; text-transform: uppercase;">${orgId}</p>
+            <p style="margin: 2px 0 0 0; font-size: 10px; color: #94a3b8;">Emissão: ${format(new Date(), "dd/MM/yyyy HH:mm")}</p>
           </div>
         </div>
-        <table style="width: 100%; border-collapse: collapse; font-size: 10px;">
+        <table style="width: 100%; border-collapse: collapse; font-family: sans-serif;">
           <thead style="background-color: #F0F3F4;">
             <tr>
-              <th style="padding: 8px; text-align: left;">CÓD</th>
-              <th style="padding: 8px; text-align: left;">DESCRIÇÃO</th>
-              ${exportIncludeNetUnit ? '<th style="padding: 8px; text-align: right;">UNIT. NET</th>' : ''}
-              ${exportIncludeFinalUnit ? '<th style="padding: 8px; text-align: right;">UNIT. FINAL</th>' : ''}
+              <th style="padding: 10px 8px; text-align: left; font-size: 10px; font-weight: 900;">CÓD</th>
+              <th style="padding: 10px 8px; text-align: left; font-size: 10px; font-weight: 900;">DESCRIÇÃO</th>
+              <th style="padding: 10px 8px; text-align: center; font-size: 10px; font-weight: 900;">UND</th>
+              ${exportIncludeNetUnit ? '<th style="padding: 10px 8px; text-align: right; font-size: 10px; font-weight: 900;">UNIT. NET</th>' : ''}
+              ${exportIncludeFinalUnit ? '<th style="padding: 10px 8px; text-align: right; font-size: 10px; font-weight: 900;">UNIT. FINAL</th>' : ''}
             </tr>
           </thead>
           <tbody>
-            ${filtered.map(p => {
-              const catalogItem = catalogProducts?.find(cp => cp.productId === p.catalogProductId);
-              if (!catalogItem) return '';
-              const basePrice = exportPriceType === 'closed' ? (catalogItem.closedLoadPrice || 0) : (catalogItem.fractionalLoadPrice || 0);
-              const netPrice = (basePrice - (catalogItem.discountAmount || 0)) * (1 + exportContractPercent / 100);
-              const stRate = p.st ? parseFloat(p.st.replace('%', '').replace(',', '.')) / 100 : 0;
-              const finalPrice = netPrice * (1 + stRate);
-              return `
-                <tr style="border-bottom: 1px solid #E0E0E0;">
-                  <td style="padding: 8px; font-weight: bold;">${p.code}</td>
-                  <td style="padding: 8px;">${p.description}</td>
-                  ${exportIncludeNetUnit ? `<td style="padding: 8px; text-align: right;">R$ ${netPrice.toFixed(2)}</td>` : ''}
-                  ${exportIncludeFinalUnit ? `<td style="padding: 8px; text-align: right; font-weight: bold; color: #4582A1;">R$ ${finalPrice.toFixed(2)}</td>` : ''}
-                </tr>
-              `;
-            }).join('')}
+            ${rowsHtml}
           </tbody>
         </table>
+        <div style="margin-top: 30px; border-top: 1px solid #eee; padding-top: 10px; text-align: center;">
+          <p style="font-size: 8px; color: #94a3b8; font-family: sans-serif;">Documento gerado pelo sistema InteliPreço SaaS. Preços sujeitos a alteração sem aviso prévio.</p>
+        </div>
       `;
 
       document.body.appendChild(container);
-      const canvas = await html2canvas(container, { scale: 2 });
+      const canvas = await html2canvas(container, { scale: 2, useCORS: true });
       const pdf = new jsPDF('p', 'mm', 'a4');
-      pdf.addImage(canvas.toDataURL('image/png'), 'PNG', 0, 0, 210, (canvas.height * 210) / canvas.width);
-      pdf.save(`tabela_${factoryName.toLowerCase().replace(/\s+/g, '_')}.pdf`);
+      const imgWidth = 210;
+      const imgHeight = (canvas.height * imgWidth) / canvas.width;
+      
+      pdf.addImage(canvas.toDataURL('image/png'), 'PNG', 0, 0, imgWidth, imgHeight);
+      pdf.save(`tabela_${factoryName.toLowerCase().replace(/\s+/g, '_')}_${exportLineFilter.toLowerCase().replace(/\s+/g, '_')}.pdf`);
+      
       document.body.removeChild(container);
       setShowExportConfigDialog(false);
+      toast({ title: "Tabela gerada com sucesso!" });
     } catch (e) {
+      console.error(e);
       toast({ title: "Erro ao gerar PDF", variant: "destructive" });
     } finally {
       setIsExporting(false);
@@ -209,7 +244,7 @@ export default function Home() {
           </div>
           <div className="flex items-center gap-4">
             <div className="text-right hidden sm:block">
-              <p className="text-xs font-black uppercase text-primary leading-none">{profile?.organizationId || 'Visitante'}</p>
+              <p className="text-xs font-black uppercase text-primary leading-none">{orgId || 'Visitante'}</p>
               <p className="text-[10px] font-bold text-muted-foreground">{user?.email}</p>
             </div>
             <Button variant="ghost" size="icon" onClick={handleLogout} className="text-muted-foreground hover:text-destructive">
