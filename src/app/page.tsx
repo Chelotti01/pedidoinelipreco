@@ -147,7 +147,7 @@ export default function Home() {
 
       const factoryName = factories?.find(f => f.id === exportFactoryId)?.name || 'Fábrica';
       
-      // Geração do código de controle (ex: fe 0,2 ou fr 02)
+      // Geração do código de controle
       const typeShorthand = exportPriceType === 'closed' ? 'fe' : 'fr';
       const formattedPercent = exportPriceType === 'closed' 
         ? (exportContractPercent / 10).toString().replace('.', ',')
@@ -180,15 +180,18 @@ export default function Home() {
         const netBoxPrice = netPrice * qtyPerBox;
         const finalBoxPrice = finalPrice * qtyPerBox;
 
+        // Estilo compartilhado para os preços: Arial 11pt
+        const priceStyle = 'padding: 8px; text-align: right; font-family: Arial, sans-serif; font-size: 11pt;';
+
         return `
           <tr style="border-bottom: 1px solid #E0E0E0;">
-            <td style="padding: 8px; font-weight: bold; width: 70px;">${p.code}</td>
-            <td style="padding: 8px; font-size: 9px; text-transform: uppercase;">${p.description}</td>
-            <td style="padding: 8px; text-align: center; width: 35px;">${p.unit}</td>
-            ${exportIncludeNetUnit ? `<td style="padding: 8px; text-align: right; width: 75px; font-size: 9px;">R$ ${netPrice.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>` : ''}
-            ${exportIncludeFinalUnit ? `<td style="padding: 8px; text-align: right; font-weight: bold; color: #4582A1; width: 75px; font-size: 9px;">R$ ${finalPrice.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>` : ''}
-            ${exportIncludeNetBox ? `<td style="padding: 8px; text-align: right; width: 75px; font-size: 9px; color: #64748b;">R$ ${netBoxPrice.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>` : ''}
-            ${exportIncludeFinalBox ? `<td style="padding: 8px; text-align: right; font-weight: bold; width: 75px; font-size: 9px; color: #059669;">R$ ${finalBoxPrice.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>` : ''}
+            <td style="padding: 8px; font-weight: bold; width: 70px; font-family: Arial, sans-serif; font-size: 10pt;">${p.code}</td>
+            <td style="padding: 8px; font-size: 9px; text-transform: uppercase; font-family: sans-serif;">${p.description}</td>
+            <td style="padding: 8px; text-align: center; width: 35px; font-size: 9px;">${p.unit}</td>
+            ${exportIncludeNetUnit ? `<td style="${priceStyle}">${netPrice.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>` : ''}
+            ${exportIncludeFinalUnit ? `<td style="${priceStyle} font-weight: bold; color: #4582A1;">${finalPrice.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>` : ''}
+            ${exportIncludeNetBox ? `<td style="${priceStyle} color: #64748b;">${netBoxPrice.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>` : ''}
+            ${exportIncludeFinalBox ? `<td style="${priceStyle} font-weight: bold; color: #059669;">${finalBoxPrice.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>` : ''}
           </tr>
         `;
       }).join('');
@@ -196,7 +199,7 @@ export default function Home() {
       container.innerHTML = `
         <div style="border-bottom: 3px solid #4582A1; padding-bottom: 10px; margin-bottom: 20px; display: flex; justify-content: space-between; align-items: flex-end;">
           <div>
-            <h1 style="margin: 0; color: #4582A1; font-size: 24px; font-weight: 900; font-family: sans-serif;">TABELA DE PREÇOS</h1>
+            <h1 style="margin: 0; color: #4582A1; font-size: 24px; font-weight: 900; font-family: Arial, sans-serif;">TABELA DE PREÇOS</h1>
             <p style="margin: 5px 0 0 0; color: #64748b; font-family: sans-serif; font-size: 14px; font-weight: bold;">${factoryName} - ${exportLineFilter}</p>
           </div>
           <div style="text-align: right; font-family: sans-serif;">
@@ -204,7 +207,7 @@ export default function Home() {
             <p style="margin: 2px 0 0 0; font-size: 10px; color: #94a3b8;">Emissão: ${format(new Date(), "dd/MM/yyyy HH:mm")}</p>
           </div>
         </div>
-        <table style="width: 100%; border-collapse: collapse; font-family: sans-serif;">
+        <table style="width: 100%; border-collapse: collapse; font-family: Arial, sans-serif;">
           <thead style="background-color: #F0F3F4;">
             <tr>
               <th style="padding: 10px 8px; text-align: left; font-size: 9px; font-weight: 900;">CÓD</th>
@@ -221,8 +224,8 @@ export default function Home() {
           </tbody>
         </table>
         <div style="margin-top: 30px; border-top: 1px solid #eee; padding-top: 15px; display: flex; justify-content: space-between; align-items: center;">
-          <p style="font-size: 8px; color: #94a3b8; font-family: sans-serif; margin: 0;">Documento gerado pelo sistema InteliPreço SaaS. Preços sujeitos a alteração sem aviso prévio.</p>
-          <p style="font-size: 9px; font-weight: normal; color: #cbd5e1; font-family: sans-serif; margin: 0; text-transform: uppercase;">COD: ${footerCode}</p>
+          <p style="font-size: 8px; color: #94a3b8; font-family: Arial, sans-serif; margin: 0;">Documento gerado pelo sistema InteliPreço SaaS. Preços sujeitos a alteração sem aviso prévio.</p>
+          <p style="font-size: 9px; font-weight: normal; color: #cbd5e1; font-family: Arial, sans-serif; margin: 0; text-transform: uppercase;">COD: ${footerCode}</p>
         </div>
       `;
 
@@ -457,7 +460,7 @@ export default function Home() {
 
       {/* Export Dialog */}
       <Dialog open={showExportConfigDialog} onOpenChange={setShowExportConfigDialog}>
-        <DialogContent className="max-w-md">
+        <DialogContent className="max-w-md max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Configurar Exportação PDF</DialogTitle>
             <DialogDescription>Selecione a fábrica e as colunas de preço.</DialogDescription>
