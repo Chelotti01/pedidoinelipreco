@@ -167,12 +167,11 @@ export default function MarginsManagementPage() {
 
 function MarginSurchargeRow({ product, db, orgId }: { product: any, db: any, orgId: string }) {
   const { toast } = useToast();
-  const [isSaving, setIsSaving] = useState(false);
+  const [isSaving] = useState(false); // Refactored to use updateDocumentNonBlocking
   const [surchargeValue, setSurchargeValue] = useState(product.customSurchargeValue !== undefined ? String(product.customSurchargeValue) : '0');
   const [surchargeType, setSurchargeType] = useState(product.customSurchargeType || 'fixed');
 
   const handleSave = async () => {
-    setIsSaving(true);
     try {
       updateDocumentNonBlocking(doc(db, 'organizations', orgId, 'products', product.id), {
         customSurchargeValue: Number(surchargeValue) || 0,
@@ -183,8 +182,6 @@ function MarginSurchargeRow({ product, db, orgId }: { product: any, db: any, org
     } catch (e) {
       console.error(e);
       toast({ title: "Erro ao salvar", variant: "destructive" });
-    } finally {
-      setIsSaving(false);
     }
   };
 
@@ -232,6 +229,7 @@ function MarginSurchargeRow({ product, db, orgId }: { product: any, db: any, org
               type="number" 
               step="0.01" 
               value={surchargeValue} 
+              onWheel={(e) => e.currentTarget.blur()}
               onChange={(e) => setSurchargeValue(e.target.value)} 
               onFocus={(e) => e.target.select()}
               className="h-9 text-right font-black text-primary pl-8 pr-2 bg-slate-50 border-slate-200"
@@ -240,11 +238,10 @@ function MarginSurchargeRow({ product, db, orgId }: { product: any, db: any, org
           
           <Button 
             onClick={handleSave} 
-            disabled={isSaving} 
             size="sm"
             className="h-9 px-4 gap-2 font-black shadow-sm"
           >
-            {isSaving ? <Loader2 className="animate-spin size-4" /> : <Save size={16} />}
+            <Save size={16} />
             SALVAR
           </Button>
         </div>

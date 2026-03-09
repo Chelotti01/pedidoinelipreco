@@ -250,7 +250,14 @@ export default function GridOrderPage() {
               </div>
               <div className="space-y-1">
                 <Label className="text-[10px]">Aditivo %</Label>
-                <input type="number" value={contractPercent} onChange={(e) => setContractPercent(Number(e.target.value))} onFocus={(e) => e.target.select()} className="h-9 w-full rounded-md border border-input bg-white px-3 py-1 text-xs font-bold shadow-sm outline-none" />
+                <input 
+                  type="number" 
+                  value={contractPercent} 
+                  onChange={(e) => setContractPercent(Number(e.target.value))} 
+                  onFocus={(e) => e.target.select()} 
+                  onWheel={(e) => e.currentTarget.blur()}
+                  className="h-9 w-full rounded-md border border-input bg-white px-3 py-1 text-xs font-bold shadow-sm outline-none" 
+                />
               </div>
             </div>
           </CardContent>
@@ -301,9 +308,9 @@ export default function GridOrderPage() {
                         <button onClick={() => setGridBonus(prev => ({ ...prev, [p.id]: !isB }))} className={`w-8 h-8 rounded-lg flex items-center justify-center border-2 ${isB ? "bg-accent border-accent text-white" : "bg-white border-slate-200 text-slate-300"}`}><Gift size={16} /></button>
                       </TableCell>
                       <TableCell><div className="font-bold text-xs">{p.code}</div><div className="text-[10px] text-muted-foreground uppercase">{p.description}</div></TableCell>
-                      <TableCell className="text-right"><input type="number" step="0.01" className="w-20 h-8 text-right text-[11px] font-bold border rounded bg-slate-50" value={gridPricesNet[p.id] || ""} onChange={(e) => { const v = Number(e.target.value); const st = parseST(p.st); setGridPricesNet(prev => ({ ...prev, [p.id]: v })); setGridPricesFinal(prev => ({ ...prev, [p.id]: Number((v * (1 + st)).toFixed(2)) })); }} onFocus={(e) => e.target.select()} disabled={isB}/></TableCell>
-                      <TableCell className="text-right"><input type="number" step="0.01" className="w-20 h-8 text-right text-[11px] font-bold border rounded bg-slate-50" value={gridPricesFinal[p.id] || ""} onChange={(e) => { const v = Number(e.target.value); const st = parseST(p.st); setGridPricesFinal(prev => ({ ...prev, [p.id]: v })); setGridPricesNet(prev => ({ ...prev, [p.id]: Number((v / (1 + st)).toFixed(2)) })); }} onFocus={(e) => e.target.select()} disabled={isB}/></TableCell>
-                      <TableCell className="text-center"><input type="number" className="w-20 h-8 text-center font-black border rounded bg-slate-50" value={qty || ""} onChange={(e) => setGridQuantities(prev => ({ ...prev, [p.id]: Number(e.target.value) }))} onFocus={(e) => e.target.select()}/></TableCell>
+                      <TableCell className="text-right"><input type="number" step="0.01" className="w-20 h-8 text-right text-[11px] font-bold border rounded bg-slate-50" value={gridPricesNet[p.id] || ""} onWheel={(e) => e.currentTarget.blur()} onChange={(e) => { const v = Number(e.target.value); const st = parseST(p.st); setGridPricesNet(prev => ({ ...prev, [p.id]: v })); setGridPricesFinal(prev => ({ ...prev, [p.id]: Number((v * (1 + st)).toFixed(2)) })); }} onFocus={(e) => e.target.select()} disabled={isB}/></TableCell>
+                      <TableCell className="text-right"><input type="number" step="0.01" className="w-20 h-8 text-right text-[11px] font-bold border rounded bg-slate-50" value={gridPricesFinal[p.id] || ""} onWheel={(e) => e.currentTarget.blur()} onChange={(e) => { const v = Number(e.target.value); const st = parseST(p.st); setGridPricesFinal(prev => ({ ...prev, [p.id]: v })); setGridPricesNet(prev => ({ ...prev, [p.id]: Number((v / (1 + st)).toFixed(2)) })); }} onFocus={(e) => e.target.select()} disabled={isB}/></TableCell>
+                      <TableCell className="text-center"><input type="number" className="w-20 h-8 text-center font-black border rounded bg-slate-50" value={qty || ""} onWheel={(e) => e.currentTarget.blur()} onChange={(e) => setGridQuantities(prev => ({ ...prev, [p.id]: Number(e.target.value) }))} onFocus={(e) => e.target.select()}/></TableCell>
                       <TableCell className="text-right font-black">{isB ? "0,00" : `R$ ${subtotal.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`}</TableCell>
                     </TableRow>
                   );

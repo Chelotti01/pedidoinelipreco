@@ -61,7 +61,7 @@ export default function EditRegisteredProductPage() {
 
   const [isDataInitialized, setIsDataInitialized] = useState(false);
 
-  // 4. Sincronização da Ficha Técnica (Garantindo que todos os dados preencham os campos)
+  // 4. Sincronização da Ficha Técnica
   useEffect(() => {
     if (product && !isDataInitialized) {
       setFormData({
@@ -129,7 +129,7 @@ export default function EditRegisteredProductPage() {
     return (
       <div className="flex h-screen items-center justify-center flex-col gap-4">
         <Loader2 className="animate-spin text-primary" size={48} />
-        <p className="text-muted-foreground font-black uppercase tracking-[0.2em] text-[10px]">Carregando Ficha Técnica da Organização...</p>
+        <p className="text-muted-foreground font-black uppercase tracking-[0.2em] text-[10px]">Carregando Ficha Técnica...</p>
       </div>
     );
   }
@@ -139,19 +139,8 @@ export default function EditRegisteredProductPage() {
       <div className="container mx-auto px-4 py-20 text-center">
         <AlertCircle size={64} className="mx-auto text-destructive opacity-20 mb-4" />
         <h2 className="text-2xl font-black uppercase">Organização Não Identificada</h2>
-        <p className="text-muted-foreground mt-2">Vincule seu e-mail ({user?.email}) a uma organização no Painel Super Admin.</p>
+        <p className="text-muted-foreground mt-2">Vincule seu e-mail ({user?.email}) a uma organização.</p>
         <Link href="/"><Button variant="outline" className="mt-6">Voltar ao Início</Button></Link>
-      </div>
-    );
-  }
-
-  if (!product) {
-    return (
-      <div className="container mx-auto px-4 py-20 text-center">
-        <AlertCircle size={64} className="mx-auto text-destructive opacity-20 mb-4" />
-        <h2 className="text-2xl font-black uppercase">Item não encontrado</h2>
-        <p className="text-muted-foreground mt-2">O produto solicitado não existe ou não pertence a esta organização.</p>
-        <Link href="/admin/products"><Button variant="outline" className="mt-6">Voltar para a Lista</Button></Link>
       </div>
     );
   }
@@ -165,7 +154,7 @@ export default function EditRegisteredProductPage() {
           </Link>
           <div>
             <h1 className="text-3xl font-black tracking-tight text-primary uppercase">Editar Ficha Técnica</h1>
-            <p className="text-muted-foreground text-[10px] font-black uppercase tracking-widest">Organização: {orgId} | Usuário: {user?.email}</p>
+            <p className="text-muted-foreground text-[10px] font-black uppercase tracking-widest">Organização: {orgId}</p>
           </div>
         </div>
       </div>
@@ -227,7 +216,7 @@ export default function EditRegisteredProductPage() {
                   </div>
                   <div className="space-y-2">
                     <Label className="text-[10px] font-black uppercase text-muted-foreground">Qtd/Caixa</Label>
-                    <Input type="number" required value={formData.quantityPerBox} onChange={(e) => setFormData({...formData, quantityPerBox: e.target.value})} className="h-11 font-bold text-center bg-emerald-50/50" />
+                    <Input type="number" required value={formData.quantityPerBox} onWheel={(e) => e.currentTarget.blur()} onChange={(e) => setFormData({...formData, quantityPerBox: e.target.value})} className="h-11 font-bold text-center bg-emerald-50/50" />
                   </div>
                   <div className="space-y-2">
                     <Label className="text-[10px] font-black uppercase text-muted-foreground">ST (%)</Label>
@@ -237,11 +226,11 @@ export default function EditRegisteredProductPage() {
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <Label className="text-[10px] font-black uppercase text-muted-foreground">Peso Líq. Unit (Kg)</Label>
-                    <Input type="number" step="0.001" required value={formData.unitNetWeightKg} onChange={(e) => setFormData({...formData, unitNetWeightKg: e.target.value})} className="h-11 font-medium" />
+                    <Input type="number" step="0.001" required value={formData.unitNetWeightKg} onWheel={(e) => e.currentTarget.blur()} onChange={(e) => setFormData({...formData, unitNetWeightKg: e.target.value})} className="h-11 font-medium" />
                   </div>
                   <div className="space-y-2">
                     <Label className="text-[10px] font-black uppercase text-muted-foreground">Peso Caixa (Kg)</Label>
-                    <Input type="number" step="0.001" required value={formData.boxWeightKg} onChange={(e) => setFormData({...formData, boxWeightKg: e.target.value})} className="h-11 font-medium" />
+                    <Input type="number" step="0.001" required value={formData.boxWeightKg} onWheel={(e) => e.currentTarget.blur()} onChange={(e) => setFormData({...formData, boxWeightKg: e.target.value})} className="h-11 font-medium" />
                   </div>
                 </div>
               </CardContent>

@@ -187,6 +187,7 @@ export default function NewRegisteredProductPage() {
                       type="number" 
                       step="0.01" 
                       value={formData.customSurchargeValue} 
+                      onWheel={(e) => e.currentTarget.blur()}
                       onChange={(e) => setFormData({...formData, customSurchargeValue: e.target.value})} 
                       className="h-12 text-lg font-bold text-primary pl-10"
                     />
@@ -207,7 +208,7 @@ export default function NewRegisteredProductPage() {
                   </div>
                   <div className="space-y-2">
                     <Label>Qtd/Caixa</Label>
-                    <Input type="number" required value={formData.quantityPerBox} onChange={(e) => setFormData({...formData, quantityPerBox: e.target.value})} />
+                    <Input type="number" required value={formData.quantityPerBox} onWheel={(e) => e.currentTarget.blur()} onChange={(e) => setFormData({...formData, quantityPerBox: e.target.value})} />
                   </div>
                   <div className="space-y-2">
                     <Label>ST</Label>
@@ -217,11 +218,11 @@ export default function NewRegisteredProductPage() {
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <Label>Peso Líq. Unit (Kg)</Label>
-                    <Input type="number" step="0.001" required value={formData.unitNetWeightKg} onChange={(e) => setFormData({...formData, unitNetWeightKg: e.target.value})} />
+                    <Input type="number" step="0.001" required value={formData.unitNetWeightKg} onWheel={(e) => e.currentTarget.blur()} onChange={(e) => setFormData({...formData, unitNetWeightKg: e.target.value})} />
                   </div>
                   <div className="space-y-2">
                     <Label>Peso Caixa (Kg)</Label>
-                    <Input type="number" step="0.001" required value={formData.boxWeightKg} onChange={(e) => setFormData({...formData, boxWeightKg: e.target.value})} />
+                    <Input type="number" step="0.001" required value={formData.boxWeightKg} onWheel={(e) => e.currentTarget.blur()} onChange={(e) => setFormData({...formData, boxWeightKg: e.target.value})} />
                   </div>
                 </div>
               </CardContent>
