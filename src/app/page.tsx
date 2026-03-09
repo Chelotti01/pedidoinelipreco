@@ -83,6 +83,8 @@ export default function Home() {
   const [exportBrand, setExportBrand] = useState<string>("all");
   const [exportIncludeNetUnit, setExportIncludeNetUnit] = useState(true);
   const [exportIncludeFinalUnit, setExportIncludeFinalUnit] = useState(true);
+  const [exportIncludeNetBox, setExportIncludeNetBox] = useState(false);
+  const [exportIncludeFinalBox, setExportIncludeFinalBox] = useState(false);
 
   const handleLogout = async () => {
     await auth.signOut();
@@ -148,8 +150,8 @@ export default function Home() {
       // Geração do código de controle (ex: fe 0,2 ou fr 02)
       const typeShorthand = exportPriceType === 'closed' ? 'fe' : 'fr';
       const formattedPercent = exportPriceType === 'closed' 
-        ? (exportContractPercent / 10).toString().replace('.', ',') // fe 0,2 se for 2%
-        : (exportContractPercent < 10 ? `0${exportContractPercent}` : exportContractPercent); // fr 02 se for 2%
+        ? (exportContractPercent / 10).toString().replace('.', ',')
+        : (exportContractPercent < 10 ? `0${exportContractPercent}` : exportContractPercent);
       
       const footerCode = `${typeShorthand} ${formattedPercent}`;
 
@@ -173,14 +175,20 @@ export default function Home() {
         const netPrice = withSurcharge * (1 + exportContractPercent / 100);
         const stRate = p.st ? parseFloat(p.st.replace('%', '').replace(',', '.')) / 100 : 0;
         const finalPrice = netPrice * (1 + stRate);
+        
+        const qtyPerBox = Number(p.quantityPerBox) || 1;
+        const netBoxPrice = netPrice * qtyPerBox;
+        const finalBoxPrice = finalPrice * qtyPerBox;
 
         return `
           <tr style="border-bottom: 1px solid #E0E0E0;">
-            <td style="padding: 8px; font-weight: bold; width: 80px;">${p.code}</td>
+            <td style="padding: 8px; font-weight: bold; width: 70px;">${p.code}</td>
             <td style="padding: 8px; font-size: 9px; text-transform: uppercase;">${p.description}</td>
-            <td style="padding: 8px; text-align: center; width: 40px;">${p.unit}</td>
-            ${exportIncludeNetUnit ? `<td style="padding: 8px; text-align: right; width: 90px;">R$ ${netPrice.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>` : ''}
-            ${exportIncludeFinalUnit ? `<td style="padding: 8px; text-align: right; font-weight: bold; color: #4582A1; width: 90px;">R$ ${finalPrice.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>` : ''}
+            <td style="padding: 8px; text-align: center; width: 35px;">${p.unit}</td>
+            ${exportIncludeNetUnit ? `<td style="padding: 8px; text-align: right; width: 75px; font-size: 9px;">R$ ${netPrice.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>` : ''}
+            ${exportIncludeFinalUnit ? `<td style="padding: 8px; text-align: right; font-weight: bold; color: #4582A1; width: 75px; font-size: 9px;">R$ ${finalPrice.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>` : ''}
+            ${exportIncludeNetBox ? `<td style="padding: 8px; text-align: right; width: 75px; font-size: 9px; color: #64748b;">R$ ${netBoxPrice.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>` : ''}
+            ${exportIncludeFinalBox ? `<td style="padding: 8px; text-align: right; font-weight: bold; width: 75px; font-size: 9px; color: #059669;">R$ ${finalBoxPrice.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>` : ''}
           </tr>
         `;
       }).join('');
@@ -199,11 +207,13 @@ export default function Home() {
         <table style="width: 100%; border-collapse: collapse; font-family: sans-serif;">
           <thead style="background-color: #F0F3F4;">
             <tr>
-              <th style="padding: 10px 8px; text-align: left; font-size: 10px; font-weight: 900;">CÓD</th>
-              <th style="padding: 10px 8px; text-align: left; font-size: 10px; font-weight: 900;">DESCRIÇÃO</th>
-              <th style="padding: 10px 8px; text-align: center; font-size: 10px; font-weight: 900;">UND</th>
-              ${exportIncludeNetUnit ? '<th style="padding: 10px 8px; text-align: right; font-size: 10px; font-weight: 900;">UNIT. NET</th>' : ''}
-              ${exportIncludeFinalUnit ? '<th style="padding: 10px 8px; text-align: right; font-size: 10px; font-weight: 900;">UNIT. FINAL</th>' : ''}
+              <th style="padding: 10px 8px; text-align: left; font-size: 9px; font-weight: 900;">CÓD</th>
+              <th style="padding: 10px 8px; text-align: left; font-size: 9px; font-weight: 900;">DESCRIÇÃO</th>
+              <th style="padding: 10px 8px; text-align: center; font-size: 9px; font-weight: 900;">UND</th>
+              ${exportIncludeNetUnit ? '<th style="padding: 10px 8px; text-align: right; font-size: 9px; font-weight: 900;">UNIT. NET</th>' : ''}
+              ${exportIncludeFinalUnit ? '<th style="padding: 10px 8px; text-align: right; font-size: 9px; font-weight: 900;">UNIT. FINAL</th>' : ''}
+              ${exportIncludeNetBox ? '<th style="padding: 10px 8px; text-align: right; font-size: 9px; font-weight: 900;">CX. NET</th>' : ''}
+              ${exportIncludeFinalBox ? '<th style="padding: 10px 8px; text-align: right; font-size: 9px; font-weight: 900;">CX. FINAL</th>' : ''}
             </tr>
           </thead>
           <tbody>
@@ -212,7 +222,7 @@ export default function Home() {
         </table>
         <div style="margin-top: 30px; border-top: 1px solid #eee; padding-top: 15px; display: flex; justify-content: space-between; align-items: center;">
           <p style="font-size: 8px; color: #94a3b8; font-family: sans-serif; margin: 0;">Documento gerado pelo sistema InteliPreço SaaS. Preços sujeitos a alteração sem aviso prévio.</p>
-          <p style="font-size: 10px; font-weight: 900; color: #4582A1; font-family: sans-serif; margin: 0; text-transform: uppercase;">COD: ${footerCode}</p>
+          <p style="font-size: 9px; font-weight: normal; color: #cbd5e1; font-family: sans-serif; margin: 0; text-transform: uppercase;">COD: ${footerCode}</p>
         </div>
       `;
 
@@ -497,17 +507,31 @@ export default function Home() {
               <div className="grid grid-cols-1 gap-3">
                 <div className="flex items-center justify-between p-3 bg-slate-50 rounded-lg border">
                   <div className="space-y-0.5">
-                    <Label className="text-sm font-bold">Preço Unitário NET</Label>
+                    <Label className="text-sm font-bold">Unitário NET</Label>
                     <p className="text-[10px] text-muted-foreground">Preço antes da ST</p>
                   </div>
                   <Switch checked={exportIncludeNetUnit} onCheckedChange={setExportIncludeNetUnit} />
                 </div>
                 <div className="flex items-center justify-between p-3 bg-slate-50 rounded-lg border">
                   <div className="space-y-0.5">
-                    <Label className="text-sm font-bold text-primary">Preço Unitário Final (+ST)</Label>
-                    <p className="text-[10px] text-muted-foreground">Preço com impostos inclusos</p>
+                    <Label className="text-sm font-bold text-primary">Unitário Final (+ST)</Label>
+                    <p className="text-[10px] text-muted-foreground">Preço final com impostos</p>
                   </div>
                   <Switch checked={exportIncludeFinalUnit} onCheckedChange={setExportIncludeFinalUnit} />
+                </div>
+                <div className="flex items-center justify-between p-3 bg-slate-50 rounded-lg border">
+                  <div className="space-y-0.5">
+                    <Label className="text-sm font-bold">Caixa NET</Label>
+                    <p className="text-[10px] text-muted-foreground">Valor da caixa sem ST</p>
+                  </div>
+                  <Switch checked={exportIncludeNetBox} onCheckedChange={setExportIncludeNetBox} />
+                </div>
+                <div className="flex items-center justify-between p-3 bg-slate-50 rounded-lg border">
+                  <div className="space-y-0.5">
+                    <Label className="text-sm font-bold text-emerald-600">Caixa Final (+ST)</Label>
+                    <p className="text-[10px] text-muted-foreground">Valor total da caixa com impostos</p>
+                  </div>
+                  <Switch checked={exportIncludeFinalBox} onCheckedChange={setExportIncludeFinalBox} />
                 </div>
               </div>
             </div>
