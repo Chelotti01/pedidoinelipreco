@@ -76,7 +76,7 @@ export default function ImportRegisteredProductsPage() {
       }
     }
 
-    // 2. Fallback para inclusão parcial (apenas se o termo for longo para evitar colisões como ST -> STATUS)
+    // 2. Fallback para inclusão parcial (apenas se o termo for longo para evitar colisões)
     for (const key of keys) {
       const target = key.toLowerCase().trim().normalize('NFD').replace(/[\u0300-\u036f]/g, "");
       if (target.length < 3) continue;
@@ -102,7 +102,7 @@ export default function ImportRegisteredProductsPage() {
 
   const handleUpload = async () => {
     if (!file || !orgId) {
-      toast({ title: "Erro", description: "Organização não identificada.", variant: "destructive" });
+      toast({ title: "Erro", description: "Organização não identificada ou arquivo não selecionado.", variant: "destructive" });
       return;
     }
 
@@ -112,7 +112,6 @@ export default function ImportRegisteredProductsPage() {
       const workbook = XLSX.read(arrayBuffer);
       const worksheet = workbook.Sheets[workbook.SheetNames[0]];
       
-      // Lemos como JSON de objetos para usar cabeçalhos, mas também pegamos os dados crus para verificar coluna O
       const data = XLSX.utils.sheet_to_json(worksheet, { defval: '' });
       const rawData: any[][] = XLSX.utils.sheet_to_json(worksheet, { header: 1, defval: '' });
 
@@ -133,10 +132,15 @@ export default function ImportRegisteredProductsPage() {
         const normalizedStatus = (rawStatus === 'ativo' || rawStatus === 'active') ? 'Active' : 
                                  (rawStatus === 'inativo' || rawStatus === 'inactive') ? 'Inactive' : 'Active';
 
-        // Busca da ST: Tenta por nome, se vier "Ativo" ou vazio, tenta a coluna O (index 14)
+        // Qtd/Caixa: Busca na COLUNA F (index 5) se o nome do cabeçalho falhar
+        let qtyValue = safeNumber(getRowValue(row, ["Qtd Caixa", "Embalagem", "Quantity", "Cx", "Qtd/Caixa"]));
+        if (!qtyValue && rowArray[5] !== undefined && rowArray[5] !== '') {
+          qtyValue = safeNumber(rowArray[5]);
+        }
+
+        // ST: Busca na COLUNA O (index 14) para evitar colisão com "Status"
         let stValue = String(getRowValue(row, ["ST", "Substituicao", "Imposto"]) || '').trim();
-        if (!stValue || stValue.toLowerCase() === 'ativo' || stValue.toLowerCase() === 'inativo') {
-          // Tenta a coluna O (índice 14 se a planilha seguir o padrão)
+        if (!stValue || stValue.toLowerCase() === 'ativo' || stValue.toLowerCase() === 'active') {
           if (rowArray[14] !== undefined && rowArray[14] !== '') {
             stValue = String(rowArray[14]).trim();
           } else {
@@ -151,7 +155,7 @@ export default function ImportRegisteredProductsPage() {
           line: String(getRowValue(row, ["Linha", "Colecao", "Line"]) || '').trim().toUpperCase(),
           code: code,
           description: description.toUpperCase(),
-          quantityPerBox: safeNumber(getRowValue(row, ["Qtd Caixa", "Embalagem", "Quantity", "Cx", "Qtd/Caixa"])),
+          quantityPerBox: qtyValue,
           unit: String(getRowValue(row, ["Unidade", "Und", "Unit", "Un"]) || 'UN').trim().toUpperCase(),
           ean: String(getRowValue(row, ["EAN", "GTIN", "Barras", "Cod Barras"]) || '').trim(),
           dun14: String(getRowValue(row, ["DUN14", "DUN-14", "DUN"]) || '').trim(),
@@ -184,7 +188,12 @@ export default function ImportRegisteredProductsPage() {
   };
 
   if (isProfileLoading) {
-    return <div className="flex h-screen items-center justify-center"><Loader2 className="animate-spin text-primary" size={48} /></div>;
+    return (
+      <div className="flex h-screen items-center justify-center flex-col gap-4">
+        <Loader2 className="animate-spin text-primary" size={48} />
+        <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Validando Perfil SaaS...</p>
+      </div>
+    );
   }
 
   return (
@@ -193,7 +202,7 @@ export default function ImportRegisteredProductsPage() {
         <Link href="/admin/products" className="text-muted-foreground hover:text-primary transition-colors">
           <ChevronLeft size={28} />
         </Link>
-        <h1 className="text-2xl font-black uppercase text-primary tracking-tight">Importar Produtos ({orgId || '...'})</h1>
+        <h1 className="text-2xl font-black uppercase text-primary tracking-tight">Importar Ficha Técnica ({orgId || '...'})</h1>
       </div>
 
       {!orgId && (

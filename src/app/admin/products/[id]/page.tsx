@@ -125,7 +125,6 @@ export default function EditRegisteredProductPage() {
     router.push('/admin/products');
   };
 
-  // Renderização condicional de carregamento
   if (isProfileLoading || isProductLoading || (product && !isDataInitialized)) {
     return (
       <div className="flex h-screen items-center justify-center flex-col gap-4">
@@ -228,7 +227,7 @@ export default function EditRegisteredProductPage() {
                   </div>
                   <div className="space-y-2">
                     <Label className="text-[10px] font-black uppercase text-muted-foreground">Qtd/Caixa</Label>
-                    <Input type="number" required value={formData.quantityPerBox} onChange={(e) => setFormData({...formData, quantityPerBox: e.target.value})} className="h-11 font-bold text-center" />
+                    <Input type="number" required value={formData.quantityPerBox} onChange={(e) => setFormData({...formData, quantityPerBox: e.target.value})} className="h-11 font-bold text-center bg-emerald-50/50" />
                   </div>
                   <div className="space-y-2">
                     <Label className="text-[10px] font-black uppercase text-muted-foreground">ST (%)</Label>
