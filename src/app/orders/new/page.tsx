@@ -94,9 +94,9 @@ export default function NewOrderPage() {
   const [lineFilter, setLineFilter] = useState<string>("none");
   const [categoryFilter, setCategoryFilter] = useState<string>("none");
   const [isCustomMode, setIsCustomMode] = useState(false);
-  const [quantity, setQuantity] = useState<number>(1);
+  const [quantity, setQuantity] = useState<number | "">(1);
   const [priceType, setPriceType] = useState<'closed' | 'fractional'>('closed');
-  const [contractPercent, setContractPercent] = useState<number>(0);
+  const [contractPercent, setContractPercent] = useState<number | "">(0);
   const [isBonus, setIsBonus] = useState(false);
   const [showAraRulesDialog, setShowAraRulesDialog] = useState(false);
 
@@ -183,6 +183,7 @@ export default function NewOrderPage() {
 
   const calculateItemPrices = (registeredItem: any, catalogItem: any) => {
     if (!registeredItem || !catalogItem) return null;
+    const currentContract = contractPercent === "" ? 0 : Number(contractPercent);
     const basePrice = priceType === 'closed' ? (catalogItem.closedLoadPrice || 0) : (catalogItem.fractionalLoadPrice || 0);
     const priceAfterCatalog = Math.max(0, basePrice - (catalogItem.discountAmount || 0));
     const surchargeValue = registeredItem.customSurchargeValue !== undefined ? Number(registeredItem.customSurchargeValue) : (registeredItem.customSurchargeR$ || 0);
@@ -190,7 +191,7 @@ export default function NewOrderPage() {
     let baseWithSurcharge = priceAfterCatalog;
     if (surchargeType === 'percentage') baseWithSurcharge += priceAfterCatalog * (surchargeValue / 100);
     else baseWithSurcharge += surchargeValue;
-    const finalUnitPriceBeforeST = baseWithSurcharge * (1 + contractPercent / 100);
+    const finalUnitPriceBeforeST = baseWithSurcharge * (1 + currentContract / 100);
     const stRate = parseST(registeredItem.st);
     const finalUnitPriceWithST = finalUnitPriceBeforeST * (1 + stRate);
     return { finalUnitPriceBeforeST: Number(finalUnitPriceBeforeST.toFixed(2)), stRate, finalUnitPriceWithST: Number(finalUnitPriceWithST.toFixed(2)) };
@@ -206,8 +207,11 @@ export default function NewOrderPage() {
     }
     const { finalUnitPriceWithST, finalUnitPriceBeforeST, stRate } = unitCalculations;
     const qtyPerBox = currentRegisteredProduct.quantityPerBox || 1;
-    const total = isBonus ? 0 : (finalUnitPriceWithST * qtyPerBox * (quantity || 1));
-    const weight = isBonus ? 0 : ((currentRegisteredProduct.boxWeightKg || 0) * (quantity || 1));
+    const currentQty = quantity === "" ? 1 : Number(quantity);
+    const currentContract = contractPercent === "" ? 0 : Number(contractPercent);
+    
+    const total = isBonus ? 0 : (finalUnitPriceWithST * qtyPerBox * currentQty);
+    const weight = isBonus ? 0 : ((currentRegisteredProduct.boxWeightKg || 0) * currentQty);
     const newItem: OrderItem = {
       productId: currentRegisteredProduct.id,
       catalogProductId: currentCatalogProduct.id,
@@ -216,11 +220,11 @@ export default function NewOrderPage() {
       name: currentRegisteredProduct.description,
       ean: currentRegisteredProduct.ean || '',
       unit: currentRegisteredProduct.unit,
-      quantity: quantity || 1,
+      quantity: currentQty,
       priceType,
       unitPriceNet: finalUnitPriceBeforeST,
       unitPriceFinal: finalUnitPriceWithST,
-      appliedContract: contractPercent,
+      appliedContract: currentContract,
       stRate: stRate * 100,
       total,
       weight,
@@ -235,33 +239,35 @@ export default function NewOrderPage() {
     setIsBonus(false);
   };
 
-  const updateItemQuantity = (index: number, newQuantity: number) => {
-    if (newQuantity < 0) return;
+  const updateItemQuantity = (index: number, newQuantity: number | string) => {
     const updatedItems = [...orderItems];
     const item = updatedItems[index];
-    item.quantity = newQuantity;
-    item.total = item.isBonus ? 0 : (item.unitPriceFinal * item.quantityPerBox * newQuantity);
-    item.weight = item.isBonus ? 0 : (item.unitWeight * newQuantity);
+    const qty = newQuantity === "" ? 0 : Number(newQuantity);
+    item.quantity = qty;
+    item.total = item.isBonus ? 0 : (item.unitPriceFinal * item.quantityPerBox * qty);
+    item.weight = item.isBonus ? 0 : (item.unitWeight * qty);
     setOrderItems(updatedItems);
   };
 
-  const updateItemPrice = (index: number, newFinalPrice: number) => {
+  const updateItemPrice = (index: number, newFinalPrice: number | string) => {
     const updatedItems = [...orderItems];
     const item = updatedItems[index];
+    const finalPrice = newFinalPrice === "" ? 0 : Number(newFinalPrice);
     const stRateDecimal = (item.stRate || 0) / 100;
-    const newNetPrice = Number((newFinalPrice / (1 + stRateDecimal)).toFixed(2));
-    item.unitPriceFinal = Number(newFinalPrice.toFixed(2));
+    const newNetPrice = Number((finalPrice / (1 + stRateDecimal)).toFixed(2));
+    item.unitPriceFinal = Number(finalPrice.toFixed(2));
     item.unitPriceNet = newNetPrice;
     item.total = item.isBonus ? 0 : (item.unitPriceFinal * item.quantityPerBox * item.quantity);
     setOrderItems(updatedItems);
   };
 
-  const updateItemNetPrice = (index: number, newNetPrice: number) => {
+  const updateItemNetPrice = (index: number, newNetPrice: number | string) => {
     const updatedItems = [...orderItems];
     const item = updatedItems[index];
+    const netPrice = newNetPrice === "" ? 0 : Number(newNetPrice);
     const stRateDecimal = (item.stRate || 0) / 100;
-    const newFinalPrice = Number((newNetPrice * (1 + stRateDecimal)).toFixed(2));
-    item.unitPriceNet = Number(newNetPrice.toFixed(2));
+    const newFinalPrice = Number((netPrice * (1 + stRateDecimal)).toFixed(2));
+    item.unitPriceNet = Number(netPrice.toFixed(2));
     item.unitPriceFinal = newFinalPrice;
     item.total = item.isBonus ? 0 : (newFinalPrice * item.quantityPerBox * item.quantity);
     setOrderItems(updatedItems);
@@ -450,8 +456,28 @@ export default function NewOrderPage() {
                         <Label htmlFor="price-fractional" className={`flex items-center justify-center gap-2 border-2 rounded-lg p-3 cursor-pointer ${priceType === 'fractional' ? 'border-primary bg-primary/5' : 'border-muted'}`}><RadioGroupItem value="fractional" id="price-fractional" className="sr-only" /><span className="font-semibold text-xs">Fracionado</span></Label>
                       </RadioGroup>
                       <div className="grid grid-cols-2 gap-4">
-                        <div className="space-y-1.5"><Label className="text-xs">Qtd (Cxs)</Label><Input type="number" value={quantity || ""} onWheel={(e) => e.currentTarget.blur()} onChange={(e) => setQuantity(Number(e.target.value))} onFocus={(e) => e.target.select()} className="font-bold text-lg h-11"/></div>
-                        <div className="space-y-1.5"><Label className="text-xs">Contrato (%)</Label><Input type="number" value={contractPercent} onWheel={(e) => e.currentTarget.blur()} onChange={(e) => setContractPercent(Number(e.target.value))} onFocus={(e) => e.target.select()} className="h-11 font-bold text-primary"/></div>
+                        <div className="space-y-1.5">
+                          <Label className="text-xs">Qtd (Cxs)</Label>
+                          <Input 
+                            type="number" 
+                            value={quantity} 
+                            onWheel={(e) => e.currentTarget.blur()} 
+                            onChange={(e) => setQuantity(e.target.value === "" ? "" : Number(e.target.value))} 
+                            onFocus={(e) => e.target.select()} 
+                            className="font-bold text-lg h-11"
+                          />
+                        </div>
+                        <div className="space-y-1.5">
+                          <Label className="text-xs">Contrato (%)</Label>
+                          <Input 
+                            type="number" 
+                            value={contractPercent} 
+                            onWheel={(e) => e.currentTarget.blur()} 
+                            onChange={(e) => setContractPercent(e.target.value === "" ? "" : Number(e.target.value))} 
+                            onFocus={(e) => e.target.select()} 
+                            className="h-11 font-bold text-primary"
+                          />
+                        </div>
                       </div>
                       <div className="flex items-center space-x-2 bg-muted/50 p-2 rounded-lg">
                         <Switch id="bonus-mode" checked={isBonus} onCheckedChange={setIsBonus} />
@@ -499,7 +525,7 @@ export default function NewOrderPage() {
                             <TableCell className="text-center">
                               <div className="flex items-center justify-center gap-2">
                                 <Button variant="outline" size="icon" className="h-7 w-7 rounded-full" onClick={() => updateItemQuantity(idx, item.quantity - 1)} disabled={item.quantity <= 1}><Minus size={12} /></Button>
-                                <input type="number" className="h-8 w-12 text-center border rounded font-bold text-xs" value={item.quantity || ""} onWheel={(e) => e.currentTarget.blur()} onChange={(e) => updateItemQuantity(idx, Number(e.target.value))} onFocus={(e) => e.target.select()} />
+                                <input type="number" className="h-8 w-12 text-center border rounded font-bold text-xs" value={item.quantity === 0 ? "" : item.quantity} onWheel={(e) => e.currentTarget.blur()} onChange={(e) => updateItemQuantity(idx, e.target.value)} onFocus={(e) => e.target.select()} />
                                 <Button variant="outline" size="icon" className="h-7 w-7 rounded-full" onClick={() => updateItemQuantity(idx, item.quantity + 1)}><Plus size={12} /></Button>
                               </div>
                             </TableCell>
@@ -509,11 +535,11 @@ export default function NewOrderPage() {
                                 <div className="space-y-1">
                                   <div className="flex items-center gap-1 justify-end">
                                     <span className="text-[8px] text-muted-foreground font-bold">NET:</span>
-                                    <input type="number" step="0.01" className="h-7 w-20 text-right border rounded bg-slate-50 font-bold text-[10px] px-1" value={item.unitPriceNet || ""} onWheel={(e) => e.currentTarget.blur()} onChange={(e) => !item.isBonus && updateItemNetPrice(idx, Number(e.target.value))} onFocus={(e) => e.target.select()} readOnly={item.isBonus} />
+                                    <input type="number" step="0.01" className="h-7 w-20 text-right border rounded bg-slate-50 font-bold text-[10px] px-1" value={item.unitPriceNet || ""} onWheel={(e) => e.currentTarget.blur()} onChange={(e) => !item.isBonus && updateItemNetPrice(idx, e.target.value)} onFocus={(e) => e.target.select()} readOnly={item.isBonus} />
                                   </div>
                                   <div className="flex items-center gap-1 justify-end">
                                     <span className="text-[8px] text-primary font-bold">FINAL:</span>
-                                    <input type="number" step="0.01" className="h-7 w-20 text-right border rounded bg-slate-50 font-bold text-[10px] px-1 border-primary/40" value={item.unitPriceFinal || ""} onWheel={(e) => e.currentTarget.blur()} onChange={(e) => !item.isBonus && updateItemPrice(idx, Number(e.target.value))} onFocus={(e) => e.target.select()} readOnly={item.isBonus} />
+                                    <input type="number" step="0.01" className="h-7 w-20 text-right border rounded bg-slate-50 font-bold text-[10px] px-1 border-primary/40" value={item.unitPriceFinal || ""} onWheel={(e) => e.currentTarget.blur()} onChange={(e) => !item.isBonus && updateItemPrice(idx, e.target.value)} onFocus={(e) => e.target.select()} readOnly={item.isBonus} />
                                   </div>
                                 </div>
                               </div>

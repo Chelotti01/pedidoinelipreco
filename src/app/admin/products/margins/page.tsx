@@ -167,14 +167,13 @@ export default function MarginsManagementPage() {
 
 function MarginSurchargeRow({ product, db, orgId }: { product: any, db: any, orgId: string }) {
   const { toast } = useToast();
-  const [isSaving] = useState(false); // Refactored to use updateDocumentNonBlocking
-  const [surchargeValue, setSurchargeValue] = useState(product.customSurchargeValue !== undefined ? String(product.customSurchargeValue) : '0');
+  const [surchargeValue, setSurchargeValue] = useState<number | "">(product.customSurchargeValue !== undefined ? Number(product.customSurchargeValue) : 0);
   const [surchargeType, setSurchargeType] = useState(product.customSurchargeType || 'fixed');
 
   const handleSave = async () => {
     try {
       updateDocumentNonBlocking(doc(db, 'organizations', orgId, 'products', product.id), {
-        customSurchargeValue: Number(surchargeValue) || 0,
+        customSurchargeValue: surchargeValue === "" ? 0 : Number(surchargeValue),
         customSurchargeType: surchargeType,
         updatedAt: serverTimestamp()
       });
@@ -228,9 +227,9 @@ function MarginSurchargeRow({ product, db, orgId }: { product: any, db: any, org
             <Input 
               type="number" 
               step="0.01" 
-              value={surchargeValue} 
+              value={surchargeValue === 0 ? "" : surchargeValue} 
               onWheel={(e) => e.currentTarget.blur()}
-              onChange={(e) => setSurchargeValue(e.target.value)} 
+              onChange={(e) => setSurchargeValue(e.target.value === "" ? "" : Number(e.target.value))} 
               onFocus={(e) => e.target.select()}
               className="h-9 text-right font-black text-primary pl-8 pr-2 bg-slate-50 border-slate-200"
             />
