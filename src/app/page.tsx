@@ -126,11 +126,12 @@ export default function Home() {
       const html2canvas = (await import('html2canvas')).default;
       const { jsPDF } = await import('jspdf');
 
+      // Ordenação por código em ordem crescente (alfanumérica)
       const filtered = (registeredProducts?.filter(p => 
         p.factoryId === exportFactoryId && 
         p.line === exportLineFilter &&
         (exportBrand === "all" || p.brand === exportBrand)
-      ) || []).sort((a, b) => (a.brand || "").localeCompare(b.brand || "") || (a.code || "").localeCompare(b.code || ""));
+      ) || []).sort((a, b) => (a.code || "").localeCompare((b.code || ""), undefined, { numeric: true, sensitivity: 'base' }));
 
       if (filtered.length === 0) {
         toast({ title: "Nenhum item encontrado", description: "Verifique os filtros selecionados.", variant: "destructive" });
@@ -501,7 +502,7 @@ export default function Home() {
               </div>
               <div className="space-y-2">
                 <Label>Contrato (%)</Label>
-                <Input type="number" value={exportContractPercent} onChange={(e) => setExportContractPercent(Number(e.target.value))} />
+                <Input type="number" value={exportContractPercent} onChange={(e) => setExportContractPercent(Number(e.target.value))} onFocus={(e) => e.target.select()} onWheel={(e) => e.currentTarget.blur()} />
               </div>
             </div>
 
