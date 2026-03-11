@@ -16,7 +16,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
 import { 
   ShoppingCart, Save, ReceiptText, ChevronLeft, Loader2, 
-  Weight, Search, LayoutGrid, Package, AlertTriangle, Gift, DollarSign, Crown
+  Weight, Search, LayoutGrid, Package, AlertTriangle, Type, DollarSign, Crown
 } from "lucide-react";
 import Link from 'next/link';
 
@@ -188,6 +188,15 @@ export default function GridOrderPage() {
     }
   };
 
+  const handleCopyToClipboard = (product: any, price: number) => {
+    const text = `${product.description} - R$ ${price.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`;
+    navigator.clipboard.writeText(text);
+    toast({ 
+      title: "Copiado!", 
+      description: "Descrição e preço final copiados para a área de transferência." 
+    });
+  };
+
   if (isProfileLoading) return <div className="flex h-screen items-center justify-center"><Loader2 className="animate-spin text-primary" size={48} /></div>;
 
   return (
@@ -294,7 +303,7 @@ export default function GridOrderPage() {
             <Table>
               <TableHeader className="bg-slate-100">
                 <TableRow>
-                  <TableHead className="w-[80px]">Bônus</TableHead>
+                  <TableHead className="w-[80px] text-center">Texto</TableHead>
                   <TableHead>Descrição</TableHead>
                   <TableHead className="text-right">Net R$</TableHead>
                   <TableHead className="text-right">Final R$</TableHead>
@@ -306,11 +315,18 @@ export default function GridOrderPage() {
                 {filteredProducts.map((p) => {
                   const isB = gridBonus[p.id] || false;
                   const qty = gridQuantities[p.id] || 0;
-                  const subtotal = isB ? 0 : ((gridPricesFinal[p.id] || 0) * (p.quantityPerBox || 1) * qty);
+                  const finalPrice = gridPricesFinal[p.id] || 0;
+                  const subtotal = isB ? 0 : (finalPrice * (p.quantityPerBox || 1) * qty);
                   return (
                     <TableRow key={p.id} className={qty > 0 ? "bg-primary/5" : ""}>
                       <TableCell className="text-center">
-                        <button onClick={() => setGridBonus(prev => ({ ...prev, [p.id]: !isB }))} className={`w-8 h-8 rounded-lg flex items-center justify-center border-2 ${isB ? "bg-accent border-accent text-white" : "bg-white border-slate-200 text-slate-300"}`}><Gift size={16} /></button>
+                        <button 
+                          onClick={() => handleCopyToClipboard(p, finalPrice)} 
+                          className="w-8 h-8 rounded-lg flex items-center justify-center border-2 bg-white border-slate-200 text-slate-500 hover:bg-slate-50 hover:border-primary transition-all active:scale-90"
+                          title="Copiar descrição e preço"
+                        >
+                          <Type size={16} />
+                        </button>
                       </TableCell>
                       <TableCell><div className="font-bold text-xs">{p.code}</div><div className="text-[10px] text-muted-foreground uppercase">{p.description}</div></TableCell>
                       <TableCell className="text-right"><input type="number" step="0.01" className="w-20 h-8 text-right text-[11px] font-bold border rounded bg-slate-50" value={gridPricesNet[p.id] || ""} onWheel={(e) => e.currentTarget.blur()} onChange={(e) => { const v = e.target.value === "" ? 0 : Number(e.target.value); const st = parseST(p.st); setGridPricesNet(prev => ({ ...prev, [p.id]: v })); setGridPricesFinal(prev => ({ ...prev, [p.id]: Number((v * (1 + st)).toFixed(2)) })); }} onFocus={(e) => e.target.select()} disabled={isB}/></TableCell>
