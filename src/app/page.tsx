@@ -126,7 +126,6 @@ export default function Home() {
       const html2canvas = (await import('html2canvas')).default;
       const { jsPDF } = await import('jspdf');
 
-      // Ordenação por código em ordem crescente (alfanumérica)
       const filtered = (registeredProducts?.filter(p => 
         p.factoryId === exportFactoryId && 
         p.line === exportLineFilter &&
@@ -148,7 +147,6 @@ export default function Home() {
 
       const factoryName = factories?.find(f => f.id === exportFactoryId)?.name || 'Fábrica';
       
-      // Geração do código de controle
       const typeShorthand = exportPriceType === 'closed' ? 'fe' : 'fr';
       const formattedPercent = exportPriceType === 'closed' 
         ? (exportContractPercent / 10).toString().replace('.', ',')
@@ -162,26 +160,17 @@ export default function Home() {
 
         const basePrice = exportPriceType === 'closed' ? (catalogItem.closedLoadPrice || 0) : (catalogItem.fractionalLoadPrice || 0);
         const afterCatalog = Math.max(0, basePrice - (catalogItem.discountAmount || 0));
-        
         const surchargeValue = p.customSurchargeValue !== undefined ? Number(p.customSurchargeValue) : (p.customSurchargeR$ || 0);
         const surchargeType = p.customSurchargeType || 'fixed';
-        
         let withSurcharge = afterCatalog;
-        if (surchargeType === 'percentage') {
-          withSurcharge += afterCatalog * (surchargeValue / 100);
-        } else {
-          withSurcharge += surchargeValue;
-        }
+        if (surchargeType === 'percentage') withSurcharge += afterCatalog * (surchargeValue / 100);
+        else withSurcharge += surchargeValue;
 
         const netPrice = withSurcharge * (1 + exportContractPercent / 100);
         const stRate = p.st ? parseFloat(p.st.replace('%', '').replace(',', '.')) / 100 : 0;
         const finalPrice = netPrice * (1 + stRate);
-        
         const qtyPerBox = Number(p.quantityPerBox) || 1;
-        const netBoxPrice = netPrice * qtyPerBox;
-        const finalBoxPrice = finalPrice * qtyPerBox;
 
-        // Estilo compartilhado para os preços: Arial 11pt
         const priceStyle = 'padding: 8px; text-align: right; font-family: Arial, sans-serif; font-size: 11pt;';
 
         return `
@@ -191,8 +180,8 @@ export default function Home() {
             <td style="padding: 8px; text-align: center; width: 35px; font-size: 9px;">${p.unit}</td>
             ${exportIncludeNetUnit ? `<td style="${priceStyle}">${netPrice.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>` : ''}
             ${exportIncludeFinalUnit ? `<td style="${priceStyle} font-weight: bold; color: #4582A1;">${finalPrice.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>` : ''}
-            ${exportIncludeNetBox ? `<td style="${priceStyle} color: #64748b;">${netBoxPrice.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>` : ''}
-            ${exportIncludeFinalBox ? `<td style="${priceStyle} font-weight: bold; color: #059669;">${finalBoxPrice.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>` : ''}
+            ${exportIncludeNetBox ? `<td style="${priceStyle} color: #64748b;">${(netPrice * qtyPerBox).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>` : ''}
+            ${exportIncludeFinalBox ? `<td style="${priceStyle} font-weight: bold; color: #059669;">${(finalPrice * qtyPerBox).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>` : ''}
           </tr>
         `;
       }).join('');

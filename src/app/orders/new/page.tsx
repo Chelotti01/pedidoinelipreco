@@ -62,7 +62,6 @@ export default function NewOrderPage() {
   const { toast } = useToast();
   const router = useRouter();
 
-  // OBRIGATÓRIO: Buscar perfil pelo e-mail para SaaS
   const userProfileRef = useMemoFirebase(() => 
     user?.email ? doc(db, 'userProfiles', user.email.toLowerCase().trim()) : null
   , [db, user]);

@@ -49,7 +49,6 @@ export default function GridOrderPage() {
   const { toast } = useToast();
   const router = useRouter();
 
-  // Get user profile for organizationId via Email (SaaS Pattern)
   const userProfileRef = useMemoFirebase(() => 
     user?.email ? doc(db, 'userProfiles', user.email.toLowerCase().trim()) : null
   , [db, user]);
