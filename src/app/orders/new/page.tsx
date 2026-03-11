@@ -407,8 +407,8 @@ export default function NewOrderPage() {
                             type="number" 
                             value={quantity} 
                             onWheel={(e) => e.currentTarget.blur()} 
+                            onFocus={(e) => e.target.select()}
                             onChange={(e) => setQuantity(e.target.value === "" ? "" : Number(e.target.value))} 
-                            onFocus={(e) => e.target.select()} 
                             className="font-bold text-lg h-11"
                           />
                         </div>
@@ -418,8 +418,8 @@ export default function NewOrderPage() {
                             type="number" 
                             value={contractPercent} 
                             onWheel={(e) => e.currentTarget.blur()} 
+                            onFocus={(e) => e.target.select()}
                             onChange={(e) => setContractPercent(e.target.value === "" ? "" : Number(e.target.value))} 
-                            onFocus={(e) => e.target.select()} 
                             className="h-11 font-bold text-primary"
                           />
                         </div>
@@ -470,7 +470,14 @@ export default function NewOrderPage() {
                             <TableCell className="text-center">
                               <div className="flex items-center justify-center gap-2">
                                 <Button variant="outline" size="icon" className="h-7 w-7 rounded-full" onClick={() => updateItemQuantity(idx, item.quantity - 1)} disabled={item.quantity <= 1}><Minus size={12} /></Button>
-                                <input type="number" className="h-8 w-12 text-center border rounded font-bold text-xs" value={item.quantity === 0 ? "" : item.quantity} onWheel={(e) => e.currentTarget.blur()} onChange={(e) => updateItemQuantity(idx, e.target.value)} onFocus={(e) => e.target.select()} />
+                                <input 
+                                  type="number" 
+                                  className="h-8 w-12 text-center border rounded font-bold text-xs" 
+                                  value={item.quantity === 0 ? "" : item.quantity} 
+                                  onWheel={(e) => e.currentTarget.blur()} 
+                                  onFocus={(e) => e.target.select()}
+                                  onChange={(e) => updateItemQuantity(idx, e.target.value)} 
+                                />
                                 <Button variant="outline" size="icon" className="h-7 w-7 rounded-full" onClick={() => updateItemQuantity(idx, item.quantity + 1)}><Plus size={12} /></Button>
                               </div>
                             </TableCell>
@@ -480,11 +487,29 @@ export default function NewOrderPage() {
                                 <div className="space-y-1">
                                   <div className="flex items-center gap-1 justify-end">
                                     <span className="text-[8px] text-muted-foreground font-bold">NET:</span>
-                                    <input type="number" step="0.01" className="h-7 w-20 text-right border rounded bg-slate-50 font-bold text-[10px] px-1" value={item.unitPriceNet || ""} onWheel={(e) => e.currentTarget.blur()} onChange={(e) => !item.isBonus && updateItemNetPrice(idx, e.target.value)} onFocus={(e) => e.target.select()} readOnly={item.isBonus} />
+                                    <input 
+                                      type="number" 
+                                      step="0.01" 
+                                      className="h-7 w-20 text-right border rounded bg-slate-50 font-bold text-[10px] px-1" 
+                                      value={item.unitPriceNet || ""} 
+                                      onWheel={(e) => e.currentTarget.blur()} 
+                                      onFocus={(e) => e.target.select()}
+                                      onChange={(e) => !item.isBonus && updateItemNetPrice(idx, e.target.value)} 
+                                      readOnly={item.isBonus} 
+                                    />
                                   </div>
                                   <div className="flex items-center gap-1 justify-end">
                                     <span className="text-[8px] text-primary font-bold">FINAL:</span>
-                                    <input type="number" step="0.01" className="h-7 w-20 text-right border rounded bg-slate-50 font-bold text-[10px] px-1 border-primary/40" value={item.unitPriceFinal || ""} onWheel={(e) => e.currentTarget.blur()} onChange={(e) => !item.isBonus && updateItemPrice(idx, e.target.value)} onFocus={(e) => e.target.select()} readOnly={item.isBonus} />
+                                    <input 
+                                      type="number" 
+                                      step="0.01" 
+                                      className="h-7 w-20 text-right border rounded bg-slate-50 font-bold text-[10px] px-1 border-primary/40" 
+                                      value={item.unitPriceFinal || ""} 
+                                      onWheel={(e) => e.currentTarget.blur()} 
+                                      onFocus={(e) => e.target.select()}
+                                      onChange={(e) => !item.isBonus && updateItemPrice(idx, e.target.value)} 
+                                      readOnly={item.isBonus} 
+                                    />
                                   </div>
                                 </div>
                               </div>

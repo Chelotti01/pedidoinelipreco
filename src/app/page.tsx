@@ -11,7 +11,7 @@ import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/com
 import { 
   ShoppingCart, ListChecks, Zap, History, Users, LogOut, 
   Package, FileSpreadsheet, FileDown, Loader2, LayoutGrid, 
-  DollarSign, TrendingUp, Settings, ChevronDown, ChevronUp, ShieldCheck, UploadCloud, Lock, Info, Eye, EyeOff
+  DollarSign, TrendingUp, Settings, ChevronDown, ChevronUp, ShieldCheck, UploadCloud, Lock, Info, Eye, EyeOff, Type
 } from "lucide-react";
 import {
   Dialog,
@@ -138,97 +138,112 @@ export default function Home() {
         return;
       }
 
-      const container = document.createElement('div');
-      container.style.position = 'absolute';
-      container.style.left = '-9999px';
-      container.style.width = '210mm';
-      container.style.backgroundColor = 'white';
-      container.style.padding = '15mm';
-
+      const pdf = new jsPDF('p', 'mm', 'a4');
+      const itemsPerPage = 26; // Número de itens por página para caber no A4
+      const totalPages = Math.ceil(filtered.length / itemsPerPage);
       const factoryName = factories?.find(f => f.id === exportFactoryId)?.name || 'Fábrica';
       
       const typeShorthand = exportPriceType === 'closed' ? 'fe' : 'fr';
       const formattedPercent = exportPriceType === 'closed' 
         ? (exportContractPercent / 10).toString().replace('.', ',')
         : (exportContractPercent < 10 ? `0${exportContractPercent}` : exportContractPercent);
-      
       const footerCode = `${typeShorthand} ${formattedPercent}`;
 
-      const rowsHtml = filtered.map(p => {
-        const catalogItem = catalogProducts?.find(cp => cp.id === p.catalogProductId);
-        if (!catalogItem) return '';
+      for (let page = 0; page < totalPages; page++) {
+        if (page > 0) pdf.addPage();
 
-        const basePrice = exportPriceType === 'closed' ? (catalogItem.closedLoadPrice || 0) : (catalogItem.fractionalLoadPrice || 0);
-        const afterCatalog = Math.max(0, basePrice - (catalogItem.discountAmount || 0));
-        const surchargeValue = p.customSurchargeValue !== undefined ? Number(p.customSurchargeValue) : (p.customSurchargeR$ || 0);
-        const surchargeType = p.customSurchargeType || 'fixed';
-        let withSurcharge = afterCatalog;
-        if (surchargeType === 'percentage') withSurcharge += afterCatalog * (surchargeValue / 100);
-        else withSurcharge += surchargeValue;
+        const start = page * itemsPerPage;
+        const end = start + itemsPerPage;
+        const pageItems = filtered.slice(start, end);
 
-        const netPrice = withSurcharge * (1 + exportContractPercent / 100);
-        const stRate = p.st ? parseFloat(p.st.replace('%', '').replace(',', '.')) / 100 : 0;
-        const finalPrice = netPrice * (1 + stRate);
-        const qtyPerBox = Number(p.quantityPerBox) || 1;
+        const container = document.createElement('div');
+        container.style.position = 'absolute';
+        container.style.left = '-9999px';
+        container.style.width = '210mm';
+        container.style.minHeight = '297mm';
+        container.style.backgroundColor = 'white';
+        container.style.padding = '15mm';
+        container.style.boxSizing = 'border-box';
 
-        const priceStyle = 'padding: 8px; text-align: right; font-family: Arial, sans-serif; font-size: 11pt;';
+        const rowsHtml = pageItems.map(p => {
+          const catalogItem = catalogProducts?.find(cp => cp.id === p.catalogProductId);
+          if (!catalogItem) return '';
 
-        return `
-          <tr style="border-bottom: 1px solid #E0E0E0;">
-            <td style="padding: 8px; font-weight: bold; width: 70px; font-family: Arial, sans-serif; font-size: 10pt;">${p.code}</td>
-            <td style="padding: 8px; font-size: 9px; text-transform: uppercase; font-family: sans-serif;">${p.description}</td>
-            <td style="padding: 8px; text-align: center; width: 35px; font-size: 9px;">${p.unit}</td>
-            ${exportIncludeNetUnit ? `<td style="${priceStyle}">${netPrice.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>` : ''}
-            ${exportIncludeFinalUnit ? `<td style="${priceStyle} font-weight: bold; color: #4582A1;">${finalPrice.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>` : ''}
-            ${exportIncludeNetBox ? `<td style="${priceStyle} color: #64748b;">${(netPrice * qtyPerBox).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>` : ''}
-            ${exportIncludeFinalBox ? `<td style="${priceStyle} font-weight: bold; color: #059669;">${(finalPrice * qtyPerBox).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>` : ''}
-          </tr>
-        `;
-      }).join('');
+          const basePrice = exportPriceType === 'closed' ? (catalogItem.closedLoadPrice || 0) : (catalogItem.fractionalLoadPrice || 0);
+          const afterCatalog = Math.max(0, basePrice - (catalogItem.discountAmount || 0));
+          const surchargeValue = p.customSurchargeValue !== undefined ? Number(p.customSurchargeValue) : (p.customSurchargeR$ || 0);
+          const surchargeType = p.customSurchargeType || 'fixed';
+          let withSurcharge = afterCatalog;
+          if (surchargeType === 'percentage') withSurcharge += afterCatalog * (surchargeValue / 100);
+          else withSurcharge += surchargeValue;
 
-      container.innerHTML = `
-        <div style="border-bottom: 3px solid #4582A1; padding-bottom: 10px; margin-bottom: 20px; display: flex; justify-content: space-between; align-items: flex-end;">
-          <div>
-            <h1 style="margin: 0; color: #4582A1; font-size: 24px; font-weight: 900; font-family: Arial, sans-serif;">TABELA DE PREÇOS</h1>
-            <p style="margin: 5px 0 0 0; color: #64748b; font-family: sans-serif; font-size: 14px; font-weight: bold;">${factoryName} - ${exportLineFilter}</p>
-          </div>
-          <div style="text-align: right; font-family: sans-serif;">
-            <p style="margin: 0; font-weight: bold; font-size: 12px; color: #4582A1; text-transform: uppercase;">${orgId}</p>
-            <p style="margin: 2px 0 0 0; font-size: 10px; color: #94a3b8;">Emissão: ${format(new Date(), "dd/MM/yyyy HH:mm")}</p>
-          </div>
-        </div>
-        <table style="width: 100%; border-collapse: collapse; font-family: Arial, sans-serif;">
-          <thead style="background-color: #F0F3F4;">
-            <tr>
-              <th style="padding: 10px 8px; text-align: left; font-size: 9px; font-weight: 900;">CÓD</th>
-              <th style="padding: 10px 8px; text-align: left; font-size: 9px; font-weight: 900;">DESCRIÇÃO</th>
-              <th style="padding: 10px 8px; text-align: center; font-size: 9px; font-weight: 900;">UND</th>
-              ${exportIncludeNetUnit ? '<th style="padding: 10px 8px; text-align: right; font-size: 9px; font-weight: 900;">UNIT. NET</th>' : ''}
-              ${exportIncludeFinalUnit ? '<th style="padding: 10px 8px; text-align: right; font-size: 9px; font-weight: 900;">UNIT. FINAL</th>' : ''}
-              ${exportIncludeNetBox ? '<th style="padding: 10px 8px; text-align: right; font-size: 9px; font-weight: 900;">CX. NET</th>' : ''}
-              ${exportIncludeFinalBox ? '<th style="padding: 10px 8px; text-align: right; font-size: 9px; font-weight: 900;">CX. FINAL</th>' : ''}
+          const netPrice = withSurcharge * (1 + exportContractPercent / 100);
+          const stRate = p.st ? parseFloat(p.st.replace('%', '').replace(',', '.')) / 100 : 0;
+          const finalPrice = netPrice * (1 + stRate);
+          const qtyPerBox = Number(p.quantityPerBox) || 1;
+
+          const priceStyle = 'padding: 8px; text-align: right; font-family: Arial, sans-serif; font-size: 11pt;';
+
+          return `
+            <tr style="border-bottom: 1px solid #E0E0E0;">
+              <td style="padding: 8px; font-weight: bold; width: 70px; font-family: Arial, sans-serif; font-size: 10pt;">${p.code}</td>
+              <td style="padding: 8px; font-size: 9px; text-transform: uppercase; font-family: sans-serif; max-width: 250px;">${p.description}</td>
+              <td style="padding: 8px; text-align: center; width: 35px; font-size: 9px;">${p.unit}</td>
+              ${exportIncludeNetUnit ? `<td style="${priceStyle}">${netPrice.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>` : ''}
+              ${exportIncludeFinalUnit ? `<td style="${priceStyle} font-weight: bold; color: #4582A1;">${finalPrice.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>` : ''}
+              ${exportIncludeNetBox ? `<td style="${priceStyle} color: #64748b;">${(netPrice * qtyPerBox).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>` : ''}
+              ${exportIncludeFinalBox ? `<td style="${priceStyle} font-weight: bold; color: #059669;">${(finalPrice * qtyPerBox).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>` : ''}
             </tr>
-          </thead>
-          <tbody>
-            ${rowsHtml}
-          </tbody>
-        </table>
-        <div style="margin-top: 30px; border-top: 1px solid #eee; padding-top: 15px; display: flex; justify-content: space-between; align-items: center;">
-          <p style="font-size: 8px; color: #94a3b8; font-family: Arial, sans-serif; margin: 0;">Documento gerado pelo sistema InteliPreço SaaS. Preços sujeitos a alteração sem aviso prévio.</p>
-          <p style="font-size: 9px; font-weight: normal; color: #cbd5e1; font-family: Arial, sans-serif; margin: 0; text-transform: uppercase;">COD: ${footerCode}</p>
-        </div>
-      `;
+          `;
+        }).join('');
 
-      document.body.appendChild(container);
-      const canvas = await html2canvas(container, { scale: 2, useCORS: true });
-      const pdf = new jsPDF('p', 'mm', 'a4');
-      const imgWidth = 210;
-      const imgHeight = (canvas.height * imgWidth) / canvas.width;
-      
-      pdf.addImage(canvas.toDataURL('image/png'), 'PNG', 0, 0, imgWidth, imgHeight);
+        container.innerHTML = `
+          <div style="display: flex; flex-direction: column; height: 100%;">
+            <div style="border-bottom: 3px solid #4582A1; padding-bottom: 10px; margin-bottom: 20px; display: flex; justify-content: space-between; align-items: flex-end;">
+              <div>
+                <h1 style="margin: 0; color: #4582A1; font-size: 24px; font-weight: 900; font-family: Arial, sans-serif;">TABELA DE PREÇOS</h1>
+                <p style="margin: 5px 0 0 0; color: #64748b; font-family: sans-serif; font-size: 14px; font-weight: bold;">${factoryName} - ${exportLineFilter}</p>
+              </div>
+              <div style="text-align: right; font-family: sans-serif;">
+                <p style="margin: 0; font-weight: bold; font-size: 12px; color: #4582A1; text-transform: uppercase;">${orgId}</p>
+                <p style="margin: 2px 0 0 0; font-size: 10px; color: #94a3b8;">Página ${page + 1} de ${totalPages}</p>
+              </div>
+            </div>
+            <div style="flex-grow: 1;">
+              <table style="width: 100%; border-collapse: collapse; font-family: Arial, sans-serif;">
+                <thead style="background-color: #F0F3F4;">
+                  <tr>
+                    <th style="padding: 10px 8px; text-align: left; font-size: 9px; font-weight: 900;">CÓD</th>
+                    <th style="padding: 10px 8px; text-align: left; font-size: 9px; font-weight: 900;">DESCRIÇÃO</th>
+                    <th style="padding: 10px 8px; text-align: center; font-size: 9px; font-weight: 900;">UND</th>
+                    ${exportIncludeNetUnit ? '<th style="padding: 10px 8px; text-align: right; font-size: 9px; font-weight: 900;">UNIT. NET</th>' : ''}
+                    ${exportIncludeFinalUnit ? '<th style="padding: 10px 8px; text-align: right; font-size: 9px; font-weight: 900;">UNIT. FINAL</th>' : ''}
+                    ${exportIncludeNetBox ? '<th style="padding: 10px 8px; text-align: right; font-size: 9px; font-weight: 900;">CX. NET</th>' : ''}
+                    ${exportIncludeFinalBox ? '<th style="padding: 10px 8px; text-align: right; font-size: 9px; font-weight: 900;">CX. FINAL</th>' : ''}
+                  </tr>
+                </thead>
+                <tbody>
+                  ${rowsHtml}
+                </tbody>
+              </table>
+            </div>
+            <div style="margin-top: 30px; border-top: 1px solid #eee; padding-top: 15px; display: flex; justify-content: space-between; align-items: center;">
+              <p style="font-size: 8px; color: #94a3b8; font-family: Arial, sans-serif; margin: 0;">Gerado em: ${format(new Date(), "dd/MM/yyyy HH:mm")}. Preços sujeitos a alteração sem aviso prévio.</p>
+              <p style="font-size: 9px; font-weight: normal; color: #cbd5e1; font-family: Arial, sans-serif; margin: 0; text-transform: uppercase;">COD: ${footerCode}</p>
+            </div>
+          </div>
+        `;
+
+        document.body.appendChild(container);
+        const canvas = await html2canvas(container, { scale: 2, useCORS: true });
+        const imgWidth = 210;
+        const imgHeight = (canvas.height * imgWidth) / canvas.width;
+        
+        pdf.addImage(canvas.toDataURL('image/png'), 'PNG', 0, 0, imgWidth, imgHeight);
+        document.body.removeChild(container);
+      }
+
       pdf.save(`tabela_${factoryName.toLowerCase().replace(/\s+/g, '_')}_${exportLineFilter.toLowerCase().replace(/\s+/g, '_')}.pdf`);
-      
-      document.body.removeChild(container);
       setShowExportConfigDialog(false);
       toast({ title: "Tabela gerada com sucesso!" });
     } catch (e) {
@@ -491,7 +506,13 @@ export default function Home() {
               </div>
               <div className="space-y-2">
                 <Label>Contrato (%)</Label>
-                <Input type="number" value={exportContractPercent} onChange={(e) => setExportContractPercent(Number(e.target.value))} onFocus={(e) => e.target.select()} onWheel={(e) => e.currentTarget.blur()} />
+                <Input 
+                  type="number" 
+                  value={exportContractPercent} 
+                  onChange={(e) => setExportContractPercent(Number(e.target.value))} 
+                  onFocus={(e) => e.target.select()} 
+                  onWheel={(e) => e.currentTarget.blur()} 
+                />
               </div>
             </div>
 

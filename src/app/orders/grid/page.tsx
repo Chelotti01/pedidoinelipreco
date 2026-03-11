@@ -287,7 +287,13 @@ export default function GridOrderPage() {
       <div className="mb-6 flex items-center gap-3">
         <div className="relative flex-1 max-w-md">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" size={18} />
-          <Input placeholder="Pesquisar..." className="pl-10 h-11 bg-white shadow-sm" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} onFocus={(e) => e.target.select()} />
+          <input 
+            placeholder="Pesquisar..." 
+            className="flex h-11 w-full rounded-md border border-input bg-white px-10 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 shadow-sm"
+            value={searchTerm} 
+            onChange={(e) => setSearchTerm(e.target.value)} 
+            onFocus={(e) => e.target.select()} 
+          />
         </div>
         <Button variant={showOnlyFilled ? "default" : "outline"} size="icon" className={`h-11 w-11 shadow-sm ${showOnlyFilled ? 'bg-amber-400 hover:bg-amber-500 text-white' : 'bg-white text-muted-foreground'}`} onClick={() => setShowOnlyFilled(!showOnlyFilled)}>
           <Crown size={20} fill={showOnlyFilled ? "white" : "none"} />
@@ -328,9 +334,50 @@ export default function GridOrderPage() {
                         </button>
                       </TableCell>
                       <TableCell><div className="font-bold text-xs">{p.code}</div><div className="text-[10px] text-muted-foreground uppercase">{p.description}</div></TableCell>
-                      <TableCell className="text-right"><input type="number" step="0.01" className="w-20 h-8 text-right text-[11px] font-bold border rounded bg-slate-50" value={gridPricesNet[p.id] || ""} onWheel={(e) => e.currentTarget.blur()} onChange={(e) => { const v = e.target.value === "" ? 0 : Number(e.target.value); const st = parseST(p.st); setGridPricesNet(prev => ({ ...prev, [p.id]: v })); setGridPricesFinal(prev => ({ ...prev, [p.id]: Number((v * (1 + st)).toFixed(2)) })); }} onFocus={(e) => e.target.select()} disabled={isB}/></TableCell>
-                      <TableCell className="text-right"><input type="number" step="0.01" className="w-20 h-8 text-right text-[11px] font-bold border rounded bg-slate-50" value={gridPricesFinal[p.id] || ""} onWheel={(e) => e.currentTarget.blur()} onChange={(e) => { const v = e.target.value === "" ? 0 : Number(e.target.value); const st = parseST(p.st); setGridPricesFinal(prev => ({ ...prev, [p.id]: v })); setGridPricesNet(prev => ({ ...prev, [p.id]: Number((v / (1 + st)).toFixed(2)) })); }} onFocus={(e) => e.target.select()} disabled={isB}/></TableCell>
-                      <TableCell className="text-center"><input type="number" className="w-20 h-8 text-center font-black border rounded bg-slate-50" value={qty === 0 ? "" : qty} onWheel={(e) => e.currentTarget.blur()} onChange={(e) => setGridQuantities(prev => ({ ...prev, [p.id]: e.target.value === "" ? 0 : Number(e.target.value) }))} onFocus={(e) => e.target.select()}/></TableCell>
+                      <TableCell className="text-right">
+                        <input 
+                          type="number" 
+                          step="0.01" 
+                          className="w-20 h-8 text-right text-[11px] font-bold border rounded bg-slate-50 px-1" 
+                          value={gridPricesNet[p.id] || ""} 
+                          onWheel={(e) => e.currentTarget.blur()} 
+                          onFocus={(e) => e.target.select()}
+                          onChange={(e) => { 
+                            const v = e.target.value === "" ? 0 : Number(e.target.value); 
+                            const st = parseST(p.st); 
+                            setGridPricesNet(prev => ({ ...prev, [p.id]: v })); 
+                            setGridPricesFinal(prev => ({ ...prev, [p.id]: Number((v * (1 + st)).toFixed(2)) })); 
+                          }} 
+                          disabled={isB}
+                        />
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <input 
+                          type="number" 
+                          step="0.01" 
+                          className="w-20 h-8 text-right text-[11px] font-bold border rounded bg-slate-50 px-1" 
+                          value={gridPricesFinal[p.id] || ""} 
+                          onWheel={(e) => e.currentTarget.blur()} 
+                          onFocus={(e) => e.target.select()}
+                          onChange={(e) => { 
+                            const v = e.target.value === "" ? 0 : Number(e.target.value); 
+                            const st = parseST(p.st); 
+                            setGridPricesFinal(prev => ({ ...prev, [p.id]: v })); 
+                            setGridPricesNet(prev => ({ ...prev, [p.id]: Number((v / (1 + st)).toFixed(2)) })); 
+                          }} 
+                          disabled={isB}
+                        />
+                      </TableCell>
+                      <TableCell className="text-center">
+                        <input 
+                          type="number" 
+                          className="w-20 h-8 text-center font-black border rounded bg-slate-50 px-1" 
+                          value={qty === 0 ? "" : qty} 
+                          onWheel={(e) => e.currentTarget.blur()} 
+                          onFocus={(e) => e.target.select()}
+                          onChange={(e) => setGridQuantities(prev => ({ ...prev, [p.id]: e.target.value === "" ? 0 : Number(e.target.value) }))} 
+                        />
+                      </TableCell>
                       <TableCell className="text-right font-black">{isB ? "0,00" : `R$ ${subtotal.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`}</TableCell>
                     </TableRow>
                   );
