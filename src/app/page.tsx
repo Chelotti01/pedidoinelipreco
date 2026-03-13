@@ -1,3 +1,4 @@
+
 "use client"
 
 import { useState, useMemo } from 'react';
@@ -148,11 +149,9 @@ export default function Home() {
       const html2canvas = (await import('html2canvas')).default;
       const { jsPDF } = await import('jspdf');
 
-      // Buscar grupos customizados da organização
       const groupsSnap = await getDocs(query(collection(db, 'organizations', orgId, 'pdfGroups'), orderBy('order', 'asc')));
       let categories = groupsSnap.docs.map(d => ({ name: d.data().name, codes: d.data().codes }));
       
-      // Fallback para padrão se não houver customização
       if (categories.length === 0) categories = PRICE_TABLE_CATEGORIES_DEFAULT;
 
       const filtered = (registeredProducts?.filter(p => 
@@ -245,7 +244,7 @@ export default function Home() {
               <td style="padding: 8px; font-weight: bold; width: 60px; font-family: Arial, sans-serif; font-size: 9pt;">${p.code}</td>
               <td style="padding: 8px; font-size: 8px; text-transform: uppercase; font-family: sans-serif; max-width: 200px;">${p.description}</td>
               <td style="padding: 8px; text-align: center; width: 30px; font-size: 8px;">${p.unit}</td>
-              ${exportIncludeEan ? `<td style="padding: 8px; font-size: 8px; font-family: monospace; color: #64748b;">${p.ean || '-'}</td>` : ''}
+              ${exportIncludeEan ? `<td style="padding: 8px; font-size: 11pt; font-family: Arial, sans-serif; color: #64748b;">${p.ean || '-'}</td>` : ''}
               ${exportIncludeNetUnit ? `<td style="${priceStyle}">${netPrice.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>` : ''}
               ${exportIncludeFinalUnit ? `<td style="${priceStyle} font-weight: bold; color: #4582A1;">${finalPrice.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>` : ''}
               ${exportIncludeNetBox ? `<td style="${priceStyle} color: #64748b;">${(netPrice * qtyPerBox).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>` : ''}

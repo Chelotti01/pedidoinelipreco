@@ -240,7 +240,7 @@ export default function ViewOrderPage() {
                         <div className="font-bold text-sm">{item.code}</div>
                         <div className="text-[11px] text-muted-foreground leading-tight mb-1">{item.name}</div>
                         <div className="flex flex-wrap items-center gap-2">
-                          <span className="text-[10px] font-mono bg-slate-100 px-1.5 py-0.5 rounded border border-slate-200">EAN: {item.ean}</span>
+                          <span style={{ fontSize: '11pt', fontFamily: 'Arial, sans-serif' }} className="bg-slate-100 px-1.5 py-0.5 rounded border border-slate-200">EAN: {item.ean}</span>
                           <span className="text-[10px] bg-primary/5 text-primary px-1.5 py-0.5 rounded font-bold border border-primary/10">{item.factoryName}</span>
                           {item.isBonus && <Badge className="bg-accent text-white border-none h-5 px-1.5 text-[10px] flex items-center gap-1"><Gift size={10} /> BONIFICAÇÃO</Badge>}
                         </div>
