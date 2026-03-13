@@ -130,43 +130,45 @@ export default function PDFGroupsPage() {
 
         <div className="lg:col-span-2">
           <Card className="shadow-xl border-none overflow-hidden">
-            <TableHeader className="bg-slate-100">
-              <TableRow>
-                <TableHead className="w-[60px] text-center">Ordem</TableHead>
-                <TableHead>Categoria</TableHead>
-                <TableHead>Códigos Vinculados</TableHead>
-                <TableHead className="text-right">Ações</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {!groups || groups.length === 0 ? (
+            <Table>
+              <TableHeader className="bg-slate-100">
                 <TableRow>
-                  <TableCell colSpan={4} className="text-center py-20 text-muted-foreground italic">
-                    Nenhum grupo configurado. O PDF usará a lista padrão do sistema.
-                  </TableCell>
+                  <TableHead className="w-[60px] text-center">Ordem</TableHead>
+                  <TableHead>Categoria</TableHead>
+                  <TableHead>Códigos Vinculados</TableHead>
+                  <TableHead className="text-right">Ações</TableHead>
                 </TableRow>
-              ) : (
-                groups.map((group) => (
-                  <TableRow key={group.id}>
-                    <TableCell className="text-center font-black text-primary">{group.order}</TableCell>
-                    <TableCell className="font-bold">{group.name}</TableCell>
-                    <TableCell>
-                      <div className="flex flex-wrap gap-1 max-w-[300px]">
-                        {group.codes?.slice(0, 5).map((code: string) => (
-                          <Badge key={code} variant="secondary" className="text-[9px]">{code}</Badge>
-                        ))}
-                        {group.codes?.length > 5 && <span className="text-[10px] text-muted-foreground">+{group.codes.length - 5} itens</span>}
-                      </div>
-                    </TableCell>
-                    <TableCell className="text-right">
-                      <Button variant="ghost" size="icon" className="text-destructive" onClick={() => handleDeleteGroup(group.id)}>
-                        <Trash2 size={16} />
-                      </Button>
+              </TableHeader>
+              <TableBody>
+                {!groups || groups.length === 0 ? (
+                  <TableRow>
+                    <TableCell colSpan={4} className="text-center py-20 text-muted-foreground italic">
+                      Nenhum grupo configurado. O PDF usará a lista padrão do sistema.
                     </TableCell>
                   </TableRow>
-                ))
-              )}
-            </TableBody>
+                ) : (
+                  groups.map((group) => (
+                    <TableRow key={group.id}>
+                      <TableCell className="text-center font-black text-primary">{group.order}</TableCell>
+                      <TableCell className="font-bold">{group.name}</TableCell>
+                      <TableCell>
+                        <div className="flex flex-wrap gap-1 max-w-[300px]">
+                          {group.codes?.slice(0, 5).map((code: string) => (
+                            <Badge key={code} variant="secondary" className="text-[9px]">{code}</Badge>
+                          ))}
+                          {group.codes?.length > 5 && <span className="text-[10px] text-muted-foreground">+{group.codes.length - 5} itens</span>}
+                        </div>
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <Button variant="ghost" size="icon" className="text-destructive" onClick={() => handleDeleteGroup(group.id)}>
+                          <Trash2 size={16} />
+                        </Button>
+                      </TableCell>
+                    </TableRow>
+                  ))
+                )}
+              </TableBody>
+            </Table>
           </Card>
         </div>
       </div>
