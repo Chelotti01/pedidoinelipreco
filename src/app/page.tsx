@@ -28,6 +28,33 @@ import { Switch } from "@/components/ui/switch";
 import { useToast } from "@/hooks/use-toast";
 import { format } from 'date-fns';
 
+const PRICE_TABLE_CATEGORIES = [
+  { name: "LEITES PIRACANJUBA", codes: ["10317", "10318", "10319"] },
+  { name: "LEITES PIRACANJUBA ZERO LACTOSE", codes: ["12409", "12411", "12438"] },
+  { name: "LEITES PIRACANJUBA ESPECIAIS", codes: ["10326", "10327", "10328", "12436"] },
+  { name: "LEITES NESTLE", codes: ["502429", "502431", "502433"] },
+  { name: "LEITES NESTLE ZERO LACTOSE", codes: ["502430", "502432", "502434", "502435", "502439"] },
+  { name: "LEITE EM PÓ ALMOFADA", codes: ["10206", "10218", "10230", "10204", "10217", "10229", "10211", "10219"] },
+  { name: "LEITE EM PÓ POUCH", codes: ["10238", "10239", "10240"] },
+  { name: "LEITE EM PÓ PRODUÇÃO 25KG", codes: ["10201", "10202"] },
+  { name: "LEITE EM PÓ LATA", codes: ["10271", "10299", "10200", "10222", "10223", "10283", "10284", "10295"] },
+  { name: "COMPOSTO LÁCTEO ÓTIMO", codes: ["200222", "200223", "200254", "200255"] },
+  { name: "CREME DE LEITE", codes: ["12201", "12218", "12219", "12220", "12221"] },
+  { name: "LEITE CONDENSADO", codes: ["12301", "12307", "12320", "12332", "12333", "12334", "12335", "12603"] },
+  { name: "BEBIDAS LÁCTEAS PIRAKIDS", codes: ["12003", "12016", "12017", "12019"] },
+  { name: "PROFORCE 250ML 23g", codes: ["12026", "12027", "12557", "12559", "12564"] },
+  { name: "PROFORCE 250ML 15g", codes: ["12572", "12573", "12574", "12575", "12576", "12591"] },
+  { name: "BEBIDA LÁCTEA MILKYMOO 250ML 15g", codes: ["12579", "12590"] },
+  { name: "BEBIDA LÁCTEA ZQUAD 250ML 10g", codes: ["12587", "12588", "12589"] },
+  { name: "WHEY EM PÓ 450g", codes: ["12577", "12578"] },
+  { name: "BEBIDAS LÁCTEAS QLC", codes: ["12509", "12513", "12521", "12547"] },
+  { name: "BEBIDA ALMOND BREEZE", codes: ["272800", "272801", "272802", "272807", "272809", "272810", "272813"] },
+  { name: "QUEIJO RALADO", codes: ["11104", "11105"] },
+  { name: "MANTEIGAS", codes: ["10417", "10401", "10402", "10405", "10418", "10419", "10421"] },
+  { name: "QUEIJOS", codes: ["10601", "10602", "10605", "10606", "10901", "10903", "11001", "11005", "11010", "11013", "11014", "11017", "11028", "11023", "11101", "11119", "11118", "11201", "11204", "11216", "11226", "11503", "11519", "11509", "11510", "11520", "11607", "11608", "11609", "11610"] },
+  { name: "SUPLEMENTOS ALIMENTARES EMANA", codes: ["322500", "322502", "322503", "322504", "323101", "323102", "323103", "323104", "323105", "323106", "323107", "323108", "323109", "323110", "323111", "323112", "323201", "323202", "323203", "323301", "323302", "323303", "323304", "323305", "323306", "323307", "323308", "323309", "323310", "323311", "323312", "323313", "323314", "323315", "323316", "323317", "323318", "323319", "323324", "323325", "323326", "323327", "323328", "323329", "323336", "323338", "323342", "323343"] }
+];
+
 export default function Home() {
   const auth = useAuth();
   const { user } = useUser();
@@ -81,6 +108,7 @@ export default function Home() {
   const [exportContractPercent, setExportContractPercent] = useState<number>(0);
   const [exportPriceType, setExportPriceType] = useState<'closed' | 'fractional'>('closed');
   const [exportBrand, setExportBrand] = useState<string>("all");
+  const [exportIncludeEan, setExportIncludeEan] = useState(false);
   const [exportIncludeNetUnit, setExportIncludeNetUnit] = useState(true);
   const [exportIncludeFinalUnit, setExportIncludeFinalUnit] = useState(true);
   const [exportIncludeNetBox, setExportIncludeNetBox] = useState(false);
@@ -130,7 +158,7 @@ export default function Home() {
         p.factoryId === exportFactoryId && 
         p.line === exportLineFilter &&
         (exportBrand === "all" || p.brand === exportBrand)
-      ) || []).sort((a, b) => (a.code || "").localeCompare((b.code || ""), undefined, { numeric: true, sensitivity: 'base' }));
+      ) || []);
 
       if (filtered.length === 0) {
         toast({ title: "Nenhum item encontrado", description: "Verifique os filtros selecionados.", variant: "destructive" });
@@ -138,9 +166,28 @@ export default function Home() {
         return;
       }
 
+      // Ordenação Customizada por Categoria
+      const displayRows: any[] = [];
+      PRICE_TABLE_CATEGORIES.forEach(cat => {
+        const catProducts = filtered.filter(p => cat.codes.includes(String(p.code)));
+        if (catProducts.length > 0) {
+          displayRows.push({ type: 'header', name: cat.name });
+          catProducts.sort((a, b) => cat.codes.indexOf(String(a.code)) - cat.codes.indexOf(String(b.code)));
+          catProducts.forEach(p => displayRows.push({ type: 'product', data: p }));
+        }
+      });
+
+      const categorizedCodes = PRICE_TABLE_CATEGORIES.flatMap(c => c.codes);
+      const otherProducts = filtered.filter(p => !categorizedCodes.includes(String(p.code)));
+      if (otherProducts.length > 0) {
+        displayRows.push({ type: 'header', name: 'OUTROS ITENS' });
+        otherProducts.sort((a, b) => (a.code || "").localeCompare(b.code || "", undefined, { numeric: true }));
+        otherProducts.forEach(p => displayRows.push({ type: 'product', data: p }));
+      }
+
       const pdf = new jsPDF('p', 'mm', 'a4');
       const itemsPerPage = 26; 
-      const totalPages = Math.ceil(filtered.length / itemsPerPage);
+      const totalPages = Math.ceil(displayRows.length / itemsPerPage);
       const factoryName = factories?.find(f => f.id === exportFactoryId)?.name || 'Fábrica';
       
       const typeShorthand = exportPriceType === 'closed' ? 'fe' : 'fr';
@@ -154,7 +201,7 @@ export default function Home() {
 
         const start = page * itemsPerPage;
         const end = start + itemsPerPage;
-        const pageItems = filtered.slice(start, end);
+        const pageItems = displayRows.slice(start, end);
 
         const container = document.createElement('div');
         container.style.position = 'absolute';
@@ -165,7 +212,16 @@ export default function Home() {
         container.style.padding = '15mm';
         container.style.boxSizing = 'border-box';
 
-        const rowsHtml = pageItems.map(p => {
+        const rowsHtml = pageItems.map(row => {
+          if (row.type === 'header') {
+            return `
+              <tr style="background-color: #f8fafc; border-bottom: 2px solid #cbd5e1;">
+                <td colspan="10" style="padding: 6px 8px; font-weight: 900; font-size: 10px; color: #4582A1; text-transform: uppercase; font-family: sans-serif;">${row.name}</td>
+              </tr>
+            `;
+          }
+
+          const p = row.data;
           const catalogItem = catalogProducts?.find(cp => cp.id === p.catalogProductId);
           if (!catalogItem) return '';
 
@@ -186,9 +242,10 @@ export default function Home() {
 
           return `
             <tr style="border-bottom: 1px solid #E0E0E0;">
-              <td style="padding: 8px; font-weight: bold; width: 70px; font-family: Arial, sans-serif; font-size: 10pt;">${p.code}</td>
-              <td style="padding: 8px; font-size: 9px; text-transform: uppercase; font-family: sans-serif; max-width: 250px;">${p.description}</td>
-              <td style="padding: 8px; text-align: center; width: 35px; font-size: 9px;">${p.unit}</td>
+              <td style="padding: 8px; font-weight: bold; width: 60px; font-family: Arial, sans-serif; font-size: 9pt;">${p.code}</td>
+              <td style="padding: 8px; font-size: 8px; text-transform: uppercase; font-family: sans-serif; max-width: 200px;">${p.description}</td>
+              <td style="padding: 8px; text-align: center; width: 30px; font-size: 8px;">${p.unit}</td>
+              ${exportIncludeEan ? `<td style="padding: 8px; font-size: 8px; font-family: monospace; color: #64748b;">${p.ean || '-'}</td>` : ''}
               ${exportIncludeNetUnit ? `<td style="${priceStyle}">${netPrice.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>` : ''}
               ${exportIncludeFinalUnit ? `<td style="${priceStyle} font-weight: bold; color: #4582A1;">${finalPrice.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>` : ''}
               ${exportIncludeNetBox ? `<td style="${priceStyle} color: #64748b;">${(netPrice * qtyPerBox).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>` : ''}
@@ -213,13 +270,14 @@ export default function Home() {
               <table style="width: 100%; border-collapse: collapse; font-family: Arial, sans-serif;">
                 <thead style="background-color: #F0F3F4;">
                   <tr>
-                    <th style="padding: 10px 8px; text-align: left; font-size: 9px; font-weight: 900;">CÓD</th>
-                    <th style="padding: 10px 8px; text-align: left; font-size: 9px; font-weight: 900;">DESCRIÇÃO</th>
-                    <th style="padding: 10px 8px; text-align: center; font-size: 9px; font-weight: 900;">UND</th>
-                    ${exportIncludeNetUnit ? '<th style="padding: 10px 8px; text-align: right; font-size: 9px; font-weight: 900;">UNIT. NET</th>' : ''}
-                    ${exportIncludeFinalUnit ? '<th style="padding: 10px 8px; text-align: right; font-size: 9px; font-weight: 900;">UNIT. FINAL</th>' : ''}
-                    ${exportIncludeNetBox ? '<th style="padding: 10px 8px; text-align: right; font-size: 9px; font-weight: 900;">CX. NET</th>' : ''}
-                    ${exportIncludeFinalBox ? '<th style="padding: 10px 8px; text-align: right; font-size: 9px; font-weight: 900;">CX. FINAL</th>' : ''}
+                    <th style="padding: 10px 8px; text-align: left; font-size: 8px; font-weight: 900;">CÓD</th>
+                    <th style="padding: 10px 8px; text-align: left; font-size: 8px; font-weight: 900;">DESCRIÇÃO</th>
+                    <th style="padding: 10px 8px; text-align: center; font-size: 8px; font-weight: 900;">UND</th>
+                    ${exportIncludeEan ? '<th style="padding: 10px 8px; text-align: left; font-size: 8px; font-weight: 900;">EAN</th>' : ''}
+                    ${exportIncludeNetUnit ? '<th style="padding: 10px 8px; text-align: right; font-size: 8px; font-weight: 900;">UNIT. NET</th>' : ''}
+                    ${exportIncludeFinalUnit ? '<th style="padding: 10px 8px; text-align: right; font-size: 8px; font-weight: 900;">UNIT. FINAL</th>' : ''}
+                    ${exportIncludeNetBox ? '<th style="padding: 10px 8px; text-align: right; font-size: 8px; font-weight: 900;">CX. NET</th>' : ''}
+                    ${exportIncludeFinalBox ? '<th style="padding: 10px 8px; text-align: right; font-size: 8px; font-weight: 900;">CX. FINAL</th>' : ''}
                   </tr>
                 </thead>
                 <tbody>
@@ -529,6 +587,13 @@ export default function Home() {
             <div className="space-y-4 pt-2">
               <Label className="text-xs font-black uppercase text-muted-foreground">Colunas no PDF</Label>
               <div className="grid grid-cols-1 gap-3">
+                <div className="flex items-center justify-between p-3 bg-slate-50 rounded-lg border">
+                  <div className="space-y-0.5">
+                    <Label className="text-sm font-bold">Código de Barras</Label>
+                    <p className="text-[10px] text-muted-foreground">Incluir coluna EAN</p>
+                  </div>
+                  <Switch checked={exportIncludeEan} onCheckedChange={setExportIncludeEan} />
+                </div>
                 <div className="flex items-center justify-between p-3 bg-slate-50 rounded-lg border">
                   <div className="space-y-0.5">
                     <Label className="text-sm font-bold">Unitário NET</Label>
