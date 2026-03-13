@@ -238,7 +238,7 @@ export default function ViewOrderPage() {
                     <TableRow key={`${item.productId}-${idx}`} className={item.isBonus ? "bg-accent/5" : ""}>
                       <TableCell className="min-w-[200px]">
                         <div className="font-bold text-sm">{item.code}</div>
-                        <div className="text-[11px] text-muted-foreground leading-tight mb-1">{item.name}</div>
+                        <div style={{ fontSize: '11pt', fontFamily: 'Arial, sans-serif' }} className="text-muted-foreground leading-tight mb-1">{item.name}</div>
                         <div className="flex flex-wrap items-center gap-2">
                           <span style={{ fontSize: '11pt', fontFamily: 'Arial, sans-serif' }} className="bg-slate-100 px-1.5 py-0.5 rounded border border-slate-200">EAN: {item.ean}</span>
                           <span className="text-[10px] bg-primary/5 text-primary px-1.5 py-0.5 rounded font-bold border border-primary/10">{item.factoryName}</span>

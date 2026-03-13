@@ -242,7 +242,7 @@ export default function Home() {
           return `
             <tr style="border-bottom: 1px solid #E0E0E0;">
               <td style="padding: 8px; font-weight: bold; width: 60px; font-family: Arial, sans-serif; font-size: 9pt;">${p.code}</td>
-              <td style="padding: 8px; font-size: 8px; text-transform: uppercase; font-family: sans-serif; max-width: 200px;">${p.description}</td>
+              <td style="padding: 8px; font-size: 11pt; font-family: Arial, sans-serif; text-transform: uppercase; max-width: 200px;">${p.description}</td>
               <td style="padding: 8px; text-align: center; width: 30px; font-size: 8px;">${p.unit}</td>
               ${exportIncludeEan ? `<td style="padding: 8px; font-size: 11pt; font-family: Arial, sans-serif; color: #64748b;">${p.ean || '-'}</td>` : ''}
               ${exportIncludeNetUnit ? `<td style="${priceStyle}">${netPrice.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>` : ''}
