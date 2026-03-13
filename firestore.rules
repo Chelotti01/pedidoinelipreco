@@ -8,16 +8,12 @@ service cloud.firestore {
       return request.auth != null;
     }
 
+    // Verifica se é o administrador mestre ou possui documento em roles_admin
     function isAdmin() {
-      return isSignedIn() && exists(/databases/$(database)/documents/roles_admin/$(request.auth.uid));
-    }
-
-    function isOwner(userId) {
-      return isSignedIn() && request.auth.uid == userId;
-    }
-
-    function isExistingOwner(userId) {
-      return resource != null && isOwner(userId);
+      return isSignedIn() && (
+        exists(/databases/$(database)/documents/roles_admin/$(request.auth.uid)) ||
+        request.auth.token.email == 'vendas.piracanjuba@gmail.com'
+      );
     }
 
     // --- COLLECTION RULES ---
@@ -26,62 +22,50 @@ service cloud.firestore {
      * @description Perfis de usuário para controle de organização (SaaS).
      */
     match /userProfiles/{email} {
-      allow get: if isSignedIn() && (request.auth.token.email.lower() == email.lower() || isAdmin());
-      allow list, create, update, delete: if isAdmin() || (isSignedIn() && request.auth.token.email == 'vendas.piracanjuba@gmail.com');
+      allow read: if isSignedIn() && (request.auth.token.email.lower() == email.lower() || isAdmin());
+      allow write: if isAdmin();
     }
 
     match /roles_admin/{adminId} {
-      allow get: if isSignedIn();
-      allow list, create, update, delete: if false;
+      allow read: if isSignedIn();
+      allow write: if false;
     }
 
     /**
      * @description Estrutura de Organizações e subcoleções.
+     * Usamos match recursivo para garantir que o administrador mestre e usuários 
+     * autenticados possam acessar os dados necessários.
      */
     match /organizations/{orgId} {
       allow read: if isSignedIn();
-      allow write: if isAdmin() || (isSignedIn() && request.auth.token.email == 'vendas.piracanjuba@gmail.com');
+      allow write: if isAdmin();
 
-      // Clientes da organização
-      match /clients/{clientId} {
-        allow read, write: if isSignedIn();
-      }
-
-      // Fábricas da organização
-      match /factories/{factoryId} {
-        allow read, write: if isSignedIn();
-      }
-
-      // Produtos registrados (Ficha técnica)
-      match /products/{productId} {
-        allow read, write: if isSignedIn();
-      }
-
-      // Preços de catálogo importados
-      match /productFactoryPrices/{priceId} {
-        allow read, write: if isSignedIn();
-      }
-
-      // Pedidos
-      match /orders/{orderId} {
-        allow read, write: if isSignedIn();
-      }
-
-      // Configuração de Grupos de PDF
-      match /pdfGroups/{groupId} {
-        allow read, write: if isSignedIn();
+      // Regra para todas as subcoleções (clientes, fábricas, produtos, pedidos, etc.)
+      match /{allSubcollections=**} {
+        allow read: if isSignedIn();
+        allow write: if isAdmin() || isSignedIn(); 
       }
     }
 
-    // Regras legadas para compatibilidade
+    // Regras de compatibilidade para coleções legadas no nível raiz
     match /factories/{factoryId} {
-      allow get, list: if isSignedIn();
-      allow create, update, delete: if isAdmin();
+      allow read: if isSignedIn();
+      allow write: if isAdmin();
     }
 
     match /products/{productId} {
-      allow get, list: if isSignedIn();
-      allow create, update, delete: if isAdmin();
+      allow read: if isSignedIn();
+      allow write: if isAdmin();
+    }
+
+    match /discounts/{discountId} {
+      allow read: if isSignedIn();
+      allow write: if isAdmin();
+    }
+    
+    match /productGroups/{groupId} {
+      allow read: if isSignedIn();
+      allow write: if isAdmin();
     }
   }
 }
