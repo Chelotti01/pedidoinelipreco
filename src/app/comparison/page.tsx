@@ -11,12 +11,14 @@ import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "@/components/ui/table";
-import { ChevronLeft, Diff, Loader2, Factory, DollarSign, Percent, Search } from "lucide-react";
+import { ChevronLeft, Diff, Loader2, Factory, DollarSign, Percent, Search, Type } from "lucide-react";
 import Link from 'next/link';
+import { useToast } from "@/hooks/use-toast";
 
 export default function ComparisonPage() {
   const db = useFirestore();
   const { user } = useUser();
+  const { toast } = useToast();
   
   const userProfileRef = useMemoFirebase(() => 
     user?.email ? doc(db, 'userProfiles', user.email.toLowerCase().trim()) : null
@@ -103,6 +105,15 @@ export default function ComparisonPage() {
       });
   }, [products, catalogProducts, factories, priceType, contractPercent, searchTerm]);
 
+  const handleCopy = (description: string, price: number) => {
+    const text = `${description} - R$ ${price.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`;
+    navigator.clipboard.writeText(text);
+    toast({
+      title: "Copiado!",
+      description: "Descrição e preço copiados para a área de transferência."
+    });
+  };
+
   const isLoading = isProfileLoading || isProductsLoading || isCatalogLoading;
 
   if (isLoading) {
@@ -158,9 +169,9 @@ export default function ComparisonPage() {
               <Input 
                 type="number" 
                 value={contractPercent} 
-                onChange={(e) => setContractPercent(Number(e.target.value))} 
                 onFocus={(e) => e.target.select()}
                 onWheel={(e) => e.currentTarget.blur()}
+                onChange={(e) => setContractPercent(Number(e.target.value))} 
                 className="bg-white"
               />
             </div>
@@ -189,6 +200,7 @@ export default function ComparisonPage() {
               <Table>
                 <TableHeader className="bg-slate-50">
                   <TableRow>
+                    <TableHead className="w-[50px]"></TableHead>
                     <TableHead className="font-black text-[10px] uppercase">Fábrica de Origem</TableHead>
                     <TableHead className="text-right font-black text-[10px] uppercase">Unitário NET</TableHead>
                     <TableHead className="text-right font-black text-[10px] uppercase text-primary">Unitário FINAL (+ST)</TableHead>
@@ -198,6 +210,15 @@ export default function ComparisonPage() {
                 <TableBody>
                   {group.items.map((item, idx) => (
                     <TableRow key={idx} className="hover:bg-muted/10 transition-colors">
+                      <TableCell className="text-center">
+                        <button 
+                          onClick={() => handleCopy(item.description, item.finalPrice)}
+                          className="w-8 h-8 rounded-lg flex items-center justify-center border-2 bg-white border-slate-200 text-slate-500 hover:bg-slate-50 hover:border-primary transition-all active:scale-90"
+                          title="Copiar descrição e preço"
+                        >
+                          <Type size={16} />
+                        </button>
+                      </TableCell>
                       <TableCell>
                         <div className="flex items-center gap-2">
                           <div className="w-2 h-2 rounded-full bg-accent" />
