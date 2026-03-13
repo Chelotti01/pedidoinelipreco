@@ -2,48 +2,20 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    /**
-     * FIRESTORE SECURITY RULES DOCUMENTATION
-     *
-     * Core Philosophy:
-     * This ruleset implements a dual-layered security model:
-     * 1. Administrative Control (DBAC): A dedicated collection `/roles_admin/` identifies 
-     *    users with system-wide management privileges.
-     * 2. Strict User Ownership: Personal data (Orders, Uploads) is nested under 
-     *    `/users/{userId}/` paths, ensuring clear isolation and path-based authorization.
-     *
-     * Data Structure:
-     * - Global Catalogs: /factories, /productGroups, /products, /discounts (Public Read/Admin Write).
-     * - Admin Registry: /roles_admin (Used for DBAC exists() checks).
-     * - User Data: /users/{userId}/priceSheetUploads, /users/{userId}/orders (User-specific).
-     *
-     * Key Security Decisions:
-     * - Denormalization: Ownership fields like 'createdByUserId' and 'uploadedByUserId' 
-     *   are validated against the path and the user's UID to prevent spoofing.
-     * - Prototyping Flexibility: Schema validation is restricted to relational and 
-     *   authorization-critical fields (IDs and Owner UIDs). Content fields are not type-checked.
-     * - Robustness: All updates and deletes require explicit existence checks to prevent 
-     *   operations on null resources.
-     */
-
     // --- HELPER FUNCTIONS ---
 
-    /** @description Checks if the request is from an authenticated user. */
     function isSignedIn() {
       return request.auth != null;
     }
 
-    /** @description Checks if the authenticated user has an entry in the admin roles collection. */
     function isAdmin() {
       return isSignedIn() && exists(/databases/$(database)/documents/roles_admin/$(request.auth.uid));
     }
 
-    /** @description Validates if the user's UID matches the provided userId from the path. */
     function isOwner(userId) {
       return isSignedIn() && request.auth.uid == userId;
     }
 
-    /** @description Ensures the user is the owner and the document exists before write. */
     function isExistingOwner(userId) {
       return resource != null && isOwner(userId);
     }
@@ -51,106 +23,65 @@ service cloud.firestore {
     // --- COLLECTION RULES ---
 
     /**
-     * @description Registry of administrative users. Used for Database-Backed Access Control.
-     * @path /roles_admin/{adminId}
-     * @allow get: if isSignedIn(); (To check own or others' admin status)
-     * @deny list, create, update, delete: if false; (Managed via Admin SDK or CLI)
-     * @principle DBAC (Database-Backed Access Control)
+     * @description Perfis de usuário para controle de organização (SaaS).
      */
+    match /userProfiles/{email} {
+      allow get: if isSignedIn() && (request.auth.token.email.lower() == email.lower() || isAdmin());
+      allow list, create, update, delete: if isAdmin() || (isSignedIn() && request.auth.token.email == 'vendas.piracanjuba@gmail.com');
+    }
+
     match /roles_admin/{adminId} {
       allow get: if isSignedIn();
       allow list, create, update, delete: if false;
     }
 
     /**
-     * @description Manufacturing plants and suppliers.
-     * @path /factories/{factoryId}
-     * @allow get, list: if isSignedIn(); (All users see the catalog)
-     * @allow create, update, delete: if isAdmin(); (Only admins manage factories)
-     * @principle Administrative Write Privilege
+     * @description Estrutura de Organizações e subcoleções.
      */
+    match /organizations/{orgId} {
+      allow read: if isSignedIn();
+      allow write: if isAdmin() || (isSignedIn() && request.auth.token.email == 'vendas.piracanjuba@gmail.com');
+
+      // Clientes da organização
+      match /clients/{clientId} {
+        allow read, write: if isSignedIn();
+      }
+
+      // Fábricas da organização
+      match /factories/{factoryId} {
+        allow read, write: if isSignedIn();
+      }
+
+      // Produtos registrados (Ficha técnica)
+      match /products/{productId} {
+        allow read, write: if isSignedIn();
+      }
+
+      // Preços de catálogo importados
+      match /productFactoryPrices/{priceId} {
+        allow read, write: if isSignedIn();
+      }
+
+      // Pedidos
+      match /orders/{orderId} {
+        allow read, write: if isSignedIn();
+      }
+
+      // Configuração de Grupos de PDF
+      match /pdfGroups/{groupId} {
+        allow read, write: if isSignedIn();
+      }
+    }
+
+    // Regras legadas para compatibilidade
     match /factories/{factoryId} {
       allow get, list: if isSignedIn();
       allow create, update, delete: if isAdmin();
     }
 
-    /**
-     * @description Grouping of product codes for PDF generation and reporting.
-     * @path /productGroups/{productGroupId}
-     * @allow get, list: if isSignedIn();
-     * @allow create, update, delete: if isAdmin();
-     * @principle Administrative Write Privilege
-     */
-    match /productGroups/{productGroupId} {
-      allow get, list: if isSignedIn();
-      allow create, update, delete: if isAdmin();
-    }
-
-    /**
-     * @description Catalog of products with pricing and group associations.
-     * @path /products/{productId}
-     * @allow get, list: if isSignedIn();
-     * @allow create, update, delete: if isAdmin();
-     * @principle Administrative Write Privilege
-     */
     match /products/{productId} {
       allow get, list: if isSignedIn();
       allow create, update, delete: if isAdmin();
-    }
-
-    /**
-     * @description Discount rules applicable to specific factories.
-     * @path /discounts/{discountId}
-     * @allow get, list: if isSignedIn();
-     * @allow create, update, delete: if isAdmin();
-     * @principle Administrative Write Privilege
-     */
-    match /discounts/{discountId} {
-      allow get, list: if isSignedIn();
-      allow create, update, delete: if isAdmin();
-    }
-
-    /**
-     * @description User-specific records of price sheet XLSX uploads.
-     * @path /users/{userId}/priceSheetUploads/{uploadId}
-     * @allow create: if isOwner(userId) && request.resource.data.uploadedByUserId == userId;
-     * @allow update: if isExistingOwner(userId) && request.resource.data.uploadedByUserId == resource.data.uploadedByUserId;
-     * @deny list: if !isOwner(userId);
-     * @principle Path-based ownership and relational integrity validation.
-     */
-    match /users/{userId}/priceSheetUploads/{uploadId} {
-      allow get, list: if isOwner(userId);
-      allow create: if isOwner(userId) && request.resource.data.uploadedByUserId == userId;
-      allow update: if isExistingOwner(userId) && request.resource.data.uploadedByUserId == resource.data.uploadedByUserId;
-      allow delete: if isExistingOwner(userId);
-    }
-
-    /**
-     * @description Customer orders created by specific users.
-     * @path /users/{userId}/orders/{orderId}
-     * @allow create: if isOwner(userId) && request.resource.data.createdByUserId == userId;
-     * @allow update: if isExistingOwner(userId) && request.resource.data.createdByUserId == resource.data.createdByUserId;
-     * @deny delete: if !isAdmin(); (Optional decision: orders might be immutable for users)
-     * @principle Enforces that users can only manage their own data tree.
-     */
-    match /users/{userId}/orders/{orderId} {
-      allow get, list: if isOwner(userId);
-      allow create: if isOwner(userId) && request.resource.data.createdByUserId == userId;
-      allow update: if isExistingOwner(userId) && request.resource.data.createdByUserId == resource.data.createdByUserId;
-      allow delete: if isExistingOwner(userId);
-
-      /**
-       * @description Line items associated with a specific order.
-       * @path /users/{userId}/orders/{orderId}/orderItems/{orderItemId}
-       * @allow create: if isOwner(userId) && request.resource.data.orderId == orderId;
-       * @principle Inherited ownership from parent document path.
-       */
-      match /orderItems/{orderItemId} {
-        allow get, list: if isOwner(userId);
-        allow create: if isOwner(userId) && request.resource.data.orderId == orderId;
-        allow update: if isExistingOwner(userId) && request.resource.data.orderId == resource.data.orderId;
-        allow delete: if isExistingOwner(userId);
-      }
     }
   }
 }

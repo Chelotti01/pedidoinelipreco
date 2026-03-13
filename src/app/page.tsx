@@ -1,17 +1,16 @@
-
 "use client"
 
 import { useState, useMemo } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useAuth, useUser, useFirestore, useDoc, useMemoFirebase, useCollection } from '@/firebase';
-import { doc, collection, query, orderBy } from 'firebase/firestore';
+import { doc, collection, query, orderBy, getDocs } from 'firebase/firestore';
 import { Button } from "@/components/ui/button";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
 import { 
   ShoppingCart, ListChecks, Zap, History, Users, LogOut, 
   Package, FileSpreadsheet, FileDown, Loader2, LayoutGrid, 
-  DollarSign, TrendingUp, Settings, ChevronDown, ChevronUp, ShieldCheck, UploadCloud, Lock, Info, Eye, EyeOff, Type, Diff
+  DollarSign, TrendingUp, Settings, ChevronDown, ChevronUp, ShieldCheck, UploadCloud, Lock, Info, Eye, EyeOff, Type, Diff, ListOrdered
 } from "lucide-react";
 import {
   Dialog,
@@ -28,7 +27,7 @@ import { Switch } from "@/components/ui/switch";
 import { useToast } from "@/hooks/use-toast";
 import { format } from 'date-fns';
 
-const PRICE_TABLE_CATEGORIES = [
+const PRICE_TABLE_CATEGORIES_DEFAULT = [
   { name: "LEITES PIRACANJUBA", codes: ["10317", "10318", "10319"] },
   { name: "LEITES PIRACANJUBA ZERO LACTOSE", codes: ["12409", "12411", "12438"] },
   { name: "LEITES PIRACANJUBA ESPECIAIS", codes: ["10326", "10327", "10328", "12436"] },
@@ -149,6 +148,13 @@ export default function Home() {
       const html2canvas = (await import('html2canvas')).default;
       const { jsPDF } = await import('jspdf');
 
+      // Buscar grupos customizados da organização
+      const groupsSnap = await getDocs(query(collection(db, 'organizations', orgId, 'pdfGroups'), orderBy('order', 'asc')));
+      let categories = groupsSnap.docs.map(d => ({ name: d.data().name, codes: d.data().codes }));
+      
+      // Fallback para padrão se não houver customização
+      if (categories.length === 0) categories = PRICE_TABLE_CATEGORIES_DEFAULT;
+
       const filtered = (registeredProducts?.filter(p => 
         p.factoryId === exportFactoryId && 
         p.line === exportLineFilter &&
@@ -162,7 +168,7 @@ export default function Home() {
       }
 
       const displayRows: any[] = [];
-      PRICE_TABLE_CATEGORIES.forEach(cat => {
+      categories.forEach(cat => {
         const catProducts = filtered.filter(p => cat.codes.includes(String(p.code)));
         if (catProducts.length > 0) {
           displayRows.push({ type: 'header', name: cat.name });
@@ -171,7 +177,7 @@ export default function Home() {
         }
       });
 
-      const categorizedCodes = PRICE_TABLE_CATEGORIES.flatMap(c => c.codes);
+      const categorizedCodes = categories.flatMap(c => c.codes);
       const otherProducts = filtered.filter(p => !categorizedCodes.includes(String(p.code)));
       if (otherProducts.length > 0) {
         displayRows.push({ type: 'header', name: 'OUTROS ITENS' });
@@ -430,7 +436,7 @@ export default function Home() {
           </button>
 
           {showConfigs && (
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-6 mt-6 animate-in fade-in slide-in-from-top-4 duration-300">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-6 mt-6 animate-in fade-in slide-in-from-top-4 duration-300">
               <Link href="/upload">
                 <Card className="hover:border-primary transition-colors cursor-pointer h-full border-2 border-dashed bg-primary/5">
                   <CardHeader>
@@ -457,6 +463,16 @@ export default function Home() {
                     <ListChecks size={20} className="text-orange-500 mb-2" />
                     <CardTitle className="text-lg">Produtos Registrados</CardTitle>
                     <CardDescription className="text-xs text-muted-foreground">Cadastro paralelo e amarração de preços.</CardDescription>
+                  </CardHeader>
+                </Card>
+              </Link>
+
+              <Link href="/admin/pdf-groups">
+                <Card className="hover:border-primary transition-colors cursor-pointer h-full border-primary/20 bg-primary/5">
+                  <CardHeader>
+                    <ListOrdered size={20} className="text-primary mb-2" />
+                    <CardTitle className="text-lg">Grupos do PDF</CardTitle>
+                    <CardDescription className="text-xs text-muted-foreground">Configure as categorias da tabela PDF.</CardDescription>
                   </CardHeader>
                 </Card>
               </Link>
