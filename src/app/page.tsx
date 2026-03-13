@@ -11,7 +11,7 @@ import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/com
 import { 
   ShoppingCart, ListChecks, Zap, History, Users, LogOut, 
   Package, FileSpreadsheet, FileDown, Loader2, LayoutGrid, 
-  DollarSign, TrendingUp, Settings, ChevronDown, ChevronUp, ShieldCheck, UploadCloud, Lock, Info, Eye, EyeOff, Type
+  DollarSign, TrendingUp, Settings, ChevronDown, ChevronUp, ShieldCheck, UploadCloud, Lock, Info, Eye, EyeOff, Type, Diff
 } from "lucide-react";
 import {
   Dialog,
@@ -139,7 +139,7 @@ export default function Home() {
       }
 
       const pdf = new jsPDF('p', 'mm', 'a4');
-      const itemsPerPage = 26; // Número de itens por página para caber no A4
+      const itemsPerPage = 26; 
       const totalPages = Math.ceil(filtered.length / itemsPerPage);
       const factoryName = factories?.find(f => f.id === exportFactoryId)?.name || 'Fábrica';
       
@@ -295,7 +295,7 @@ export default function Home() {
           )}
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6">
           <Link href="/orders/new" className="group">
             <Card className="h-full border-none shadow-md hover:shadow-xl transition-all hover:-translate-y-1 bg-primary text-white">
               <CardHeader>
@@ -316,6 +316,18 @@ export default function Home() {
                 </div>
                 <CardTitle className="text-xl">Grade Desktop</CardTitle>
                 <CardDescription className="text-white/70">Preenchimento em massa por fábrica.</CardDescription>
+              </CardHeader>
+            </Card>
+          </Link>
+
+          <Link href="/comparison" className="group">
+            <Card className="h-full border-none shadow-md hover:shadow-xl transition-all hover:-translate-y-1 bg-accent text-accent-foreground">
+              <CardHeader>
+                <div className="w-12 h-12 bg-white/20 rounded-xl flex items-center justify-center mb-4">
+                  <Diff size={24} />
+                </div>
+                <CardTitle className="text-xl">Comparação</CardTitle>
+                <CardDescription className="text-accent-foreground/70">Compare preços entre fábricas.</CardDescription>
               </CardHeader>
             </Card>
           </Link>
@@ -421,7 +433,6 @@ export default function Home() {
         </div>
       </main>
 
-      {/* Password Dialog */}
       <Dialog open={showPasswordDialog} onOpenChange={setShowPasswordDialog}>
         <DialogContent className="max-w-sm">
           <DialogHeader>
@@ -463,7 +474,6 @@ export default function Home() {
         </DialogContent>
       </Dialog>
 
-      {/* Export Dialog */}
       <Dialog open={showExportConfigDialog} onOpenChange={setShowExportConfigDialog}>
         <DialogContent className="max-w-md max-h-[90vh] overflow-y-auto">
           <DialogHeader>
