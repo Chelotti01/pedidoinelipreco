@@ -185,7 +185,8 @@ export default function Home() {
       }
 
       const pdf = new jsPDF('p', 'mm', 'a4');
-      const itemsPerPage = 24; 
+      // Alterado para apenas 20 linhas para garantir espaço para o rodapé e evitar cortes
+      const itemsPerPage = 20; 
       const totalPages = Math.ceil(displayRows.length / itemsPerPage);
       const factoryName = factories?.find(f => f.id === exportFactoryId)?.name || 'Fábrica';
       
