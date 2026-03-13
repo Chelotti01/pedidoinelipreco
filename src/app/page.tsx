@@ -215,7 +215,7 @@ export default function Home() {
           if (row.type === 'header') {
             return `
               <tr style="background-color: #f8fafc; border-bottom: 2px solid #cbd5e1;">
-                <td colspan="10" style="padding: 6px 8px; font-weight: 900; font-size: 10px; color: #4582A1; text-transform: uppercase; font-family: sans-serif;">${row.name}</td>
+                <td colspan="10" style="padding: 6px 8px; font-weight: 900; font-size: 9pt; color: #4582A1; text-transform: uppercase; font-family: Arial, sans-serif;">${row.name}</td>
               </tr>
             `;
           }
@@ -237,14 +237,14 @@ export default function Home() {
           const finalPrice = netPrice * (1 + stRate);
           const qtyPerBox = Number(p.quantityPerBox) || 1;
 
-          const priceStyle = 'padding: 8px; text-align: right; font-family: Arial, sans-serif; font-size: 11pt;';
+          const priceStyle = 'padding: 8px; text-align: right; font-family: Arial, sans-serif; font-size: 9pt;';
 
           return `
             <tr style="border-bottom: 1px solid #E0E0E0;">
               <td style="padding: 8px; font-weight: bold; width: 60px; font-family: Arial, sans-serif; font-size: 9pt;">${p.code}</td>
-              <td style="padding: 8px; font-size: 11pt; font-family: Arial, sans-serif; text-transform: uppercase; max-width: 200px;">${p.description}</td>
-              <td style="padding: 8px; text-align: center; width: 30px; font-size: 8px;">${p.unit}</td>
-              ${exportIncludeEan ? `<td style="padding: 8px; font-size: 11pt; font-family: Arial, sans-serif; color: #64748b;">${p.ean || '-'}</td>` : ''}
+              <td style="padding: 8px; font-size: 9pt; font-family: Arial, sans-serif; text-transform: uppercase; max-width: 200px;">${p.description}</td>
+              <td style="padding: 8px; text-align: center; width: 30px; font-size: 9pt; font-family: Arial, sans-serif;">${p.unit}</td>
+              ${exportIncludeEan ? `<td style="padding: 8px; font-size: 9pt; font-family: Arial, sans-serif; color: #64748b;">${p.ean || '-'}</td>` : ''}
               ${exportIncludeNetUnit ? `<td style="${priceStyle}">${netPrice.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>` : ''}
               ${exportIncludeFinalUnit ? `<td style="${priceStyle} font-weight: bold; color: #4582A1;">${finalPrice.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>` : ''}
               ${exportIncludeNetBox ? `<td style="${priceStyle} color: #64748b;">${(netPrice * qtyPerBox).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>` : ''}
@@ -258,25 +258,25 @@ export default function Home() {
             <div style="border-bottom: 3px solid #4582A1; padding-bottom: 10px; margin-bottom: 20px; display: flex; justify-content: space-between; align-items: flex-end;">
               <div>
                 <h1 style="margin: 0; color: #4582A1; font-size: 24px; font-weight: 900; font-family: Arial, sans-serif;">TABELA DE PREÇOS</h1>
-                <p style="margin: 5px 0 0 0; color: #64748b; font-family: sans-serif; font-size: 14px; font-weight: bold;">${factoryName} - ${exportLineFilter}</p>
+                <p style="margin: 5px 0 0 0; color: #64748b; font-family: Arial, sans-serif; font-size: 14px; font-weight: bold;">${factoryName} - ${exportLineFilter}</p>
               </div>
-              <div style="text-align: right; font-family: sans-serif;">
+              <div style="text-align: right; font-family: Arial, sans-serif;">
                 <p style="margin: 0; font-weight: bold; font-size: 12px; color: #4582A1; text-transform: uppercase;">${orgId}</p>
-                <p style="margin: 2px 0 0 0; font-size: 10px; color: #94a3b8;">Página ${page + 1} de ${totalPages}</p>
+                <p style="margin: 2px 0 0 0; font-size: 9pt; color: #94a3b8;">Página ${page + 1} de ${totalPages}</p>
               </div>
             </div>
             <div style="flex-grow: 1;">
               <table style="width: 100%; border-collapse: collapse; font-family: Arial, sans-serif;">
                 <thead style="background-color: #F0F3F4;">
                   <tr>
-                    <th style="padding: 10px 8px; text-align: left; font-size: 8px; font-weight: 900;">CÓD</th>
-                    <th style="padding: 10px 8px; text-align: left; font-size: 8px; font-weight: 900;">DESCRIÇÃO</th>
-                    <th style="padding: 10px 8px; text-align: center; font-size: 8px; font-weight: 900;">UND</th>
-                    ${exportIncludeEan ? '<th style="padding: 10px 8px; text-align: left; font-size: 8px; font-weight: 900;">EAN</th>' : ''}
-                    ${exportIncludeNetUnit ? '<th style="padding: 10px 8px; text-align: right; font-size: 8px; font-weight: 900;">UNIT. NET</th>' : ''}
-                    ${exportIncludeFinalUnit ? '<th style="padding: 10px 8px; text-align: right; font-size: 8px; font-weight: 900;">UNIT. FINAL</th>' : ''}
-                    ${exportIncludeNetBox ? '<th style="padding: 10px 8px; text-align: right; font-size: 8px; font-weight: 900;">CX. NET</th>' : ''}
-                    ${exportIncludeFinalBox ? '<th style="padding: 10px 8px; text-align: right; font-size: 8px; font-weight: 900;">CX. FINAL</th>' : ''}
+                    <th style="padding: 10px 8px; text-align: left; font-size: 9pt; font-weight: 900;">CÓD</th>
+                    <th style="padding: 10px 8px; text-align: left; font-size: 9pt; font-weight: 900;">DESCRIÇÃO</th>
+                    <th style="padding: 10px 8px; text-align: center; font-size: 9pt; font-weight: 900;">UND</th>
+                    ${exportIncludeEan ? '<th style="padding: 10px 8px; text-align: left; font-size: 9pt; font-weight: 900;">EAN</th>' : ''}
+                    ${exportIncludeNetUnit ? '<th style="padding: 10px 8px; text-align: right; font-size: 9pt; font-weight: 900;">UNIT. NET</th>' : ''}
+                    ${exportIncludeFinalUnit ? '<th style="padding: 10px 8px; text-align: right; font-size: 9pt; font-weight: 900;">UNIT. FINAL</th>' : ''}
+                    ${exportIncludeNetBox ? '<th style="padding: 10px 8px; text-align: right; font-size: 9pt; font-weight: 900;">CX. NET</th>' : ''}
+                    ${exportIncludeFinalBox ? '<th style="padding: 10px 8px; text-align: right; font-size: 9pt; font-weight: 900;">CX. FINAL</th>' : ''}
                   </tr>
                 </thead>
                 <tbody>
@@ -285,8 +285,8 @@ export default function Home() {
               </table>
             </div>
             <div style="margin-top: auto; border-top: 1px solid #eee; padding-top: 10px; display: flex; justify-content: space-between; align-items: center;">
-              <p style="font-size: 8px; color: #94a3b8; font-family: Arial, sans-serif; margin: 0;">Gerado em: ${format(new Date(), "dd/MM/yyyy HH:mm")}. Preços sujeitos a alteração sem aviso prévio.</p>
-              <p style="font-size: 9px; font-weight: normal; color: #cbd5e1; font-family: Arial, sans-serif; margin: 0; text-transform: uppercase;">COD: ${footerCode}</p>
+              <p style="font-size: 9pt; color: #94a3b8; font-family: Arial, sans-serif; margin: 0;">Gerado em: ${format(new Date(), "dd/MM/yyyy HH:mm")}. Preços sujeitos a alteração sem aviso prévio.</p>
+              <p style="font-size: 9pt; font-weight: normal; color: #cbd5e1; font-family: Arial, sans-serif; margin: 0; text-transform: uppercase;">COD: ${footerCode}</p>
             </div>
           </div>
         `;

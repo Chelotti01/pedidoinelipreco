@@ -188,7 +188,7 @@ export default function ViewOrderPage() {
 
           <CardContent className="p-0">
             <div className="p-6 sm:p-8 border-b bg-slate-50/50">
-              <h3 className="text-xs font-bold text-muted-foreground uppercase tracking-widest mb-2">Cliente</h3>
+              <h3 className="text-[9pt] font-bold text-muted-foreground uppercase tracking-widest mb-2" style={{ fontFamily: 'Arial, sans-serif' }}>Cliente</h3>
               <p className="text-xl font-bold text-primary flex items-center gap-2">
                 <Home size={18} className="text-accent" /> {order.customerName}
               </p>
@@ -196,29 +196,29 @@ export default function ViewOrderPage() {
 
             <div className="grid grid-cols-1 md:grid-cols-2 border-b border-slate-200">
               <div className="p-6 sm:p-8 space-y-4 border-b md:border-b-0 md:border-r border-slate-200">
-                <h3 className="text-xs font-bold text-muted-foreground uppercase tracking-widest">Resumo Financeiro</h3>
+                <h3 className="text-[9pt] font-bold text-muted-foreground uppercase tracking-widest" style={{ fontFamily: 'Arial, sans-serif' }}>Resumo Financeiro</h3>
                 <div className="flex justify-between items-end">
-                  <span className="text-muted-foreground">Valor Total Bruto:</span>
+                  <span className="text-muted-foreground" style={{ fontSize: '9pt', fontFamily: 'Arial, sans-serif' }}>Valor Total Bruto:</span>
                   <span className="text-2xl sm:text-3xl font-black text-primary">{formatCurrency(order.totalAmount)}</span>
                 </div>
-                <p className="text-[10px] sm:text-xs text-muted-foreground italic">Este valor já inclui todos os aditivos de contrato.</p>
+                <p className="text-[9pt] text-muted-foreground italic" style={{ fontFamily: 'Arial, sans-serif' }}>Este valor já inclui todos os aditivos de contrato.</p>
               </div>
               <div className="p-6 sm:p-8 space-y-4">
-                <h3 className="text-xs font-bold text-muted-foreground uppercase tracking-widest">Resumo Logístico</h3>
+                <h3 className="text-[9pt] font-bold text-muted-foreground uppercase tracking-widest" style={{ fontFamily: 'Arial, sans-serif' }}>Resumo Logístico</h3>
                 <div className="flex justify-between items-end">
-                  <span className="text-muted-foreground">Peso Total da Carga:</span>
+                  <span className="text-muted-foreground" style={{ fontSize: '9pt', fontFamily: 'Arial, sans-serif' }}>Peso Total da Carga:</span>
                   <span className="text-2xl sm:text-3xl font-black text-foreground">{(order.totalWeight || 0).toFixed(2)} <small className="text-sm font-normal">Kg</small></span>
                 </div>
-                <p className="text-[10px] sm:text-xs text-muted-foreground italic">Cálculo baseado no peso das caixas e quantidades informadas.</p>
+                <p className="text-[9pt] text-muted-foreground italic" style={{ fontFamily: 'Arial, sans-serif' }}>Cálculo baseado no peso das caixas e quantidades informadas.</p>
               </div>
             </div>
 
             {order.notes && (
               <div className="p-6 sm:p-8 border-b border-slate-200 bg-slate-50">
-                <h3 className="text-xs font-bold text-muted-foreground uppercase tracking-widest mb-3 flex items-center gap-2">
+                <h3 className="text-[9pt] font-bold text-muted-foreground uppercase tracking-widest mb-3 flex items-center gap-2" style={{ fontFamily: 'Arial, sans-serif' }}>
                   <MessageSquare size={14} className="text-primary" /> Observações do Pedido
                 </h3>
-                <p className="text-sm text-slate-700 whitespace-pre-wrap">{order.notes}</p>
+                <p className="text-[9pt] text-slate-700 whitespace-pre-wrap" style={{ fontFamily: 'Arial, sans-serif' }}>{order.notes}</p>
               </div>
             )}
 
@@ -226,36 +226,36 @@ export default function ViewOrderPage() {
               <Table>
                 <TableHeader className="bg-slate-50">
                   <TableRow>
-                    <TableHead className="font-bold">Código / Descrição</TableHead>
-                    <TableHead className="font-bold text-center">Qtd</TableHead>
-                    <TableHead className="font-bold text-right">Preço NET</TableHead>
-                    <TableHead className="font-bold text-right text-primary">Preço FINAL</TableHead>
-                    <TableHead className="font-bold text-right">Total Item</TableHead>
+                    <TableHead className="font-bold" style={{ fontSize: '9pt', fontFamily: 'Arial, sans-serif' }}>Código / Descrição</TableHead>
+                    <TableHead className="font-bold text-center" style={{ fontSize: '9pt', fontFamily: 'Arial, sans-serif' }}>Qtd</TableHead>
+                    <TableHead className="font-bold text-right" style={{ fontSize: '9pt', fontFamily: 'Arial, sans-serif' }}>Preço NET</TableHead>
+                    <TableHead className="font-bold text-right text-primary" style={{ fontSize: '9pt', fontFamily: 'Arial, sans-serif' }}>Preço FINAL</TableHead>
+                    <TableHead className="font-bold text-right" style={{ fontSize: '9pt', fontFamily: 'Arial, sans-serif' }}>Total Item</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {order.items?.map((item: any, idx: number) => (
                     <TableRow key={`${item.productId}-${idx}`} className={item.isBonus ? "bg-accent/5" : ""}>
                       <TableCell className="min-w-[200px]">
-                        <div className="font-bold text-sm">{item.code}</div>
-                        <div style={{ fontSize: '11pt', fontFamily: 'Arial, sans-serif' }} className="text-muted-foreground leading-tight mb-1">{item.name}</div>
+                        <div className="font-bold" style={{ fontSize: '9pt', fontFamily: 'Arial, sans-serif' }}>{item.code}</div>
+                        <div style={{ fontSize: '9pt', fontFamily: 'Arial, sans-serif' }} className="text-muted-foreground leading-tight mb-1">{item.name}</div>
                         <div className="flex flex-wrap items-center gap-2">
-                          <span style={{ fontSize: '11pt', fontFamily: 'Arial, sans-serif' }} className="bg-slate-100 px-1.5 py-0.5 rounded border border-slate-200">EAN: {item.ean}</span>
-                          <span className="text-[10px] bg-primary/5 text-primary px-1.5 py-0.5 rounded font-bold border border-primary/10">{item.factoryName}</span>
-                          {item.isBonus && <Badge className="bg-accent text-white border-none h-5 px-1.5 text-[10px] flex items-center gap-1"><Gift size={10} /> BONIFICAÇÃO</Badge>}
+                          <span style={{ fontSize: '9pt', fontFamily: 'Arial, sans-serif' }} className="bg-slate-100 px-1.5 py-0.5 rounded border border-slate-200">EAN: {item.ean}</span>
+                          <span style={{ fontSize: '9pt', fontFamily: 'Arial, sans-serif' }} className="bg-primary/5 text-primary px-1.5 py-0.5 rounded font-bold border border-primary/10">{item.factoryName}</span>
+                          {item.isBonus && <Badge className="bg-accent text-white border-none h-5 px-1.5 text-[9pt] flex items-center gap-1"><Gift size={10} /> BONIFICAÇÃO</Badge>}
                         </div>
                       </TableCell>
                       <TableCell className="text-center">
-                        <div className="font-bold text-sm">{item.quantity} cx</div>
-                        <div className="text-[10px] text-muted-foreground uppercase">{item.priceType === 'closed' ? 'Fechada' : 'Frac'}</div>
+                        <div className="font-bold" style={{ fontSize: '9pt', fontFamily: 'Arial, sans-serif' }}>{item.quantity} cx</div>
+                        <div className="text-[9pt] text-muted-foreground uppercase" style={{ fontFamily: 'Arial, sans-serif' }}>{item.priceType === 'closed' ? 'Fechada' : 'Frac'}</div>
                       </TableCell>
-                      <TableCell className="text-right text-xs text-muted-foreground">
+                      <TableCell className="text-right text-muted-foreground" style={{ fontSize: '9pt', fontFamily: 'Arial, sans-serif' }}>
                         {item.isBonus ? '-' : (item.unitPriceNet || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                       </TableCell>
                       <TableCell className="text-right">
-                        <div className={`font-bold text-sm ${item.isBonus ? 'text-accent' : 'text-primary'}`}>{item.isBonus ? 'BONUS' : (item.unitPriceFinal || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
+                        <div className={`font-bold ${item.isBonus ? 'text-accent' : 'text-primary'}`} style={{ fontSize: '9pt', fontFamily: 'Arial, sans-serif' }}>{item.isBonus ? 'BONUS' : (item.unitPriceFinal || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
                       </TableCell>
-                      <TableCell className="text-right font-black text-sm">
+                      <TableCell className="text-right font-black" style={{ fontSize: '9pt', fontFamily: 'Arial, sans-serif' }}>
                         {item.isBonus ? 'R$ 0,00' : (item.total || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
                       </TableCell>
                     </TableRow>
@@ -266,7 +266,7 @@ export default function ViewOrderPage() {
           </CardContent>
         </Card>
         
-        <div className="mt-8 text-center text-[10px] text-muted-foreground opacity-60 space-y-1">
+        <div className="mt-8 text-center text-[9pt] text-muted-foreground opacity-60 space-y-1" style={{ fontFamily: 'Arial, sans-serif' }}>
           <p>Documento gerado eletronicamente via Sistema Pedido InteliPreço em {format(new Date(), "dd/MM/yyyy 'às' HH:mm")}.</p>
           <p>Preços sujeitos a alteração conforme vigência da tabela de fábrica no ato do faturamento.</p>
         </div>
