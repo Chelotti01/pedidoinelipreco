@@ -321,13 +321,13 @@ export default function Home() {
           </Link>
 
           <Link href="/comparison" className="group">
-            <Card className="h-full border-none shadow-md hover:shadow-xl transition-all hover:-translate-y-1 bg-accent text-accent-foreground">
+            <Card className="h-full border-none shadow-md hover:shadow-xl transition-all hover:-translate-y-1 bg-white">
               <CardHeader>
-                <div className="w-12 h-12 bg-white/20 rounded-xl flex items-center justify-center mb-4">
+                <div className="w-12 h-12 bg-emerald-50 rounded-xl flex items-center justify-center text-emerald-600 mb-4">
                   <Diff size={24} />
                 </div>
                 <CardTitle className="text-xl">Comparação</CardTitle>
-                <CardDescription className="text-accent-foreground/70">Compare preços entre fábricas.</CardDescription>
+                <CardDescription>Compare preços entre fábricas.</CardDescription>
               </CardHeader>
             </Card>
           </Link>
@@ -345,7 +345,7 @@ export default function Home() {
           </div>
 
           <Link href="/orders/history" className="group">
-            <Card className="h-full border-none shadow-md hover:shadow-xl transition-all hover:-translate-y-1">
+            <Card className="h-full border-none shadow-md hover:shadow-xl transition-all hover:-translate-y-1 bg-white">
               <CardHeader>
                 <div className="w-12 h-12 bg-purple-50 rounded-xl flex items-center justify-center text-purple-600 mb-4">
                   <History size={24} />
