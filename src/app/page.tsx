@@ -66,27 +66,23 @@ export default function Home() {
   const [isExporting, setIsExporting] = useState(false);
   const [showExportConfigDialog, setShowExportConfigDialog] = useState(false);
   
-  // Segurança das Configurações
   const [showPasswordDialog, setShowPasswordDialog] = useState(false);
   const [inputPassword, setInputPassword] = useState("");
   const [isConfigsUnlocked, setIsConfigsUnlocked] = useState(false);
   const [showAdminPassword, setShowAdminPassword] = useState(false);
 
-  // Perfil do Usuário pelo E-mail
   const userProfileRef = useMemoFirebase(() => 
     user?.email ? doc(db, 'userProfiles', user.email.toLowerCase().trim()) : null
   , [db, user]);
   
   const { data: profile, isLoading: isProfileLoading } = useDoc(userProfileRef);
 
-  // Verificação de Super Admin
   const isSuperAdmin = useMemo(() => {
     return user?.email === 'vendas.piracanjuba@gmail.com' || profile?.role === 'superAdmin';
   }, [user, profile]);
 
   const orgId = profile?.organizationId;
 
-  // Consultas baseadas na Organização
   const factoriesQuery = useMemoFirebase(() => 
     orgId ? query(collection(db, 'organizations', orgId, 'factories'), orderBy('name')) : null
   , [db, orgId]);
@@ -102,7 +98,6 @@ export default function Home() {
   , [db, orgId]);
   const { data: catalogProducts } = useCollection(catalogQuery);
 
-  // Configurações de Exportação
   const [exportFactoryId, setExportFactoryId] = useState<string>("none");
   const [exportLineFilter, setExportLineFilter] = useState<string>("none");
   const [exportContractPercent, setExportContractPercent] = useState<number>(0);
@@ -166,7 +161,6 @@ export default function Home() {
         return;
       }
 
-      // Ordenação Customizada por Categoria
       const displayRows: any[] = [];
       PRICE_TABLE_CATEGORIES.forEach(cat => {
         const catProducts = filtered.filter(p => cat.codes.includes(String(p.code)));
@@ -186,7 +180,7 @@ export default function Home() {
       }
 
       const pdf = new jsPDF('p', 'mm', 'a4');
-      const itemsPerPage = 26; 
+      const itemsPerPage = 24; 
       const totalPages = Math.ceil(displayRows.length / itemsPerPage);
       const factoryName = factories?.find(f => f.id === exportFactoryId)?.name || 'Fábrica';
       
@@ -207,9 +201,9 @@ export default function Home() {
         container.style.position = 'absolute';
         container.style.left = '-9999px';
         container.style.width = '210mm';
-        container.style.minHeight = '297mm';
+        container.style.height = '297mm'; 
         container.style.backgroundColor = 'white';
-        container.style.padding = '15mm';
+        container.style.padding = '15mm 15mm 10mm 15mm'; 
         container.style.boxSizing = 'border-box';
 
         const rowsHtml = pageItems.map(row => {
@@ -285,7 +279,7 @@ export default function Home() {
                 </tbody>
               </table>
             </div>
-            <div style="margin-top: 30px; border-top: 1px solid #eee; padding-top: 15px; display: flex; justify-content: space-between; align-items: center;">
+            <div style="margin-top: auto; border-top: 1px solid #eee; padding-top: 10px; display: flex; justify-content: space-between; align-items: center;">
               <p style="font-size: 8px; color: #94a3b8; font-family: Arial, sans-serif; margin: 0;">Gerado em: ${format(new Date(), "dd/MM/yyyy HH:mm")}. Preços sujeitos a alteração sem aviso prévio.</p>
               <p style="font-size: 9px; font-weight: normal; color: #cbd5e1; font-family: Arial, sans-serif; margin: 0; text-transform: uppercase;">COD: ${footerCode}</p>
             </div>
