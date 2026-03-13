@@ -2,7 +2,7 @@
 "use client"
 
 import { useState } from 'react';
-import { useFirestore, useCollection, useMemoFirebase, useUser, useDoc, addDocumentNonBlocking, deleteDocumentNonBlocking } from '@/firebase';
+import { useFirestore, useCollection, useMemoFirebase, useUser, useDoc, addDocumentNonBlocking, deleteDocumentNonBlocking, updateDocumentNonBlocking } from '@/firebase';
 import { collection, query, orderBy, doc, serverTimestamp, writeBatch } from 'firebase/firestore';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -11,7 +11,7 @@ import { Label } from "@/components/ui/label";
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "@/components/ui/table";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
-import { Plus, Trash2, ChevronLeft, Save, Loader2, ListPlus, Wand2 } from "lucide-react";
+import { Plus, Trash2, ChevronLeft, Save, Loader2, ListPlus, Wand2, Pencil, X } from "lucide-react";
 import Link from 'next/link';
 import { useToast } from "@/hooks/use-toast";
 
@@ -59,9 +59,10 @@ export default function PDFGroupsPage() {
   const { data: groups, isLoading: isGroupsLoading } = useCollection(groupsQuery);
 
   const [newGroup, setNewGroup] = useState({ name: '', codes: '', order: 0 });
+  const [editingGroupId, setEditingGroupId] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const handleCreateGroup = async (e: React.FormEvent) => {
+  const handleCreateOrUpdateGroup = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!orgId || !newGroup.name) return;
 
@@ -72,19 +73,44 @@ export default function PDFGroupsPage() {
         .map(c => c.trim())
         .filter(c => c.length > 0);
 
-      await addDocumentNonBlocking(collection(db, 'organizations', orgId, 'pdfGroups'), {
+      const groupData = {
         name: newGroup.name,
         codes: codesArray,
         order: Number(newGroup.order) || 0,
-        createdAt: serverTimestamp(),
         updatedAt: serverTimestamp()
-      });
+      };
 
-      toast({ title: "Grupo criado", description: "O grupo foi adicionado às configurações do PDF." });
+      if (editingGroupId) {
+        await updateDocumentNonBlocking(doc(db, 'organizations', orgId, 'pdfGroups', editingGroupId), groupData);
+        toast({ title: "Grupo atualizado", description: "As alterações foram salvas com sucesso." });
+      } else {
+        await addDocumentNonBlocking(collection(db, 'organizations', orgId, 'pdfGroups'), {
+          ...groupData,
+          createdAt: serverTimestamp()
+        });
+        toast({ title: "Grupo criado", description: "O grupo foi adicionado às configurações do PDF." });
+      }
+
       setNewGroup({ name: '', codes: '', order: (groups?.length || 0) + 1 });
+      setEditingGroupId(null);
     } finally {
       setIsSubmitting(false);
     }
+  };
+
+  const handleEditGroup = (group: any) => {
+    setEditingGroupId(group.id);
+    setNewGroup({
+      name: group.name,
+      codes: group.codes?.join('\n') || '',
+      order: group.order || 0
+    });
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  const handleCancelEdit = () => {
+    setEditingGroupId(null);
+    setNewGroup({ name: '', codes: '', order: (groups?.length || 0) + 1 });
   };
 
   const handleLoadDefaults = async () => {
@@ -116,6 +142,7 @@ export default function PDFGroupsPage() {
     if (!orgId) return;
     deleteDocumentNonBlocking(doc(db, 'organizations', orgId, 'pdfGroups', id));
     toast({ title: "Grupo removido" });
+    if (editingGroupId === id) handleCancelEdit();
   };
 
   const isLoading = isProfileLoading || isGroupsLoading;
@@ -143,15 +170,16 @@ export default function PDFGroupsPage() {
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
         <div className="lg:col-span-1">
-          <Card className="shadow-xl border-none">
+          <Card className={`shadow-xl border-none ${editingGroupId ? 'ring-2 ring-primary' : ''}`}>
             <CardHeader className="bg-primary/5">
               <CardTitle className="text-lg flex items-center gap-2">
-                <ListPlus size={18} className="text-primary" /> Novo Grupo
+                {editingGroupId ? <Pencil size={18} className="text-primary" /> : <ListPlus size={18} className="text-primary" />} 
+                {editingGroupId ? 'Editar Grupo' : 'Novo Grupo'}
               </CardTitle>
               <CardDescription>Defina o nome e os códigos que pertencem a esta seção.</CardDescription>
             </CardHeader>
             <CardContent className="pt-6">
-              <form onSubmit={handleCreateGroup} className="space-y-4">
+              <form onSubmit={handleCreateOrUpdateGroup} className="space-y-4">
                 <div className="space-y-2">
                   <Label>Nome do Grupo</Label>
                   <Input 
@@ -178,11 +206,20 @@ export default function PDFGroupsPage() {
                     value={newGroup.codes}
                     onChange={(e) => setNewGroup({...newGroup, codes: e.target.value})}
                   />
-                  <p className="text-[10px] text-muted-foreground italic">Você pode separar por vírgula ou nova linha.</p>
+                  <p className="text-[10px] text-muted-foreground italic">Dica: Acrescente novos códigos um por linha ou separados por vírgula.</p>
                 </div>
-                <Button type="submit" className="w-full gap-2 h-12 font-bold" disabled={isSubmitting}>
-                  {isSubmitting ? <Loader2 className="animate-spin" /> : <Plus size={18} />} Salvar Grupo
-                </Button>
+                
+                <div className="flex gap-2">
+                  {editingGroupId && (
+                    <Button type="button" variant="outline" className="flex-1 gap-2" onClick={handleCancelEdit}>
+                      <X size={16} /> Cancelar
+                    </Button>
+                  )}
+                  <Button type="submit" className="flex-[2] gap-2 h-12 font-bold" disabled={isSubmitting}>
+                    {isSubmitting ? <Loader2 className="animate-spin" /> : <Save size={18} />} 
+                    {editingGroupId ? 'Atualizar Grupo' : 'Salvar Grupo'}
+                  </Button>
+                </div>
               </form>
             </CardContent>
           </Card>
@@ -195,7 +232,7 @@ export default function PDFGroupsPage() {
                 <TableRow>
                   <TableHead className="w-[60px] text-center">Ordem</TableHead>
                   <TableHead>Categoria</TableHead>
-                  <TableHead>Códigos Vinculados</TableHead>
+                  <TableHead>Códigos</TableHead>
                   <TableHead className="text-right">Ações</TableHead>
                 </TableRow>
               </TableHeader>
@@ -203,26 +240,31 @@ export default function PDFGroupsPage() {
                 {!groups || groups.length === 0 ? (
                   <TableRow>
                     <TableCell colSpan={4} className="text-center py-20 text-muted-foreground italic">
-                      Nenhum grupo configurado. Clique em "Carregar Lista Padrão" acima para começar.
+                      Nenhum grupo configurado.
                     </TableCell>
                   </TableRow>
                 ) : (
                   groups.map((group) => (
-                    <TableRow key={group.id}>
+                    <TableRow key={group.id} className={editingGroupId === group.id ? 'bg-primary/5' : ''}>
                       <TableCell className="text-center font-black text-primary">{group.order}</TableCell>
                       <TableCell className="font-bold">{group.name}</TableCell>
                       <TableCell>
-                        <div className="flex flex-wrap gap-1 max-w-[300px]">
-                          {group.codes?.slice(0, 5).map((code: string) => (
+                        <div className="flex flex-wrap gap-1 max-w-[200px]">
+                          {group.codes?.slice(0, 3).map((code: string) => (
                             <Badge key={code} variant="secondary" className="text-[9px]">{code}</Badge>
                           ))}
-                          {group.codes?.length > 5 && <span className="text-[10px] text-muted-foreground">+{group.codes.length - 5} itens</span>}
+                          {group.codes?.length > 3 && <span className="text-[10px] text-muted-foreground">+{group.codes.length - 3}</span>}
                         </div>
                       </TableCell>
                       <TableCell className="text-right">
-                        <Button variant="ghost" size="icon" className="text-destructive" onClick={() => handleDeleteGroup(group.id)}>
-                          <Trash2 size={16} />
-                        </Button>
+                        <div className="flex justify-end gap-1">
+                          <Button variant="ghost" size="icon" className="text-slate-600" onClick={() => handleEditGroup(group)}>
+                            <Pencil size={16} />
+                          </Button>
+                          <Button variant="ghost" size="icon" className="text-destructive" onClick={() => handleDeleteGroup(group.id)}>
+                            <Trash2 size={16} />
+                          </Button>
+                        </div>
                       </TableCell>
                     </TableRow>
                   ))
