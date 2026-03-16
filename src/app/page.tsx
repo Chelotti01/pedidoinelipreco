@@ -8,6 +8,7 @@ import { useAuth, useUser, useFirestore, useDoc, useMemoFirebase, useCollection 
 import { doc, collection, query, orderBy, getDocs, writeBatch, serverTimestamp } from 'firebase/firestore';
 import { Button } from "@/components/ui/button";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
 import { 
   ShoppingCart, ListChecks, Zap, History, Users, LogOut, 
   Package, FileDown, Loader2, LayoutGrid, 
@@ -109,7 +110,7 @@ export default function Home() {
   const { data: registeredProducts } = useCollection(registeredProductsQuery);
 
   const catalogQuery = useMemoFirebase(() => 
-    orgId ? query(collection(db, 'organizations', orgId, 'productFactoryPrices')) : null
+    orgId ? query(collection(db, 'organizations', orgId, 'productFactoryPrices'), orderBy('name')) : null
   , [db, orgId]);
   const { data: catalogProducts } = useCollection(catalogQuery);
 
@@ -231,7 +232,6 @@ export default function Home() {
         const items = validationReport.data[colName];
         if (!Array.isArray(items)) continue;
 
-        // Processamento em lotes de 400 para garantir atomicidade e performance
         for (let i = 0; i < items.length; i += 400) {
           const batch = writeBatch(db);
           const chunk = items.slice(i, i + 400);
@@ -241,8 +241,6 @@ export default function Home() {
             if (!id) return;
 
             const docRef = doc(db, 'organizations', orgId, colName, id);
-            
-            // Forçamos o organizationId para o usuário atual (clonagem)
             batch.set(docRef, { 
               ...data, 
               organizationId: orgId, 
@@ -263,8 +261,6 @@ export default function Home() {
       setShowImportDialog(false);
       setValidationReport(null);
       if (importInputRef.current) importInputRef.current.value = '';
-      
-      // Pequeno delay para garantir que o Firestore cache atualize antes do refresh
       setTimeout(() => router.refresh(), 500);
     } catch (err: any) {
       console.error(err);
@@ -321,7 +317,7 @@ export default function Home() {
       }
 
       const pdf = new jsPDF('p', 'mm', 'a4');
-      const itemsPerPage = 20; // LIMITE DE 20 LINHAS POR PÁGINA
+      const itemsPerPage = 20; 
       const totalPages = Math.ceil(displayRows.length / itemsPerPage);
       const factoryName = factories?.find(f => f.id === exportFactoryId)?.name || 'Fábrica';
       
@@ -371,7 +367,6 @@ export default function Home() {
           const finalPrice = netPrice * (1 + stRate);
           const qtyPerBox = Number(p.quantityPerBox) || 1;
 
-          // TODAS AS FONTES EM ARIAL 9
           const cellStyle = 'padding: 8px; font-family: Arial, sans-serif; font-size: 9pt;';
           const priceStyle = `${cellStyle} text-align: right;`;
 
