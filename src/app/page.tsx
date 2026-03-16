@@ -10,8 +10,8 @@ import { Button } from "@/components/ui/button";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
 import { 
   ShoppingCart, ListChecks, Zap, History, Users, LogOut, 
-  Package, FileSpreadsheet, FileDown, Loader2, LayoutGrid, 
-  DollarSign, TrendingUp, Settings, ChevronDown, ChevronUp, ShieldCheck, UploadCloud, Lock, Info, Eye, EyeOff, Type, Diff, ListOrdered,
+  Package, FileDown, Loader2, LayoutGrid, 
+  TrendingUp, Settings, ChevronDown, ChevronUp, ShieldCheck, UploadCloud, Lock, Eye, EyeOff, Diff, ListOrdered,
   Download, Upload
 } from "lucide-react";
 import {
@@ -149,7 +149,7 @@ export default function Home() {
     try {
       const collectionsToExport = ['factories', 'clients', 'products', 'productFactoryPrices', 'pdfGroups', 'orders'];
       const backup: any = {
-        version: '1.2',
+        version: '1.3',
         orgId,
         exportedAt: new Date().toISOString(),
         data: {}
@@ -179,52 +179,83 @@ export default function Home() {
 
   const handleImportBackup = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (!file || !orgId) {
-      toast({ title: "Operação cancelada", description: "Organização não identificada.", variant: "destructive" });
+    if (!file) return;
+
+    if (!orgId) {
+      toast({ 
+        title: "Erro de Organização", 
+        description: "Não foi possível identificar sua organização atual.", 
+        variant: "destructive" 
+      });
       return;
     }
+
+    toast({ title: "Leitura iniciada", description: `Processando ${file.name}...` });
 
     const reader = new FileReader();
     reader.onload = async (event) => {
       try {
-        const backup = JSON.parse(event.target?.result as string);
-        if (!backup.data) throw new Error("O arquivo selecionado não é um backup válido.");
+        const content = event.target?.result as string;
+        if (!content) throw new Error("O arquivo selecionado está vazio.");
 
-        const confirm = window.confirm(`Importar e clonar dados para ${orgId}? Isso sincronizará todos os produtos e clientes com sua conta atual.`);
-        if (!confirm) return;
+        const backup = JSON.parse(content);
+        if (!backup.data || typeof backup.data !== 'object') {
+          throw new Error("O arquivo não possui o formato de backup esperado.");
+        }
+
+        const confirmImport = window.confirm(
+          `Confirmar importação para "${orgId}"?\n\nIsso clonará todos os produtos e configurações para sua conta atual.`
+        );
+        
+        if (!confirmImport) {
+          toast({ title: "Importação cancelada." });
+          return;
+        }
 
         setIsBackupProcessing(true);
-        toast({ title: "Processando clonagem...", description: "Isso pode levar alguns segundos dependendo do volume de dados." });
+        toast({ title: "Processando clonagem...", description: "Isso pode levar alguns segundos." });
         
-        for (const colName in backup.data) {
+        let totalCount = 0;
+        const collectionsToImport = Object.keys(backup.data);
+
+        for (const colName of collectionsToImport) {
           const items = backup.data[colName];
           if (!Array.isArray(items)) continue;
 
           for (let i = 0; i < items.length; i += 400) {
             const batch = writeBatch(db);
-            items.slice(i, i + 400).forEach((item: any) => {
+            const chunk = items.slice(i, i + 400);
+            
+            chunk.forEach((item: any) => {
               const { id, ...data } = item;
+              if (!id) return;
+
               const docRef = doc(db, 'organizations', orgId, colName, id);
+              
               // CRITICAL: Atualizar organizationId para o novo tenant (clonagem)
               batch.set(docRef, { 
                 ...data, 
                 organizationId: orgId, 
                 updatedAt: serverTimestamp() 
               }, { merge: true });
+              
+              totalCount++;
             });
+            
             await batch.commit();
           }
         }
         
         toast({ 
           title: "Importação concluída!", 
-          description: `Todos os dados foram clonados e vinculados à organização ${orgId}.` 
+          description: `${totalCount} registros clonados com sucesso para a organização ${orgId}.` 
         });
-      } catch (e: any) {
-        console.error(e);
+        router.refresh();
+      } catch (err: any) {
+        console.error("Erro na importação:", err);
         toast({ 
           title: "Falha na Importação", 
-          description: `Motivo: ${e.message || 'Arquivo corrompido ou erro de conexão.'}`, 
+          description: `Motivo: ${err.message || 'Arquivo inválido ou erro de conexão.'}`, 
           variant: "destructive" 
         });
       } finally {
@@ -232,6 +263,11 @@ export default function Home() {
         if (importInputRef.current) importInputRef.current.value = '';
       }
     };
+
+    reader.onerror = () => {
+      toast({ title: "Erro na leitura", description: "O navegador não conseguiu ler o arquivo.", variant: "destructive" });
+    };
+
     reader.readAsText(file);
   };
 
