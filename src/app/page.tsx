@@ -179,19 +179,22 @@ export default function Home() {
 
   const handleImportBackup = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (!file || !orgId) return;
+    if (!file || !orgId) {
+      toast({ title: "Operação cancelada", description: "Organização não identificada.", variant: "destructive" });
+      return;
+    }
 
     const reader = new FileReader();
     reader.onload = async (event) => {
       try {
         const backup = JSON.parse(event.target?.result as string);
-        if (!backup.data) throw new Error("Arquivo de backup inválido.");
+        if (!backup.data) throw new Error("O arquivo selecionado não é um backup válido.");
 
-        const confirm = window.confirm(`Importar e clonar dados para ${orgId}? Isso não apagará dados existentes, apenas adicionará/atualizará os itens clonados.`);
+        const confirm = window.confirm(`Importar e clonar dados para ${orgId}? Isso sincronizará todos os produtos e clientes com sua conta atual.`);
         if (!confirm) return;
 
         setIsBackupProcessing(true);
-        toast({ title: "Sincronizando...", description: "Aguarde o processamento dos lotes." });
+        toast({ title: "Processando clonagem...", description: "Isso pode levar alguns segundos dependendo do volume de dados." });
         
         for (const colName in backup.data) {
           const items = backup.data[colName];
@@ -202,6 +205,7 @@ export default function Home() {
             items.slice(i, i + 400).forEach((item: any) => {
               const { id, ...data } = item;
               const docRef = doc(db, 'organizations', orgId, colName, id);
+              // CRITICAL: Atualizar organizationId para o novo tenant (clonagem)
               batch.set(docRef, { 
                 ...data, 
                 organizationId: orgId, 
@@ -213,12 +217,16 @@ export default function Home() {
         }
         
         toast({ 
-          title: "Clonagem concluída!", 
-          description: "Todos os dados foram restaurados e vinculados à sua organização." 
+          title: "Importação concluída!", 
+          description: `Todos os dados foram clonados e vinculados à organização ${orgId}.` 
         });
       } catch (e: any) {
         console.error(e);
-        toast({ title: "Erro na importação", description: e.message, variant: "destructive" });
+        toast({ 
+          title: "Falha na Importação", 
+          description: `Motivo: ${e.message || 'Arquivo corrompido ou erro de conexão.'}`, 
+          variant: "destructive" 
+        });
       } finally {
         setIsBackupProcessing(false);
         if (importInputRef.current) importInputRef.current.value = '';
@@ -440,8 +448,8 @@ export default function Home() {
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6">
-          <Link href="/orders/new" className="group">
-            <Card className="h-full border-none shadow-md hover:shadow-xl transition-all hover:-translate-y-1 bg-primary text-white">
+          <Link href="/orders/new">
+            <Card className="h-full border-none shadow-md hover:shadow-xl transition-all hover:-translate-y-1 bg-primary text-white cursor-pointer">
               <CardHeader>
                 <div className="w-12 h-12 bg-white/20 rounded-xl flex items-center justify-center mb-4">
                   <ShoppingCart size={24} />
@@ -452,8 +460,8 @@ export default function Home() {
             </Card>
           </Link>
 
-          <Link href="/orders/grid" className="group">
-            <Card className="h-full border-none shadow-md hover:shadow-xl transition-all hover:-translate-y-1 bg-slate-800 text-white">
+          <Link href="/orders/grid">
+            <Card className="h-full border-none shadow-md hover:shadow-xl transition-all hover:-translate-y-1 bg-slate-800 text-white cursor-pointer">
               <CardHeader>
                 <div className="w-12 h-12 bg-white/20 rounded-xl flex items-center justify-center mb-4">
                   <LayoutGrid size={24} />
@@ -464,8 +472,8 @@ export default function Home() {
             </Card>
           </Link>
 
-          <Link href="/comparison" className="group">
-            <Card className="h-full border-none shadow-md hover:shadow-xl transition-all hover:-translate-y-1 bg-white">
+          <Link href="/comparison">
+            <Card className="h-full border-none shadow-md hover:shadow-xl transition-all hover:-translate-y-1 bg-white cursor-pointer">
               <CardHeader>
                 <div className="w-12 h-12 bg-emerald-50 rounded-xl flex items-center justify-center text-emerald-600 mb-4">
                   <Diff size={24} />
@@ -476,7 +484,7 @@ export default function Home() {
             </Card>
           </Link>
 
-          <div onClick={() => setShowExportConfigDialog(true)} className="group cursor-pointer">
+          <div onClick={() => setShowExportConfigDialog(true)} className="cursor-pointer group">
             <Card className="h-full border-none shadow-md hover:shadow-xl transition-all hover:-translate-y-1 bg-white border-l-4 border-l-blue-500">
               <CardHeader>
                 <div className="w-12 h-12 bg-blue-50 rounded-xl flex items-center justify-center text-blue-600 mb-4">
@@ -488,8 +496,8 @@ export default function Home() {
             </Card>
           </div>
 
-          <Link href="/orders/history" className="group">
-            <Card className="h-full border-none shadow-md hover:shadow-xl transition-all hover:-translate-y-1 bg-white">
+          <Link href="/orders/history">
+            <Card className="h-full border-none shadow-md hover:shadow-xl transition-all hover:-translate-y-1 bg-white cursor-pointer">
               <CardHeader>
                 <div className="w-12 h-12 bg-purple-50 rounded-xl flex items-center justify-center text-purple-600 mb-4">
                   <History size={24} />
