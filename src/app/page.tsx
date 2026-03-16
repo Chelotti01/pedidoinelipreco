@@ -1,7 +1,7 @@
 
 "use client"
 
-import { useState, useMemo, useRef } from 'react';
+import { useState, useMemo, useRef, useEffect } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useAuth, useUser, useFirestore, useDoc, useMemoFirebase, useCollection } from '@/firebase';
@@ -12,7 +12,7 @@ import {
   ShoppingCart, ListChecks, Zap, History, Users, LogOut, 
   Package, FileSpreadsheet, FileDown, Loader2, LayoutGrid, 
   DollarSign, TrendingUp, Settings, ChevronDown, ChevronUp, ShieldCheck, UploadCloud, Lock, Info, Eye, EyeOff, Type, Diff, ListOrdered,
-  Download, Upload, FileJson
+  Download, Upload
 } from "lucide-react";
 import {
   Dialog,
@@ -149,7 +149,7 @@ export default function Home() {
     try {
       const collectionsToExport = ['factories', 'clients', 'products', 'productFactoryPrices', 'pdfGroups', 'orders'];
       const backup: any = {
-        version: '1.0',
+        version: '1.1',
         orgId,
         exportedAt: new Date().toISOString(),
         data: {}
@@ -191,23 +191,22 @@ export default function Home() {
         if (!confirm) return;
 
         setIsBackupProcessing(true);
-        toast({ title: "Restaurando banco de dados...", description: "Processando registros..." });
+        toast({ title: "Restaurando banco de dados...", description: "Sincronizando todas as coleções..." });
         
         for (const colName in backup.data) {
           const items = backup.data[colName];
-          // Gravação em lotes de 400 (limite do Firestore é 500)
           for (let i = 0; i < items.length; i += 400) {
             const batch = writeBatch(db);
             items.slice(i, i + 400).forEach((item: any) => {
               const { id, ...data } = item;
               const docRef = doc(db, 'organizations', orgId, colName, id);
-              batch.set(docRef, data, { merge: true });
+              batch.set(docRef, { ...data, organizationId: orgId }, { merge: true });
             });
             await batch.commit();
           }
         }
         
-        toast({ title: "Restauração completa!", description: "Todos os dados foram sincronizados com sucesso." });
+        toast({ title: "Restauração completa!", description: "Produtos e tabelas sincronizados com sucesso." });
       } catch (e: any) {
         console.error(e);
         toast({ title: "Erro na importação", description: e.message || "Verifique a integridade do arquivo JSON.", variant: "destructive" });
