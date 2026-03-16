@@ -1,17 +1,18 @@
 
 "use client"
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useRef } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useAuth, useUser, useFirestore, useDoc, useMemoFirebase, useCollection } from '@/firebase';
-import { doc, collection, query, orderBy, getDocs } from 'firebase/firestore';
+import { doc, collection, query, orderBy, getDocs, writeBatch, serverTimestamp } from 'firebase/firestore';
 import { Button } from "@/components/ui/button";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
 import { 
   ShoppingCart, ListChecks, Zap, History, Users, LogOut, 
   Package, FileSpreadsheet, FileDown, Loader2, LayoutGrid, 
-  DollarSign, TrendingUp, Settings, ChevronDown, ChevronUp, ShieldCheck, UploadCloud, Lock, Info, Eye, EyeOff, Type, Diff, ListOrdered
+  DollarSign, TrendingUp, Settings, ChevronDown, ChevronUp, ShieldCheck, UploadCloud, Lock, Info, Eye, EyeOff, Type, Diff, ListOrdered,
+  Download, Upload, FileJson
 } from "lucide-react";
 import {
   Dialog,
@@ -61,9 +62,11 @@ export default function Home() {
   const db = useFirestore();
   const router = useRouter();
   const { toast } = useToast();
+  const importInputRef = useRef<HTMLInputElement>(null);
 
   const [showConfigs, setShowConfigs] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
+  const [isBackupProcessing, setIsBackupProcessing] = useState(false);
   const [showExportConfigDialog, setShowExportConfigDialog] = useState(false);
   
   const [showPasswordDialog, setShowPasswordDialog] = useState(false);
@@ -138,6 +141,84 @@ export default function Home() {
     }
   };
 
+  const handleExportBackup = async () => {
+    if (!orgId) return;
+    setIsBackupProcessing(true);
+    toast({ title: "Preparando exportação...", description: "Isso pode levar alguns segundos dependendo do volume de dados." });
+
+    try {
+      const collectionsToExport = ['factories', 'clients', 'products', 'productFactoryPrices', 'pdfGroups', 'orders'];
+      const backup: any = {
+        version: '1.0',
+        orgId,
+        exportedAt: new Date().toISOString(),
+        data: {}
+      };
+
+      for (const colName of collectionsToExport) {
+        const snap = await getDocs(collection(db, 'organizations', orgId, colName));
+        backup.data[colName] = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+      }
+
+      const blob = new Blob([JSON.stringify(backup, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `backup_${orgId}_${format(new Date(), 'yyyyMMdd_HHmm')}.json`;
+      link.click();
+      URL.revokeObjectURL(url);
+      
+      toast({ title: "Backup concluído!", description: "O arquivo JSON foi baixado no seu navegador." });
+    } catch (e) {
+      console.error(e);
+      toast({ title: "Erro na exportação", description: "Não foi possível gerar o arquivo de backup.", variant: "destructive" });
+    } finally {
+      setIsBackupProcessing(false);
+    }
+  };
+
+  const handleImportBackup = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !orgId) return;
+
+    const reader = new FileReader();
+    reader.onload = async (event) => {
+      try {
+        const backup = JSON.parse(event.target?.result as string);
+        if (!backup.data) throw new Error("O arquivo não parece ser um backup válido do InteliPreço.");
+
+        const confirm = window.confirm("ATENÇÃO: A restauração irá sobrescrever ou mesclar os dados atuais. Deseja continuar?");
+        if (!confirm) return;
+
+        setIsBackupProcessing(true);
+        toast({ title: "Restaurando banco de dados...", description: "Processando registros..." });
+        
+        for (const colName in backup.data) {
+          const items = backup.data[colName];
+          // Gravação em lotes de 400 (limite do Firestore é 500)
+          for (let i = 0; i < items.length; i += 400) {
+            const batch = writeBatch(db);
+            items.slice(i, i + 400).forEach((item: any) => {
+              const { id, ...data } = item;
+              const docRef = doc(db, 'organizations', orgId, colName, id);
+              batch.set(docRef, data, { merge: true });
+            });
+            await batch.commit();
+          }
+        }
+        
+        toast({ title: "Restauração completa!", description: "Todos os dados foram sincronizados com sucesso." });
+      } catch (e: any) {
+        console.error(e);
+        toast({ title: "Erro na importação", description: e.message || "Verifique a integridade do arquivo JSON.", variant: "destructive" });
+      } finally {
+        setIsBackupProcessing(false);
+        if (importInputRef.current) importInputRef.current.value = '';
+      }
+    };
+    reader.readAsText(file);
+  };
+
   const handleExportPDF = async () => {
     if (exportFactoryId === "none" || exportLineFilter === "none" || !orgId) {
       toast({ title: "Filtros incompletos", variant: "destructive" });
@@ -185,7 +266,6 @@ export default function Home() {
       }
 
       const pdf = new jsPDF('p', 'mm', 'a4');
-      // Alterado para apenas 20 linhas para garantir espaço para o rodapé e evitar cortes
       const itemsPerPage = 20; 
       const totalPages = Math.ceil(displayRows.length / itemsPerPage);
       const factoryName = factories?.find(f => f.id === exportFactoryId)?.name || 'Fábrica';
@@ -436,7 +516,7 @@ export default function Home() {
           </button>
 
           {showConfigs && (
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-6 mt-6 animate-in fade-in slide-in-from-top-4 duration-300">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mt-6 animate-in fade-in slide-in-from-top-4 duration-300">
               <Link href="/upload">
                 <Card className="hover:border-primary transition-colors cursor-pointer h-full border-2 border-dashed bg-primary/5">
                   <CardHeader>
@@ -496,6 +576,33 @@ export default function Home() {
                   </CardHeader>
                 </Card>
               </Link>
+
+              <div onClick={handleExportBackup} className="cursor-pointer group">
+                <Card className="hover:border-primary transition-colors h-full bg-slate-50 border-slate-200">
+                  <CardHeader>
+                    {isBackupProcessing ? <Loader2 className="animate-spin text-slate-400 mb-2" /> : <Download size={20} className="text-slate-600 mb-2" />}
+                    <CardTitle className="text-lg">Exportar JSON</CardTitle>
+                    <CardDescription className="text-xs text-muted-foreground">Baixe um backup completo dos dados da organização.</CardDescription>
+                  </CardHeader>
+                </Card>
+              </div>
+
+              <div onClick={() => importInputRef.current?.click()} className="cursor-pointer group">
+                <Card className="hover:border-primary transition-colors h-full bg-slate-50 border-slate-200">
+                  <CardHeader>
+                    {isBackupProcessing ? <Loader2 className="animate-spin text-slate-400 mb-2" /> : <Upload size={20} className="text-slate-600 mb-2" />}
+                    <CardTitle className="text-lg">Importar JSON</CardTitle>
+                    <CardDescription className="text-xs text-muted-foreground">Restaure os dados a partir de um arquivo JSON.</CardDescription>
+                  </CardHeader>
+                </Card>
+                <input 
+                  type="file" 
+                  ref={importInputRef} 
+                  onChange={handleImportBackup} 
+                  accept=".json" 
+                  className="hidden" 
+                />
+              </div>
             </div>
           )}
         </div>
