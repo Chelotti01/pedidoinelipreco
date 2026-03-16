@@ -20,9 +20,12 @@ service cloud.firestore {
 
     /**
      * @description Perfis de usuário para controle de organização (SaaS).
+     * Permitimos 'get' público para que o fluxo de ativação de conta consiga verificar se o e-mail foi convidado.
+     * 'list' (ver todos) continua restrito a administradores.
      */
     match /userProfiles/{email} {
-      allow read: if isSignedIn() && (request.auth.token.email.lower() == email.lower() || isAdmin());
+      allow get: if true;
+      allow list: if isSignedIn() && (request.auth.token.email.lower() == email.lower() || isAdmin());
       allow write: if isAdmin();
     }
 
@@ -33,21 +36,17 @@ service cloud.firestore {
 
     /**
      * @description Estrutura de Organizações e subcoleções.
-     * Usamos match recursivo para garantir que o administrador mestre e usuários 
-     * autenticados possam acessar os dados necessários.
      */
     match /organizations/{orgId} {
       allow read: if isSignedIn();
       allow write: if isAdmin();
 
-      // Regra para todas as subcoleções (clientes, fábricas, produtos, pedidos, etc.)
       match /{allSubcollections=**} {
         allow read: if isSignedIn();
         allow write: if isAdmin() || isSignedIn(); 
       }
     }
 
-    // Regras de compatibilidade para coleções legadas no nível raiz
     match /factories/{factoryId} {
       allow read: if isSignedIn();
       allow write: if isAdmin();

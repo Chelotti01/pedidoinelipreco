@@ -1,4 +1,3 @@
-
 "use client"
 
 import { useState } from 'react';
@@ -55,7 +54,7 @@ export default function LoginPage() {
         targetEmail = 'vendas.piracanjuba@gmail.com';
       }
 
-      // Validação de formato de e-mail
+      // Validação de formato de e-mail antes de chamar o Firebase
       if (!validateEmail(targetEmail)) {
         toast({ 
           title: "E-mail inválido", 
@@ -74,7 +73,7 @@ export default function LoginPage() {
       let msg = "Usuário ou senha inválidos.";
       if (error.code === 'auth/invalid-email') msg = "O formato do e-mail digitado é inválido.";
       if (error.code === 'auth/user-disabled') msg = "Esta conta foi desativada.";
-      if (error.code === 'auth/user-not-found' || error.code === 'auth/wrong-password') msg = "E-mail ou senha incorretos.";
+      if (error.code === 'auth/user-not-found' || error.code === 'auth/wrong-password' || error.code === 'auth/invalid-credential') msg = "E-mail ou senha incorretos.";
       
       toast({ title: "Erro de login", description: msg, variant: "destructive" });
     } finally {
@@ -103,6 +102,7 @@ export default function LoginPage() {
       
       if (!isMaster) {
         // 2. Verificar convite usando getDoc direto pelo e-mail (ID do documento)
+        // O firestore.rules agora permite 'get' para essa verificação pré-cadastro
         const profileDoc = await getDoc(doc(db, 'userProfiles', targetEmail));
 
         if (!profileDoc.exists()) {
@@ -122,9 +122,11 @@ export default function LoginPage() {
       router.push('/');
     } catch (error: any) {
       console.error(error);
-      let msg = "Ocorreu um erro ao criar sua conta.";
+      let msg = error.message || "Ocorreu um erro ao criar sua conta.";
       if (error.code === 'auth/email-already-in-use') msg = "Este e-mail já possui uma conta ativa.";
       if (error.code === 'auth/weak-password') msg = "A senha deve ter pelo menos 6 caracteres.";
+      if (error.code === 'permission-denied') msg = "Erro de permissão ao validar seu e-mail. Tente novamente.";
+      
       toast({ title: "Erro no cadastro", description: msg, variant: "destructive" });
     } finally {
       setIsLoading(false);
