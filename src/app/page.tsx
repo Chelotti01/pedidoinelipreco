@@ -144,7 +144,7 @@ export default function Home() {
   const handleExportBackup = async () => {
     if (!orgId) return;
     setIsBackupProcessing(true);
-    toast({ title: "Preparando exportação...", description: "Isso pode levar alguns segundos dependendo do volume de dados." });
+    toast({ title: "Preparando exportação...", description: "Gerando backup completo da organização." });
 
     try {
       const collectionsToExport = ['factories', 'clients', 'products', 'productFactoryPrices', 'pdfGroups', 'orders'];
@@ -168,10 +168,10 @@ export default function Home() {
       link.click();
       URL.revokeObjectURL(url);
       
-      toast({ title: "Backup concluído!", description: "O arquivo JSON foi baixado no seu navegador." });
+      toast({ title: "Backup concluído!" });
     } catch (e) {
       console.error(e);
-      toast({ title: "Erro na exportação", description: "Não foi possível gerar o arquivo de backup.", variant: "destructive" });
+      toast({ title: "Erro na exportação", variant: "destructive" });
     } finally {
       setIsBackupProcessing(false);
     }
@@ -185,13 +185,13 @@ export default function Home() {
     reader.onload = async (event) => {
       try {
         const backup = JSON.parse(event.target?.result as string);
-        if (!backup.data) throw new Error("O arquivo não parece ser um backup válido do InteliPreço.");
+        if (!backup.data) throw new Error("Arquivo inválido.");
 
-        const confirm = window.confirm("ATENÇÃO: A restauração irá sobrescrever ou mesclar os dados atuais. Deseja continuar?");
+        const confirm = window.confirm(`Importar dados para ${orgId}? Isso não apagará dados existentes, apenas adicionará/atualizará.`);
         if (!confirm) return;
 
         setIsBackupProcessing(true);
-        toast({ title: "Restaurando banco de dados...", description: "Sincronizando todas as coleções..." });
+        toast({ title: "Clonando dados...", description: "Processando lotes..." });
         
         for (const colName in backup.data) {
           const items = backup.data[colName];
@@ -200,16 +200,17 @@ export default function Home() {
             items.slice(i, i + 400).forEach((item: any) => {
               const { id, ...data } = item;
               const docRef = doc(db, 'organizations', orgId, colName, id);
-              batch.set(docRef, { ...data, organizationId: orgId }, { merge: true });
+              // Clonagem: Vincula o organizationId para o novo usuário
+              batch.set(docRef, { ...data, organizationId: orgId, updatedAt: serverTimestamp() }, { merge: true });
             });
             await batch.commit();
           }
         }
         
-        toast({ title: "Restauração completa!", description: "Produtos e tabelas sincronizados com sucesso." });
+        toast({ title: "Restauração completa!" });
       } catch (e: any) {
         console.error(e);
-        toast({ title: "Erro na importação", description: e.message || "Verifique a integridade do arquivo JSON.", variant: "destructive" });
+        toast({ title: "Erro na importação", description: e.message, variant: "destructive" });
       } finally {
         setIsBackupProcessing(false);
         if (importInputRef.current) importInputRef.current.value = '';
@@ -241,7 +242,7 @@ export default function Home() {
       ) || []);
 
       if (filtered.length === 0) {
-        toast({ title: "Nenhum item encontrado", description: "Verifique os filtros selecionados.", variant: "destructive" });
+        toast({ title: "Nenhum item encontrado", variant: "destructive" });
         setIsExporting(false);
         return;
       }
@@ -265,7 +266,7 @@ export default function Home() {
       }
 
       const pdf = new jsPDF('p', 'mm', 'a4');
-      const itemsPerPage = 20; 
+      const itemsPerPage = 20; // LIMITE DE 20 LINHAS PARA NÃO CORTAR
       const totalPages = Math.ceil(displayRows.length / itemsPerPage);
       const factoryName = factories?.find(f => f.id === exportFactoryId)?.name || 'Fábrica';
       
@@ -288,7 +289,7 @@ export default function Home() {
         container.style.width = '210mm';
         container.style.height = '297mm'; 
         container.style.backgroundColor = 'white';
-        container.style.padding = '15mm 15mm 10mm 15mm'; 
+        container.style.padding = '15mm 15mm 10mm 15mm'; // 10mm (1cm) margem rodapé
         container.style.boxSizing = 'border-box';
 
         const rowsHtml = pageItems.map(row => {
@@ -365,7 +366,7 @@ export default function Home() {
               </table>
             </div>
             <div style="margin-top: auto; border-top: 1px solid #eee; padding-top: 10px; display: flex; justify-content: space-between; align-items: center;">
-              <p style="font-size: 9pt; color: #94a3b8; font-family: Arial, sans-serif; margin: 0;">Gerado em: ${format(new Date(), "dd/MM/yyyy HH:mm")}. Preços sujeitos a alteração sem aviso prévio.</p>
+              <p style="font-size: 9pt; color: #94a3b8; font-family: Arial, sans-serif; margin: 0;">Gerado em: ${format(new Date(), "dd/MM/yyyy HH:mm")}. Preços sujeitos a alteração.</p>
               <p style="font-size: 9pt; font-weight: normal; color: #cbd5e1; font-family: Arial, sans-serif; margin: 0; text-transform: uppercase;">COD: ${footerCode}</p>
             </div>
           </div>
@@ -380,20 +381,18 @@ export default function Home() {
         document.body.removeChild(container);
       }
 
-      pdf.save(`tabela_${factoryName.toLowerCase().replace(/\s+/g, '_')}_${exportLineFilter.toLowerCase().replace(/\s+/g, '_')}.pdf`);
+      pdf.save(`tabela_${factoryName.toLowerCase().replace(/\s+/g, '_')}.pdf`);
       setShowExportConfigDialog(false);
-      toast({ title: "Tabela gerada com sucesso!" });
+      toast({ title: "Tabela gerada!" });
     } catch (e) {
       console.error(e);
-      toast({ title: "Erro ao gerar PDF", variant: "destructive" });
+      toast({ title: "Erro no PDF", variant: "destructive" });
     } finally {
       setIsExporting(false);
     }
   };
 
-  if (isProfileLoading) {
-    return <div className="flex h-screen items-center justify-center"><Loader2 className="animate-spin text-primary" size={48} /></div>;
-  }
+  if (isProfileLoading) return <div className="flex h-screen items-center justify-center"><Loader2 className="animate-spin text-primary" size={48} /></div>;
 
   return (
     <div className="flex flex-col min-h-screen bg-slate-50">
@@ -593,14 +592,14 @@ export default function Home() {
                     <CardTitle className="text-lg">Importar JSON</CardTitle>
                     <CardDescription className="text-xs text-muted-foreground">Restaure os dados a partir de um arquivo JSON.</CardDescription>
                   </CardHeader>
+                  <input 
+                    type="file" 
+                    ref={importInputRef} 
+                    onChange={handleImportBackup} 
+                    accept=".json" 
+                    className="hidden" 
+                  />
                 </Card>
-                <input 
-                  type="file" 
-                  ref={importInputRef} 
-                  onChange={handleImportBackup} 
-                  accept=".json" 
-                  className="hidden" 
-                />
               </div>
             </div>
           )}
