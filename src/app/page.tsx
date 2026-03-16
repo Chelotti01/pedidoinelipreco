@@ -149,7 +149,7 @@ export default function Home() {
     try {
       const collectionsToExport = ['factories', 'clients', 'products', 'productFactoryPrices', 'pdfGroups', 'orders'];
       const backup: any = {
-        version: '1.1',
+        version: '1.2',
         orgId,
         exportedAt: new Date().toISOString(),
         data: {}
@@ -185,29 +185,35 @@ export default function Home() {
     reader.onload = async (event) => {
       try {
         const backup = JSON.parse(event.target?.result as string);
-        if (!backup.data) throw new Error("Arquivo inválido.");
+        if (!backup.data) throw new Error("Arquivo de backup inválido.");
 
-        const confirm = window.confirm(`Importar dados para ${orgId}? Isso não apagará dados existentes, apenas adicionará/atualizará.`);
+        const confirm = window.confirm(`Importar e clonar dados para ${orgId}? Isso não apagará dados existentes, apenas adicionará/atualizará os itens clonados.`);
         if (!confirm) return;
 
         setIsBackupProcessing(true);
-        toast({ title: "Clonando dados...", description: "Processando lotes..." });
+        toast({ title: "Sincronizando...", description: "Aguarde o processamento dos lotes." });
         
         for (const colName in backup.data) {
           const items = backup.data[colName];
+          if (!Array.isArray(items)) continue;
+
           for (let i = 0; i < items.length; i += 400) {
             const batch = writeBatch(db);
             items.slice(i, i + 400).forEach((item: any) => {
               const { id, ...data } = item;
               const docRef = doc(db, 'organizations', orgId, colName, id);
-              // Clonagem: Vincula o organizationId para o novo usuário
-              batch.set(docRef, { ...data, organizationId: orgId, updatedAt: serverTimestamp() }, { merge: true });
+              // CRITICAL: Atualiza o organizationId para o novo usuário para garantir visibilidade
+              batch.set(docRef, { 
+                ...data, 
+                organizationId: orgId, 
+                updatedAt: serverTimestamp() 
+              }, { merge: true });
             });
             await batch.commit();
           }
         }
         
-        toast({ title: "Restauração completa!" });
+        toast({ title: "Clonagem concluída!", description: "Os produtos e configurações agora estão visíveis." });
       } catch (e: any) {
         console.error(e);
         toast({ title: "Erro na importação", description: e.message, variant: "destructive" });
@@ -266,7 +272,7 @@ export default function Home() {
       }
 
       const pdf = new jsPDF('p', 'mm', 'a4');
-      const itemsPerPage = 20; // LIMITE DE 20 LINHAS PARA NÃO CORTAR
+      const itemsPerPage = 20; 
       const totalPages = Math.ceil(displayRows.length / itemsPerPage);
       const factoryName = factories?.find(f => f.id === exportFactoryId)?.name || 'Fábrica';
       
@@ -289,7 +295,7 @@ export default function Home() {
         container.style.width = '210mm';
         container.style.height = '297mm'; 
         container.style.backgroundColor = 'white';
-        container.style.padding = '15mm 15mm 10mm 15mm'; // 10mm (1cm) margem rodapé
+        container.style.padding = '15mm 15mm 10mm 15mm'; 
         container.style.boxSizing = 'border-box';
 
         const rowsHtml = pageItems.map(row => {
@@ -563,6 +569,7 @@ export default function Home() {
                     <CardDescription className="text-xs text-muted-foreground">Gerencie seus clientes e prazos.</CardDescription>
                   </CardHeader>
                 </Card>
+
               </Link>
 
               <Link href="/admin/products/margins">
