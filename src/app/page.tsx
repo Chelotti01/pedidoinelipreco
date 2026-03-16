@@ -182,38 +182,40 @@ export default function Home() {
     if (!file) return;
 
     if (!orgId) {
-      toast({ 
-        title: "Erro de Organização", 
-        description: "Não foi possível identificar sua organização atual.", 
-        variant: "destructive" 
-      });
+      toast({ title: "Erro de Organização", description: "Sua sessão expirou ou organização não identificada.", variant: "destructive" });
       return;
     }
 
-    toast({ title: "Leitura iniciada", description: `Processando ${file.name}...` });
+    toast({ title: "Leitura iniciada", description: `Analisando arquivo: ${file.name}` });
 
     const reader = new FileReader();
     reader.onload = async (event) => {
       try {
         const content = event.target?.result as string;
-        if (!content) throw new Error("O arquivo selecionado está vazio.");
+        if (!content) throw new Error("O arquivo selecionado está vazio ou ilegível.");
 
-        const backup = JSON.parse(content);
+        let backup;
+        try {
+          backup = JSON.parse(content);
+        } catch (e) {
+          throw new Error("O arquivo não é um JSON válido. Verifique se baixou o backup corretamente.");
+        }
+
         if (!backup.data || typeof backup.data !== 'object') {
-          throw new Error("O arquivo não possui o formato de backup esperado.");
+          throw new Error("Formato de backup inválido (propriedade 'data' não encontrada).");
         }
 
         const confirmImport = window.confirm(
-          `Confirmar importação para "${orgId}"?\n\nIsso clonará todos os produtos e configurações para sua conta atual.`
+          `CONFIRMAR IMPORTAÇÃO?\n\nOrganização Destino: "${orgId}"\n\nIsso clonará todos os produtos, clientes e configurações para sua conta atual. Os IDs dos documentos serão preservados.`
         );
         
         if (!confirmImport) {
-          toast({ title: "Importação cancelada." });
+          toast({ title: "Importação cancelada pelo usuário." });
           return;
         }
 
         setIsBackupProcessing(true);
-        toast({ title: "Processando clonagem...", description: "Isso pode levar alguns segundos." });
+        toast({ title: "Clonando banco de dados...", description: "Isso pode levar alguns segundos dependendo do volume de dados." });
         
         let totalCount = 0;
         const collectionsToImport = Object.keys(backup.data);
@@ -232,7 +234,6 @@ export default function Home() {
 
               const docRef = doc(db, 'organizations', orgId, colName, id);
               
-              // CRITICAL: Atualizar organizationId para o novo tenant (clonagem)
               batch.set(docRef, { 
                 ...data, 
                 organizationId: orgId, 
@@ -247,15 +248,16 @@ export default function Home() {
         }
         
         toast({ 
-          title: "Importação concluída!", 
-          description: `${totalCount} registros clonados com sucesso para a organização ${orgId}.` 
+          title: "Importação concluída com sucesso!", 
+          description: `${totalCount} registros foram clonados e vinculados à organização ${orgId}.` 
         });
-        router.refresh();
+        
+        setTimeout(() => router.refresh(), 1000);
       } catch (err: any) {
-        console.error("Erro na importação:", err);
+        console.error("Erro detalhado na importação:", err);
         toast({ 
           title: "Falha na Importação", 
-          description: `Motivo: ${err.message || 'Arquivo inválido ou erro de conexão.'}`, 
+          description: `Motivo: ${err.message || 'Erro desconhecido de processamento.'}`, 
           variant: "destructive" 
         });
       } finally {
@@ -265,7 +267,7 @@ export default function Home() {
     };
 
     reader.onerror = () => {
-      toast({ title: "Erro na leitura", description: "O navegador não conseguiu ler o arquivo.", variant: "destructive" });
+      toast({ title: "Erro de Leitura", description: "O navegador não conseguiu ler o arquivo físico.", variant: "destructive" });
     };
 
     reader.readAsText(file);
@@ -323,9 +325,7 @@ export default function Home() {
       const factoryName = factories?.find(f => f.id === exportFactoryId)?.name || 'Fábrica';
       
       const typeShorthand = exportPriceType === 'closed' ? 'fe' : 'fr';
-      const formattedPercent = exportPriceType === 'closed' 
-        ? (exportContractPercent / 10).toString().replace('.', ',')
-        : (exportContractPercent < 10 ? `0${exportContractPercent}` : exportContractPercent);
+      const formattedPercent = (exportContractPercent || 0).toString().replace('.', ',');
       const footerCode = `${typeShorthand} ${formattedPercent}`;
 
       for (let page = 0; page < totalPages; page++) {
@@ -520,7 +520,7 @@ export default function Home() {
             </Card>
           </Link>
 
-          <div onClick={() => setShowExportConfigDialog(true)} className="cursor-pointer group">
+          <div onClick={() => setShowExportConfigDialog(true)} className="cursor-pointer">
             <Card className="h-full border-none shadow-md hover:shadow-xl transition-all hover:-translate-y-1 bg-white border-l-4 border-l-blue-500">
               <CardHeader>
                 <div className="w-12 h-12 bg-blue-50 rounded-xl flex items-center justify-center text-blue-600 mb-4">
@@ -627,7 +627,7 @@ export default function Home() {
                 </Card>
               </Link>
 
-              <div onClick={handleExportBackup} className="cursor-pointer group">
+              <div onClick={handleExportBackup} className="cursor-pointer">
                 <Card className="hover:border-primary transition-colors h-full bg-slate-50 border-slate-200">
                   <CardHeader>
                     {isBackupProcessing ? <Loader2 className="animate-spin text-slate-400 mb-2" /> : <Download size={20} className="text-slate-600 mb-2" />}
@@ -637,7 +637,7 @@ export default function Home() {
                 </Card>
               </div>
 
-              <div onClick={() => importInputRef.current?.click()} className="cursor-pointer group">
+              <div onClick={() => importInputRef.current?.click()} className="cursor-pointer">
                 <Card className="hover:border-primary transition-colors h-full bg-slate-50 border-slate-200">
                   <CardHeader>
                     {isBackupProcessing ? <Loader2 className="animate-spin text-slate-400 mb-2" /> : <Upload size={20} className="text-slate-600 mb-2" />}
