@@ -202,7 +202,6 @@ export default function Home() {
             items.slice(i, i + 400).forEach((item: any) => {
               const { id, ...data } = item;
               const docRef = doc(db, 'organizations', orgId, colName, id);
-              // CRITICAL: Atualiza o organizationId para o novo usuário para garantir visibilidade
               batch.set(docRef, { 
                 ...data, 
                 organizationId: orgId, 
@@ -213,7 +212,10 @@ export default function Home() {
           }
         }
         
-        toast({ title: "Clonagem concluída!", description: "Os produtos e configurações agora estão visíveis." });
+        toast({ 
+          title: "Clonagem concluída!", 
+          description: "Todos os dados foram restaurados e vinculados à sua organização." 
+        });
       } catch (e: any) {
         console.error(e);
         toast({ title: "Erro na importação", description: e.message, variant: "destructive" });
@@ -569,7 +571,6 @@ export default function Home() {
                     <CardDescription className="text-xs text-muted-foreground">Gerencie seus clientes e prazos.</CardDescription>
                   </CardHeader>
                 </Card>
-
               </Link>
 
               <Link href="/admin/products/margins">
