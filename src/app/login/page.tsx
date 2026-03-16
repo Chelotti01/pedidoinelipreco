@@ -37,6 +37,10 @@ export default function LoginPage() {
   const router = useRouter();
   const { toast } = useToast();
 
+  const validateEmail = (emailStr: string) => {
+    return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(emailStr);
+  };
+
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
@@ -44,15 +48,35 @@ export default function LoginPage() {
     try {
       await setPersistence(auth, rememberMe ? browserLocalPersistence : browserSessionPersistence);
 
-      let targetEmail = email.toLowerCase().trim();
-      if (targetEmail === 'rodrigo') targetEmail = 'vendas.piracanjuba@gmail.com';
+      let targetEmail = email.trim().toLowerCase();
+      
+      // Alias handling para o administrador
+      if (targetEmail === 'rodrigo') {
+        targetEmail = 'vendas.piracanjuba@gmail.com';
+      }
+
+      // Validação de formato de e-mail
+      if (!validateEmail(targetEmail)) {
+        toast({ 
+          title: "E-mail inválido", 
+          description: "Por favor, digite um endereço de e-mail válido ou um usuário permitido.", 
+          variant: "destructive" 
+        });
+        setIsLoading(false);
+        return;
+      }
 
       await signInWithEmailAndPassword(auth, targetEmail, password);
       toast({ title: "Bem-vindo!", description: "Login realizado com sucesso." });
       router.push('/');
     } catch (error: any) {
       console.error(error);
-      toast({ title: "Erro de login", description: "Usuário ou senha inválidos.", variant: "destructive" });
+      let msg = "Usuário ou senha inválidos.";
+      if (error.code === 'auth/invalid-email') msg = "O formato do e-mail digitado é inválido.";
+      if (error.code === 'auth/user-disabled') msg = "Esta conta foi desativada.";
+      if (error.code === 'auth/user-not-found' || error.code === 'auth/wrong-password') msg = "E-mail ou senha incorretos.";
+      
+      toast({ title: "Erro de login", description: msg, variant: "destructive" });
     } finally {
       setIsLoading(false);
     }
@@ -60,7 +84,13 @@ export default function LoginPage() {
 
   const handleSignUp = async (e: React.FormEvent) => {
     e.preventDefault();
-    const targetEmail = email.toLowerCase().trim();
+    let targetEmail = email.trim().toLowerCase();
+
+    if (!validateEmail(targetEmail)) {
+      toast({ title: "E-mail inválido", description: "Digite um e-mail no formato correto.", variant: "destructive" });
+      return;
+    }
+
     if (password !== confirmPassword) {
       toast({ title: "Senhas divergentes", description: "A confirmação de senha deve ser idêntica.", variant: "destructive" });
       return;
