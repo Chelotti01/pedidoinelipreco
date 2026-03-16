@@ -12,7 +12,7 @@ import {
   ShoppingCart, ListChecks, Zap, History, Users, LogOut, 
   Package, FileDown, Loader2, LayoutGrid, 
   TrendingUp, Settings, ChevronDown, ChevronUp, ShieldCheck, UploadCloud, Lock, Eye, EyeOff, Diff, ListOrdered,
-  Download, Upload
+  Download, Upload, AlertTriangle, CheckCircle2, Info, FileJson
 } from "lucide-react";
 import {
   Dialog,
@@ -28,6 +28,7 @@ import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
 import { useToast } from "@/hooks/use-toast";
 import { format } from 'date-fns';
+import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";
 
 const PRICE_TABLE_CATEGORIES_DEFAULT = [
   { name: "LEITES PIRACANJUBA", codes: ["10317", "10318", "10319"] },
@@ -44,7 +45,7 @@ const PRICE_TABLE_CATEGORIES_DEFAULT = [
   { name: "LEITE CONDENSADO", codes: ["12301", "12307", "12320", "12332", "12333", "12334", "12335", "12603"] },
   { name: "BEBIDAS LÁCTEAS PIRAKIDS", codes: ["12003", "12016", "12017", "12019"] },
   { name: "PROFORCE 250ML 23g", codes: ["12026", "12027", "12557", "12559", "12564"] },
-  { name: "PROFORCE 250ML 15g", codes: ["12572", "12573", "12574", "12575", "12576", "12591"] },
+  { name: "PROFORCE 250ML 15g", codes: ["12572", "12573", "12574", "12575", "12591"] },
   { name: "BEBIDA LÁCTEA MILKYMOO 250ML 15g", codes: ["12579", "12590"] },
   { name: "BEBIDA LÁCTEA ZQUAD 250ML 10g", codes: ["12587", "12588", "12589"] },
   { name: "WHEY EM PÓ 450g", codes: ["12577", "12578"] },
@@ -55,6 +56,13 @@ const PRICE_TABLE_CATEGORIES_DEFAULT = [
   { name: "QUEIJOS", codes: ["10601", "10602", "10605", "10606", "10901", "10903", "11001", "11005", "11010", "11013", "11014", "11017", "11028", "11023", "11101", "11119", "11118", "11201", "11204", "11216", "11226", "11503", "11519", "11509", "11510", "11520", "11607", "11608", "11609", "11610"] },
   { name: "SUPLEMENTOS ALIMENTARES EMANA", codes: ["322500", "322502", "322503", "322504", "323101", "323102", "323103", "323104", "323105", "323106", "323107", "323108", "323109", "323110", "323111", "323112", "323201", "323202", "323203", "323301", "323302", "323303", "323304", "323305", "323306", "323307", "323308", "323309", "323310", "323311", "323312", "323313", "323314", "323315", "323316", "323317", "323318", "323319", "323324", "323325", "323326", "323327", "323328", "323329", "323336", "323338", "323342", "323343"] }
 ];
+
+interface ValidationReport {
+  isValid: boolean;
+  message: string;
+  stats: Record<string, number>;
+  data?: any;
+}
 
 export default function Home() {
   const auth = useAuth();
@@ -68,6 +76,10 @@ export default function Home() {
   const [isExporting, setIsExporting] = useState(false);
   const [isBackupProcessing, setIsBackupProcessing] = useState(false);
   const [showExportConfigDialog, setShowExportConfigDialog] = useState(false);
+  
+  // States para Importação Segura
+  const [showImportDialog, setShowImportDialog] = useState(false);
+  const [validationReport, setValidationReport] = useState<ValidationReport | null>(null);
   
   const [showPasswordDialog, setShowPasswordDialog] = useState(false);
   const [inputPassword, setInputPassword] = useState("");
@@ -121,7 +133,7 @@ export default function Home() {
     if (showConfigs) {
       setShowConfigs(false);
     } else {
-      if (isConfigsUnlocked) {
+      if (isConfigsUnlocked || isSuperAdmin) {
         setShowConfigs(true);
       } else {
         setShowPasswordDialog(true);
@@ -149,7 +161,7 @@ export default function Home() {
     try {
       const collectionsToExport = ['factories', 'clients', 'products', 'productFactoryPrices', 'pdfGroups', 'orders'];
       const backup: any = {
-        version: '1.3',
+        version: '1.4',
         orgId,
         exportedAt: new Date().toISOString(),
         data: {}
@@ -177,100 +189,89 @@ export default function Home() {
     }
   };
 
-  const handleImportBackup = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    if (!orgId) {
-      toast({ title: "Erro de Organização", description: "Sua sessão expirou ou organização não identificada.", variant: "destructive" });
-      return;
-    }
-
-    toast({ title: "Leitura iniciada", description: `Analisando arquivo: ${file.name}` });
-
     const reader = new FileReader();
-    reader.onload = async (event) => {
+    reader.onload = (event) => {
       try {
         const content = event.target?.result as string;
-        if (!content) throw new Error("O arquivo selecionado está vazio ou ilegível.");
-
-        let backup;
-        try {
-          backup = JSON.parse(content);
-        } catch (e) {
-          throw new Error("O arquivo não é um JSON válido. Verifique se baixou o backup corretamente.");
-        }
-
+        const backup = JSON.parse(content);
+        
         if (!backup.data || typeof backup.data !== 'object') {
-          throw new Error("Formato de backup inválido (propriedade 'data' não encontrada).");
+          setValidationReport({ isValid: false, message: "O arquivo não possui o formato de backup esperado.", stats: {} });
+        } else {
+          const stats: Record<string, number> = {};
+          Object.keys(backup.data).forEach(key => {
+            stats[key] = Array.isArray(backup.data[key]) ? backup.data[key].length : 0;
+          });
+          setValidationReport({ isValid: true, message: "Arquivo validado com sucesso!", stats, data: backup.data });
         }
-
-        const confirmImport = window.confirm(
-          `CONFIRMAR IMPORTAÇÃO?\n\nOrganização Destino: "${orgId}"\n\nIsso clonará todos os produtos, clientes e configurações para sua conta atual. Os IDs dos documentos serão preservados.`
-        );
-        
-        if (!confirmImport) {
-          toast({ title: "Importação cancelada pelo usuário." });
-          return;
-        }
-
-        setIsBackupProcessing(true);
-        toast({ title: "Clonando banco de dados...", description: "Isso pode levar alguns segundos dependendo do volume de dados." });
-        
-        let totalCount = 0;
-        const collectionsToImport = Object.keys(backup.data);
-
-        for (const colName of collectionsToImport) {
-          const items = backup.data[colName];
-          if (!Array.isArray(items)) continue;
-
-          for (let i = 0; i < items.length; i += 400) {
-            const batch = writeBatch(db);
-            const chunk = items.slice(i, i + 400);
-            
-            chunk.forEach((item: any) => {
-              const { id, ...data } = item;
-              if (!id) return;
-
-              const docRef = doc(db, 'organizations', orgId, colName, id);
-              
-              batch.set(docRef, { 
-                ...data, 
-                organizationId: orgId, 
-                updatedAt: serverTimestamp() 
-              }, { merge: true });
-              
-              totalCount++;
-            });
-            
-            await batch.commit();
-          }
-        }
-        
-        toast({ 
-          title: "Importação concluída com sucesso!", 
-          description: `${totalCount} registros foram clonados e vinculados à organização ${orgId}.` 
-        });
-        
-        setTimeout(() => router.refresh(), 1000);
-      } catch (err: any) {
-        console.error("Erro detalhado na importação:", err);
-        toast({ 
-          title: "Falha na Importação", 
-          description: `Motivo: ${err.message || 'Erro desconhecido de processamento.'}`, 
-          variant: "destructive" 
-        });
-      } finally {
-        setIsBackupProcessing(false);
-        if (importInputRef.current) importInputRef.current.value = '';
+        setShowImportDialog(true);
+      } catch (e) {
+        setValidationReport({ isValid: false, message: "Erro ao ler JSON: Arquivo malformado ou corrompido.", stats: {} });
+        setShowImportDialog(true);
       }
     };
-
-    reader.onerror = () => {
-      toast({ title: "Erro de Leitura", description: "O navegador não conseguiu ler o arquivo físico.", variant: "destructive" });
-    };
-
     reader.readAsText(file);
+  };
+
+  const executeImport = async () => {
+    if (!validationReport?.data || !orgId) return;
+
+    setIsBackupProcessing(true);
+    toast({ title: "Iniciando Importação", description: "Gravando dados em nuvem..." });
+
+    try {
+      let totalCount = 0;
+      const collectionsToImport = Object.keys(validationReport.data);
+
+      for (const colName of collectionsToImport) {
+        const items = validationReport.data[colName];
+        if (!Array.isArray(items)) continue;
+
+        // Processamento em lotes de 400 para garantir atomicidade e performance
+        for (let i = 0; i < items.length; i += 400) {
+          const batch = writeBatch(db);
+          const chunk = items.slice(i, i + 400);
+          
+          chunk.forEach((item: any) => {
+            const { id, ...data } = item;
+            if (!id) return;
+
+            const docRef = doc(db, 'organizations', orgId, colName, id);
+            
+            // Forçamos o organizationId para o usuário atual (clonagem)
+            batch.set(docRef, { 
+              ...data, 
+              organizationId: orgId, 
+              updatedAt: serverTimestamp() 
+            }, { merge: true });
+            
+            totalCount++;
+          });
+          
+          await batch.commit();
+        }
+      }
+      
+      toast({ 
+        title: "Importação Concluída!", 
+        description: `${totalCount} registros foram sincronizados com sua organização.` 
+      });
+      setShowImportDialog(false);
+      setValidationReport(null);
+      if (importInputRef.current) importInputRef.current.value = '';
+      
+      // Pequeno delay para garantir que o Firestore cache atualize antes do refresh
+      setTimeout(() => router.refresh(), 500);
+    } catch (err: any) {
+      console.error(err);
+      toast({ title: "Falha na Importação", description: "Ocorreu um erro ao gravar no banco.", variant: "destructive" });
+    } finally {
+      setIsBackupProcessing(false);
+    }
   };
 
   const handleExportPDF = async () => {
@@ -320,7 +321,7 @@ export default function Home() {
       }
 
       const pdf = new jsPDF('p', 'mm', 'a4');
-      const itemsPerPage = 20; 
+      const itemsPerPage = 20; // LIMITE DE 20 LINHAS POR PÁGINA
       const totalPages = Math.ceil(displayRows.length / itemsPerPage);
       const factoryName = factories?.find(f => f.id === exportFactoryId)?.name || 'Fábrica';
       
@@ -370,14 +371,16 @@ export default function Home() {
           const finalPrice = netPrice * (1 + stRate);
           const qtyPerBox = Number(p.quantityPerBox) || 1;
 
-          const priceStyle = 'padding: 8px; text-align: right; font-family: Arial, sans-serif; font-size: 9pt;';
+          // TODAS AS FONTES EM ARIAL 9
+          const cellStyle = 'padding: 8px; font-family: Arial, sans-serif; font-size: 9pt;';
+          const priceStyle = `${cellStyle} text-align: right;`;
 
           return `
             <tr style="border-bottom: 1px solid #E0E0E0;">
-              <td style="padding: 8px; font-weight: bold; width: 60px; font-family: Arial, sans-serif; font-size: 9pt;">${p.code}</td>
-              <td style="padding: 8px; font-size: 9pt; font-family: Arial, sans-serif; text-transform: uppercase; max-width: 200px;">${p.description}</td>
-              <td style="padding: 8px; text-align: center; width: 30px; font-size: 9pt; font-family: Arial, sans-serif;">${p.unit}</td>
-              ${exportIncludeEan ? `<td style="padding: 8px; font-size: 9pt; font-family: Arial, sans-serif; color: #64748b;">${p.ean || '-'}</td>` : ''}
+              <td style="${cellStyle} font-weight: bold; width: 60px;">${p.code}</td>
+              <td style="${cellStyle} text-transform: uppercase; max-width: 200px;">${p.description}</td>
+              <td style="${cellStyle} text-align: center; width: 30px;">${p.unit}</td>
+              ${exportIncludeEan ? `<td style="${cellStyle} color: #64748b;">${p.ean || '-'}</td>` : ''}
               ${exportIncludeNetUnit ? `<td style="${priceStyle}">${netPrice.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>` : ''}
               ${exportIncludeFinalUnit ? `<td style="${priceStyle} font-weight: bold; color: #4582A1;">${finalPrice.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>` : ''}
               ${exportIncludeNetBox ? `<td style="${priceStyle} color: #64748b;">${(netPrice * qtyPerBox).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>` : ''}
@@ -387,19 +390,19 @@ export default function Home() {
         }).join('');
 
         container.innerHTML = `
-          <div style="display: flex; flex-direction: column; height: 100%;">
+          <div style="display: flex; flex-direction: column; height: 100%; font-family: Arial, sans-serif;">
             <div style="border-bottom: 3px solid #4582A1; padding-bottom: 10px; margin-bottom: 20px; display: flex; justify-content: space-between; align-items: flex-end;">
               <div>
-                <h1 style="margin: 0; color: #4582A1; font-size: 24px; font-weight: 900; font-family: Arial, sans-serif;">TABELA DE PREÇOS</h1>
-                <p style="margin: 5px 0 0 0; color: #64748b; font-family: Arial, sans-serif; font-size: 14px; font-weight: bold;">${factoryName} - ${exportLineFilter}</p>
+                <h1 style="margin: 0; color: #4582A1; font-size: 20px; font-weight: 900;">TABELA DE PREÇOS</h1>
+                <p style="margin: 5px 0 0 0; color: #64748b; font-size: 12px; font-weight: bold;">${factoryName} - ${exportLineFilter}</p>
               </div>
-              <div style="text-align: right; font-family: Arial, sans-serif;">
-                <p style="margin: 0; font-weight: bold; font-size: 12px; color: #4582A1; text-transform: uppercase;">${orgId}</p>
-                <p style="margin: 2px 0 0 0; font-size: 9pt; color: #94a3b8;">Página ${page + 1} de ${totalPages}</p>
+              <div style="text-align: right;">
+                <p style="margin: 0; font-weight: bold; font-size: 10px; color: #4582A1; text-transform: uppercase;">${orgId}</p>
+                <p style="margin: 2px 0 0 0; font-size: 8pt; color: #94a3b8;">Página ${page + 1} de ${totalPages}</p>
               </div>
             </div>
             <div style="flex-grow: 1;">
-              <table style="width: 100%; border-collapse: collapse; font-family: Arial, sans-serif;">
+              <table style="width: 100%; border-collapse: collapse;">
                 <thead style="background-color: #F0F3F4;">
                   <tr>
                     <th style="padding: 10px 8px; text-align: left; font-size: 9pt; font-weight: 900;">CÓD</th>
@@ -417,9 +420,9 @@ export default function Home() {
                 </tbody>
               </table>
             </div>
-            <div style="margin-top: auto; border-top: 1px solid #eee; padding-top: 10px; display: flex; justify-content: space-between; align-items: center;">
-              <p style="font-size: 9pt; color: #94a3b8; font-family: Arial, sans-serif; margin: 0;">Gerado em: ${format(new Date(), "dd/MM/yyyy HH:mm")}. Preços sujeitos a alteração.</p>
-              <p style="font-size: 9pt; font-weight: normal; color: #cbd5e1; font-family: Arial, sans-serif; margin: 0; text-transform: uppercase;">COD: ${footerCode}</p>
+            <div style="margin-top: auto; border-top: 1px solid #eee; padding-top: 10px; display: flex; justify-content: space-between; align-items: center; min-height: 10mm;">
+              <p style="font-size: 8pt; color: #94a3b8; margin: 0;">Gerado em: ${format(new Date(), "dd/MM/yyyy HH:mm")}. Preços sujeitos a alteração.</p>
+              <p style="font-size: 8pt; font-weight: normal; color: #cbd5e1; margin: 0; text-transform: uppercase;">COD: ${footerCode}</p>
             </div>
           </div>
         `;
@@ -485,7 +488,7 @@ export default function Home() {
 
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6">
           <Link href="/orders/new">
-            <Card className="h-full border-none shadow-md hover:shadow-xl transition-all hover:-translate-y-1 bg-primary text-white cursor-pointer">
+            <Card className="h-full border-none shadow-md hover:shadow-xl transition-all hover:-translate-y-1 bg-primary text-white cursor-pointer overflow-hidden">
               <CardHeader>
                 <div className="w-12 h-12 bg-white/20 rounded-xl flex items-center justify-center mb-4">
                   <ShoppingCart size={24} />
@@ -497,7 +500,7 @@ export default function Home() {
           </Link>
 
           <Link href="/orders/grid">
-            <Card className="h-full border-none shadow-md hover:shadow-xl transition-all hover:-translate-y-1 bg-slate-800 text-white cursor-pointer">
+            <Card className="h-full border-none shadow-md hover:shadow-xl transition-all hover:-translate-y-1 bg-slate-800 text-white cursor-pointer overflow-hidden">
               <CardHeader>
                 <div className="w-12 h-12 bg-white/20 rounded-xl flex items-center justify-center mb-4">
                   <LayoutGrid size={24} />
@@ -509,7 +512,7 @@ export default function Home() {
           </Link>
 
           <Link href="/comparison">
-            <Card className="h-full border-none shadow-md hover:shadow-xl transition-all hover:-translate-y-1 bg-white cursor-pointer">
+            <Card className="h-full border-none shadow-md hover:shadow-xl transition-all hover:-translate-y-1 bg-white cursor-pointer overflow-hidden">
               <CardHeader>
                 <div className="w-12 h-12 bg-emerald-50 rounded-xl flex items-center justify-center text-emerald-600 mb-4">
                   <Diff size={24} />
@@ -521,7 +524,7 @@ export default function Home() {
           </Link>
 
           <div onClick={() => setShowExportConfigDialog(true)} className="cursor-pointer">
-            <Card className="h-full border-none shadow-md hover:shadow-xl transition-all hover:-translate-y-1 bg-white border-l-4 border-l-blue-500">
+            <Card className="h-full border-none shadow-md hover:shadow-xl transition-all hover:-translate-y-1 bg-white border-l-4 border-l-blue-500 overflow-hidden">
               <CardHeader>
                 <div className="w-12 h-12 bg-blue-50 rounded-xl flex items-center justify-center text-blue-600 mb-4">
                   <FileDown size={24} />
@@ -533,7 +536,7 @@ export default function Home() {
           </div>
 
           <Link href="/orders/history">
-            <Card className="h-full border-none shadow-md hover:shadow-xl transition-all hover:-translate-y-1 bg-white cursor-pointer">
+            <Card className="h-full border-none shadow-md hover:shadow-xl transition-all hover:-translate-y-1 bg-white cursor-pointer overflow-hidden">
               <CardHeader>
                 <div className="w-12 h-12 bg-purple-50 rounded-xl flex items-center justify-center text-purple-600 mb-4">
                   <History size={24} />
@@ -557,7 +560,7 @@ export default function Home() {
               <div className="text-left">
                 <div className="flex items-center gap-2">
                   <h3 className="text-xl font-black text-slate-800">Configurações do Sistema</h3>
-                  {!isConfigsUnlocked && <Lock size={16} className="text-muted-foreground" />}
+                  {(!isConfigsUnlocked && !isSuperAdmin) && <Lock size={16} className="text-muted-foreground" />}
                 </div>
                 <p className="text-sm text-muted-foreground">Gerencie cadastros, produtos e base de clientes.</p>
               </div>
@@ -568,7 +571,7 @@ export default function Home() {
           {showConfigs && (
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mt-6 animate-in fade-in slide-in-from-top-4 duration-300">
               <Link href="/upload">
-                <Card className="hover:border-primary transition-colors cursor-pointer h-full border-2 border-dashed bg-primary/5">
+                <Card className="hover:border-primary transition-colors cursor-pointer h-full border-2 border-dashed bg-primary/5 overflow-hidden">
                   <CardHeader>
                     <UploadCloud size={20} className="text-primary mb-2" />
                     <CardTitle className="text-lg">Importar Fábrica</CardTitle>
@@ -578,7 +581,7 @@ export default function Home() {
               </Link>
 
               <Link href="/catalog">
-                <Card className="hover:border-primary transition-colors cursor-pointer h-full">
+                <Card className="hover:border-primary transition-colors cursor-pointer h-full overflow-hidden">
                   <CardHeader>
                     <Package size={20} className="text-blue-500 mb-2" />
                     <CardTitle className="text-lg">Catálogo de Fábrica</CardTitle>
@@ -588,7 +591,7 @@ export default function Home() {
               </Link>
 
               <Link href="/admin/products">
-                <Card className="hover:border-primary transition-colors cursor-pointer h-full">
+                <Card className="hover:border-primary transition-colors cursor-pointer h-full overflow-hidden">
                   <CardHeader>
                     <ListChecks size={20} className="text-orange-500 mb-2" />
                     <CardTitle className="text-lg">Produtos Registrados</CardTitle>
@@ -598,7 +601,7 @@ export default function Home() {
               </Link>
 
               <Link href="/admin/pdf-groups">
-                <Card className="hover:border-primary transition-colors cursor-pointer h-full border-primary/20 bg-primary/5">
+                <Card className="hover:border-primary transition-colors cursor-pointer h-full border-primary/20 bg-primary/5 overflow-hidden">
                   <CardHeader>
                     <ListOrdered size={20} className="text-primary mb-2" />
                     <CardTitle className="text-lg">Grupos do PDF</CardTitle>
@@ -608,7 +611,7 @@ export default function Home() {
               </Link>
 
               <Link href="/admin/customers">
-                <Card className="hover:border-primary transition-colors cursor-pointer h-full">
+                <Card className="hover:border-primary transition-colors cursor-pointer h-full overflow-hidden">
                   <CardHeader>
                     <Users size={20} className="text-green-500 mb-2" />
                     <CardTitle className="text-lg">Base de Clientes</CardTitle>
@@ -618,7 +621,7 @@ export default function Home() {
               </Link>
 
               <Link href="/admin/products/margins">
-                <Card className="hover:border-primary transition-colors cursor-pointer h-full bg-accent/5">
+                <Card className="hover:border-primary transition-colors cursor-pointer h-full bg-accent/5 overflow-hidden">
                   <CardHeader>
                     <TrendingUp size={20} className="text-accent mb-2" />
                     <CardTitle className="text-lg">Ajustar Margens</CardTitle>
@@ -628,7 +631,7 @@ export default function Home() {
               </Link>
 
               <div onClick={handleExportBackup} className="cursor-pointer">
-                <Card className="hover:border-primary transition-colors h-full bg-slate-50 border-slate-200">
+                <Card className="hover:border-primary transition-colors h-full bg-slate-50 border-slate-200 overflow-hidden">
                   <CardHeader>
                     {isBackupProcessing ? <Loader2 className="animate-spin text-slate-400 mb-2" /> : <Download size={20} className="text-slate-600 mb-2" />}
                     <CardTitle className="text-lg">Exportar JSON</CardTitle>
@@ -638,16 +641,16 @@ export default function Home() {
               </div>
 
               <div onClick={() => importInputRef.current?.click()} className="cursor-pointer">
-                <Card className="hover:border-primary transition-colors h-full bg-slate-50 border-slate-200">
+                <Card className="hover:border-primary transition-colors h-full bg-slate-50 border-slate-200 overflow-hidden">
                   <CardHeader>
                     {isBackupProcessing ? <Loader2 className="animate-spin text-slate-400 mb-2" /> : <Upload size={20} className="text-slate-600 mb-2" />}
                     <CardTitle className="text-lg">Importar JSON</CardTitle>
-                    <CardDescription className="text-xs text-muted-foreground">Restaure os dados a partir de um arquivo JSON.</CardDescription>
+                    <CardDescription className="text-xs text-muted-foreground">Restaure ou clone dados a partir de um arquivo JSON.</CardDescription>
                   </CardHeader>
                   <input 
                     type="file" 
                     ref={importInputRef} 
-                    onChange={handleImportBackup} 
+                    onChange={handleFileSelect} 
                     accept=".json" 
                     className="hidden" 
                   />
@@ -657,6 +660,76 @@ export default function Home() {
           )}
         </div>
       </main>
+
+      {/* DIALOG DE IMPORTAÇÃO SEGURA */}
+      <Dialog open={showImportDialog} onOpenChange={setShowImportDialog}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <FileJson size={20} className="text-primary" /> Validação de Backup
+            </DialogTitle>
+            <DialogDescription>
+              Relatório de análise do arquivo antes da gravação no banco.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="py-4 space-y-4">
+            {!validationReport ? (
+              <div className="flex flex-col items-center justify-center py-10 gap-2">
+                <Loader2 className="animate-spin text-primary" />
+                <p className="text-xs font-bold uppercase text-muted-foreground">Analisando arquivo...</p>
+              </div>
+            ) : !validationReport.isValid ? (
+              <Alert variant="destructive">
+                <AlertTriangle size={16} />
+                <AlertTitle>Arquivo Inválido</AlertTitle>
+                <AlertDescription>{validationReport.message}</AlertDescription>
+              </Alert>
+            ) : (
+              <>
+                <div className="p-4 bg-emerald-50 border border-emerald-200 rounded-lg flex items-center gap-3">
+                  <CheckCircle2 size={24} className="text-emerald-600" />
+                  <div className="space-y-0.5">
+                    <p className="text-sm font-bold text-emerald-800">Arquivo Pronto!</p>
+                    <p className="text-[10px] text-emerald-700 uppercase font-black">Dados validados e compatíveis.</p>
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <Label className="text-[10px] font-black uppercase text-muted-foreground">Resumo do Conteúdo</Label>
+                  <div className="grid grid-cols-2 gap-2">
+                    {Object.entries(validationReport.stats).map(([key, count]) => (
+                      <div key={key} className="flex justify-between items-center p-2 bg-slate-50 border rounded text-[11px]">
+                        <span className="font-bold text-slate-600 uppercase">{key}</span>
+                        <Badge variant="secondary" className="font-black">{count}</Badge>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                <Alert className="bg-amber-50 border-amber-200">
+                  <AlertTriangle size={16} className="text-amber-600" />
+                  <AlertTitle className="text-amber-800 font-bold">Atenção!</AlertTitle>
+                  <AlertDescription className="text-amber-700 text-xs">
+                    Esta operação substituirá itens com o mesmo ID e vinculará tudo à organização <strong>{orgId}</strong>. Esta ação não pode ser desfeita.
+                  </AlertDescription>
+                </Alert>
+              </>
+            )}
+          </div>
+
+          <DialogFooter className="flex gap-2">
+            <Button variant="outline" className="flex-1" onClick={() => setShowImportDialog(false)}>Cancelar</Button>
+            <Button 
+              className="flex-1" 
+              onClick={executeImport} 
+              disabled={!validationReport?.isValid || isBackupProcessing}
+            >
+              {isBackupProcessing ? <Loader2 className="animate-spin" /> : 'Confirmar e Importar'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <Dialog open={showPasswordDialog} onOpenChange={setShowPasswordDialog}>
         <DialogContent className="max-w-sm">
